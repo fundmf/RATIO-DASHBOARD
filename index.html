@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Ratio Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 10px; font-size: 28px; color: #f1f5f9; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: 14px; }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #f1f5f9;
+        }
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        @media (min-width: 768px) {
+            .input-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        input[type="number"], input[type="date"] {
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+            width: 100%;
+        }
+        input:focus { outline: none; border-color: #3b82f6; }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 10px 0;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #ef4444;
+        }
+        .date-controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .date-control { display: flex; align-items: center; gap: 8px; }
+        .date-control label { font-size: 13px; color: #94a3b8; }
+        .chart-wrapper {
+            position: relative;
+            height: 500px;
+            width: 100%;
+        }
+        .footer { text-align: center; margin-top: 20px; color: #64748b; font-size: 12px; }
+        .price-display {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .price-item {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+        }
+        .price-item.live {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+        .price-item.stale {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        .info-badge {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 10px;
+        }
+        .info-badge.live {
+            background: #10b981;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .loading-overlay.hidden { display: none; }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { color: #94a3b8; font-size: 14px; }
+        .error-banner {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            color: #fca5a5;
+            font-size: 13px;
+            display: none;
+        }
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #10b981;
+            margin-left: 8px;
+        }
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .last-updated {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading dashboard data...</div>
+    </div>
+
+    <div class="container">
+        <h1>Price Ratio Dashboard <span class="info-badge" id="dataBadge">Loading...</span></h1>
+        <div class="subtitle" id="subtitleText">Fetching data...</div>
+
+        <div class="error-banner" id="errorBanner"></div>
+
+        <div class="card">
+            <div class="card-title">
+                Current Prices
+                <span class="live-indicator" id="liveIndicator" style="display:none">
+                    <span class="live-dot"></span> LIVE
+                </span>
+            </div>
+            <div class="price-display" id="priceDisplay">
+                <div class="price-item">BTC: Loading...</div>
+                <div class="price-item">ETH: Loading...</div>
+                <div class="price-item">MSTR: Loading...</div>
+                <div class="price-item">BMNR: Loading...</div>
+            </div>
+            <div class="last-updated" id="lastUpdated"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="keyLevelsTitle">Key Price Levels (Min/Max from selected date range)</div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label id="btcHighLabel">BTC HIGH</label>
+                    <input type="number" id="btcHigh" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="btcLowLabel">BTC LOW</label>
+                    <input type="number" id="btcLow" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="mstrHighLabel">MSTR HIGH</label>
+                    <input type="number" id="mstrHigh" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="mstrLowLabel">MSTR LOW</label>
+                    <input type="number" id="mstrLow" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="ethHighLabel">ETH HIGH</label>
+                    <input type="number" id="ethHigh" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="ethLowLabel">ETH LOW</label>
+                    <input type="number" id="ethLow" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="bmnrHighLabel">BMNR HIGH</label>
+                    <input type="number" id="bmnrHigh" value="0" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label id="bmnrLowLabel">BMNR LOW</label>
+                    <input type="number" id="bmnrLow" value="0" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <label class="checkbox-group">
+                <input type="checkbox" id="showRefLine" onchange="updateCharts()">
+                <span>Show 1.0 reference line (red)</span>
+            </label>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Graph 1: BTC & MSTR Ratios <span class="info-badge">Red dots = Max/Min points</span></div>
+            <div class="date-controls">
+                <div class="date-control">
+                    <label>From:</label>
+                    <input type="date" id="chart1Start" value="2025-08-01">
+                </div>
+                <div class="date-control">
+                    <label>To:</label>
+                    <input type="date" id="chart1End" value="">
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart1"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Graph 2: ETH & BMNR Ratios <span class="info-badge">Red dots = Max/Min points</span></div>
+            <div class="date-controls">
+                <div class="date-control">
+                    <label>From:</label>
+                    <input type="date" id="chart2Start" value="2025-08-01">
+                </div>
+                <div class="date-control">
+                    <label>To:</label>
+                    <input type="date" id="chart2End" value="">
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart2"></canvas>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Historical data from 2021. Live crypto prices via CoinGecko. Stock prices via Yahoo Finance (15-min delay). Red dots mark highest HIGH and lowest LOW ratios in the viewed range.</p>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let liveData = {};
+        let dataDateMax = '';
+
+        // ─── Utility ────────────────────────────────────────────────────────────
+        function fmt(n, d=2) {
+            if (n == null || isNaN(n)) return 'N/A';
+            return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+        }
+
+        function todayStr() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorBanner');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        // ─── Data loading ────────────────────────────────────────────────────────
+        async function loadHistoricalData() {
+            // Try fetching data.json from same directory
+            // When hosted on GitHub Pages this will be the repo root
+            const response = await fetch('data.json?t=' + Date.now());
+            if (!response.ok) throw new Error('Failed to load data.json (HTTP ' + response.status + ')');
+            const data = await response.json();
+            if (!Array.isArray(data) || data.length === 0) throw new Error('data.json is empty or malformed');
+            return data;
+        }
+
+        async function fetchLivePrices() {
+            const prices = {};
+
+            // ── Crypto: CoinGecko free API (no key needed) ───────────────────────
+            try {
+                const cgRes = await fetch(
+                    'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_high=true&include_24hr_low=true',
+                    { signal: AbortSignal.timeout(8000) }
+                );
+                if (cgRes.ok) {
+                    const cg = await cgRes.json();
+                    if (cg.bitcoin) {
+                        prices.btc = cg.bitcoin.usd;
+                        prices.btc_high = cg.bitcoin.usd_24h_high;
+                        prices.btc_low = cg.bitcoin.usd_24h_low;
+                    }
+                    if (cg.ethereum) {
+                        prices.eth = cg.ethereum.usd;
+                        prices.eth_high = cg.ethereum.usd_24h_high;
+                        prices.eth_low = cg.ethereum.usd_24h_low;
+                    }
+                    prices.cryptoLive = true;
+                }
+            } catch(e) {
+                console.warn('CoinGecko fetch failed:', e.message);
+            }
+
+            // ── Stocks: Yahoo Finance via allorigins CORS proxy ──────────────────
+            // Yahoo Finance v8 chart endpoint returns OHLC + current price
+            for (const [ticker, key] of [['MSTR', 'mstr'], ['BMNR', 'bmnr']]) {
+                try {
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+                    if (res.ok) {
+                        const json = await res.json();
+                        const result = json?.chart?.result?.[0];
+                        if (result) {
+                            const meta = result.meta;
+                            const quote = result.indicators?.quote?.[0];
+                            const lastIdx = (result.timestamp?.length || 1) - 1;
+                            prices[key] = meta.regularMarketPrice || meta.previousClose;
+                            if (quote) {
+                                prices[key + '_high'] = quote.high?.[lastIdx];
+                                prices[key + '_low'] = quote.low?.[lastIdx];
+                            }
+                            prices[key + 'Live'] = true;
+                        }
+                    }
+                } catch(e) {
+                    console.warn(`Yahoo fetch for ${ticker} failed:`, e.message);
+                }
+            }
+
+            return prices;
+        }
+
+        // ─── Build "today" synthetic data point from live prices ─────────────────
+        function buildLiveDataPoint(live, date) {
+            if (!live.btc && !live.eth) return null;
+            return {
+                date: date,
+                btc: live.btc || null,
+                btc_high_price: live.btc_high || live.btc || null,
+                btc_low_price: live.btc_low || live.btc || null,
+                eth: live.eth || null,
+                eth_high_price: live.eth_high || live.eth || null,
+                eth_low_price: live.eth_low || live.eth || null,
+                mstr: live.mstr || null,
+                mstr_high_price: live.mstr_high || live.mstr || null,
+                mstr_low_price: live.mstr_low || live.mstr || null,
+                bmnr: live.bmnr || null,
+                bmnr_high_price: live.bmnr_high || live.bmnr || null,
+                bmnr_low_price: live.bmnr_low || live.bmnr || null,
+                isLive: true
+            };
+        }
+
+        // ─── Update current prices card ──────────────────────────────────────────
+        function updatePriceCard(live, historical) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Brisbane' });
+            const dateStr = now.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Brisbane' });
+
+            // Use live if available, fall back to most recent historical
+            const last = historical[historical.length - 1];
+            const btcPrice = live.btc || last.btc;
+            const ethPrice = live.eth || last.eth;
+            const mstrPrice = live.mstr || last.mstr;
+            const bmnrPrice = live.bmnr || last.bmnr;
+
+            const btcLive = !!live.btc;
+            const ethLive = !!live.eth;
+            const mstrLive = !!live.mstr;
+            const bmnrLive = !!live.bmnr;
+
+            document.getElementById('priceDisplay').innerHTML = `
+                <div class="price-item ${btcLive ? 'live' : 'stale'}">BTC: $${fmt(btcPrice)}${btcLive ? ' ●' : ' (prev close)'}</div>
+                <div class="price-item ${ethLive ? 'live' : 'stale'}">ETH: $${fmt(ethPrice)}${ethLive ? ' ●' : ' (prev close)'}</div>
+                <div class="price-item ${mstrLive ? 'live' : 'stale'}">MSTR: $${fmt(mstrPrice)}${mstrLive ? ' ●' : ' (prev close)'}</div>
+                <div class="price-item ${bmnrLive ? 'live' : 'stale'}">BMNR: $${fmt(bmnrPrice)}${bmnrLive ? ' ●' : ' (prev close)'}</div>
+            `;
+
+            if (btcLive || ethLive) {
+                document.getElementById('liveIndicator').style.display = 'inline-flex';
+            }
+
+            document.getElementById('lastUpdated').textContent =
+                `Prices as of ${timeStr} AEST, ${dateStr}. Green ● = live price. Yellow = last market close.`;
+        }
+
+        // ─── Set date input min/max and defaults ─────────────────────────────────
+        function configureDateInputs(data) {
+            const minDate = data[0].date;
+            const maxDate = data[data.length - 1].date;
+
+            ['chart1Start', 'chart1End', 'chart2Start', 'chart2End'].forEach(id => {
+                const el = document.getElementById(id);
+                el.min = minDate;
+                el.max = maxDate;
+            });
+
+            // Set end dates to today's data
+            document.getElementById('chart1End').value = maxDate;
+            document.getElementById('chart2End').value = maxDate;
+
+            // Default start = Aug 1 2025 or data start if later
+            const defaultStart = '2025-08-01' >= minDate ? '2025-08-01' : minDate;
+            document.getElementById('chart1Start').value = defaultStart;
+            document.getElementById('chart2Start').value = defaultStart;
+        }
+
+        // ─── Auto-calculate key price levels from selected range ─────────────────
+        function autoSetKeyLevels() {
+            const c1s = document.getElementById('chart1Start').value;
+            const c1e = document.getElementById('chart1End').value;
+            const c2s = document.getElementById('chart2Start').value;
+            const c2e = document.getElementById('chart2End').value;
+
+            // Chart 1 range for BTC & MSTR
+            const c1data = rawData.filter(d => d.date >= c1s && d.date <= c1e);
+            const c2data = rawData.filter(d => d.date >= c2s && d.date <= c2e);
+
+            // BTC
+            const btcHighs = c1data.filter(d => d.btc_high_price).map(d => d.btc_high_price);
+            const btcLows = c1data.filter(d => d.btc_low_price).map(d => d.btc_low_price);
+            const btcMax = btcHighs.length ? Math.max(...btcHighs) : 0;
+            const btcMin = btcLows.length ? Math.min(...btcLows) : 0;
+
+            // MSTR
+            const mstrHighs = c1data.filter(d => d.mstr_high_price).map(d => d.mstr_high_price);
+            const mstrLows = c1data.filter(d => d.mstr_low_price).map(d => d.mstr_low_price);
+            const mstrMax = mstrHighs.length ? Math.max(...mstrHighs) : 0;
+            const mstrMin = mstrLows.length ? Math.min(...mstrLows) : 0;
+
+            // ETH
+            const ethHighs = c2data.filter(d => d.eth_high_price).map(d => d.eth_high_price);
+            const ethLows = c2data.filter(d => d.eth_low_price).map(d => d.eth_low_price);
+            const ethMax = ethHighs.length ? Math.max(...ethHighs) : 0;
+            const ethMin = ethLows.length ? Math.min(...ethLows) : 0;
+
+            // BMNR
+            const bmnrHighs = c2data.filter(d => d.bmnr_high_price).map(d => d.bmnr_high_price);
+            const bmnrLows = c2data.filter(d => d.bmnr_low_price).map(d => d.bmnr_low_price);
+            const bmnrMax = bmnrHighs.length ? Math.max(...bmnrHighs) : 0;
+            const bmnrMin = bmnrLows.length ? Math.min(...bmnrLows) : 0;
+
+            // Update inputs and labels
+            document.getElementById('btcHigh').value = btcMax.toFixed(2);
+            document.getElementById('btcLow').value = btcMin.toFixed(2);
+            document.getElementById('mstrHigh').value = mstrMax.toFixed(2);
+            document.getElementById('mstrLow').value = mstrMin.toFixed(2);
+            document.getElementById('ethHigh').value = ethMax.toFixed(2);
+            document.getElementById('ethLow').value = ethMin.toFixed(2);
+            document.getElementById('bmnrHigh').value = bmnrMax.toFixed(2);
+            document.getElementById('bmnrLow').value = bmnrMin.toFixed(2);
+
+            document.getElementById('btcHighLabel').textContent  = `BTC HIGH (Max: $${fmt(btcMax)})`;
+            document.getElementById('btcLowLabel').textContent   = `BTC LOW (Min: $${fmt(btcMin)})`;
+            document.getElementById('mstrHighLabel').textContent = `MSTR HIGH (Max: $${fmt(mstrMax)})`;
+            document.getElementById('mstrLowLabel').textContent  = `MSTR LOW (Min: $${fmt(mstrMin)})`;
+            document.getElementById('ethHighLabel').textContent  = `ETH HIGH (Max: $${fmt(ethMax)})`;
+            document.getElementById('ethLowLabel').textContent   = `ETH LOW (Min: $${fmt(ethMin)})`;
+            document.getElementById('bmnrHighLabel').textContent = `BMNR HIGH (Max: $${fmt(bmnrMax)})`;
+            document.getElementById('bmnrLowLabel').textContent  = `BMNR LOW (Min: $${fmt(bmnrMin)})`;
+
+            // Update section title
+            const startLabel = c1s || c2s;
+            const endLabel = c1e || c2e;
+            document.getElementById('keyLevelsTitle').textContent =
+                `Key Price Levels (Min/Max from ${startLabel} to ${endLabel})`;
+        }
+
+        // ─── Charts ──────────────────────────────────────────────────────────────
+        function updateCharts() {
+            autoSetKeyLevels();
+
+            const inputs = {
+                btcHigh:  parseFloat(document.getElementById('btcHigh').value)  || 0,
+                btcLow:   parseFloat(document.getElementById('btcLow').value)   || 0,
+                mstrHigh: parseFloat(document.getElementById('mstrHigh').value) || 0,
+                mstrLow:  parseFloat(document.getElementById('mstrLow').value)  || 0,
+                ethHigh:  parseFloat(document.getElementById('ethHigh').value)  || 0,
+                ethLow:   parseFloat(document.getElementById('ethLow').value)   || 0,
+                bmnrHigh: parseFloat(document.getElementById('bmnrHigh').value) || 0,
+                bmnrLow:  parseFloat(document.getElementById('bmnrLow').value)  || 0,
+            };
+
+            const showRefLine = document.getElementById('showRefLine').checked;
+            const c1s = document.getElementById('chart1Start').value;
+            const c1e = document.getElementById('chart1End').value;
+            const c2s = document.getElementById('chart2Start').value;
+            const c2e = document.getElementById('chart2End').value;
+
+            renderChart('chart1', prepareData(rawData, inputs, c1s, c1e, 'chart1'), showRefLine, true);
+            renderChart('chart2', prepareData(rawData, inputs, c2s, c2e, 'chart2'), showRefLine, false);
+        }
+
+        function prepareData(data, inputs, startDate, endDate, chartType) {
+            return data
+                .filter(d => d.date >= startDate && d.date <= endDate)
+                .map(d => {
+                    const r = {
+                        date: d.date,
+                        btc: d.btc, btc_high_price: d.btc_high_price, btc_low_price: d.btc_low_price,
+                        eth: d.eth, eth_high_price: d.eth_high_price, eth_low_price: d.eth_low_price,
+                        mstr: d.mstr, mstr_high_price: d.mstr_high_price, mstr_low_price: d.mstr_low_price,
+                        bmnr: d.bmnr, bmnr_high_price: d.bmnr_high_price, bmnr_low_price: d.bmnr_low_price,
+                        isLive: d.isLive || false
+                    };
+                    if (chartType === 'chart1') {
+                        if (d.btc)  { r['BTC HIGH'] = inputs.btcHigh / d.btc;   r['BTC LOW'] = inputs.btcLow / d.btc; }
+                        if (d.mstr) { r['MSTR HIGH'] = inputs.mstrHigh / d.mstr; r['MSTR LOW'] = inputs.mstrLow / d.mstr; }
+                    } else {
+                        if (d.eth)  { r['ETH HIGH'] = inputs.ethHigh / d.eth;   r['ETH LOW'] = inputs.ethLow / d.eth; }
+                        if (d.bmnr) { r['BMNR HIGH'] = inputs.bmnrHigh / d.bmnr; r['BMNR LOW'] = inputs.bmnrLow / d.bmnr; }
+                    }
+                    return r;
+                });
+        }
+
+        function findExtremePoints(data, keys) {
+            const points = {};
+            keys.forEach(key => {
+                let extremeVal = key.includes('HIGH') ? -Infinity : Infinity;
+                let extremeIdx = -1;
+                let extremePrice = 0;
+                data.forEach((d, idx) => {
+                    const val = d[key];
+                    if (val != null) {
+                        const better = key.includes('HIGH') ? val > extremeVal : val < extremeVal;
+                        if (better) { extremeVal = val; extremeIdx = idx; extremePrice = d.btc || d.eth || 0; }
+                    }
+                });
+                if (extremeIdx >= 0) points[key] = { idx: extremeIdx, value: extremeVal, price: extremePrice, date: data[extremeIdx].date };
+            });
+            return points;
+        }
+
+        const labelPlugin = {
+            id: 'labelPlugin',
+            afterDatasetsDraw(chart, args, options) {
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.font = '11px sans-serif';
+                ctx.fillStyle = '#ef4444';
+                ctx.textAlign = 'center';
+                chart.data.datasets.forEach((dataset, i) => {
+                    if (!dataset.label || dataset.pointRadius !== 6) return;
+                    const isHigh = dataset.label.includes('HIGH');
+                    const isLow  = dataset.label.includes('LOW');
+                    if (!isHigh && !isLow) return;
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach((point, index) => {
+                        if (dataset.data[index] == null) return;
+                        const price = options.prices[i] || 0;
+                        if (price > 0) {
+                            ctx.textBaseline = isHigh ? 'bottom' : 'top';
+                            const offset = isHigh ? -8 : 8;
+                            ctx.fillText('$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 }), point.x, point.y + offset);
+                        }
+                    });
+                });
+                ctx.restore();
+            }
+        };
+        Chart.register(labelPlugin);
+
+        function renderChart(canvasId, data, showRefLine, isChart1) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (window[canvasId]?.destroy) window[canvasId].destroy();
+
+            const extremeKeys = isChart1
+                ? ['BTC HIGH', 'BTC LOW', 'MSTR HIGH', 'MSTR LOW']
+                : ['ETH HIGH', 'ETH LOW', 'BMNR HIGH', 'BMNR LOW'];
+            const extremePoints = findExtremePoints(data, extremeKeys);
+            const datasets = [];
+            const labelPrices = {};
+
+            function addLine(label, key, color) {
+                datasets.push({
+                    label, data: data.map(d => d[key]),
+                    borderColor: color, backgroundColor: color,
+                    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.4, spanGaps: true
+                });
+                const ep = extremePoints[key];
+                if (ep) {
+                    const pts = new Array(data.length).fill(null);
+                    pts[ep.idx] = ep.value;
+                    const dotLabel = key.includes('HIGH') ? key + ' MAX' : key + ' MIN';
+                    datasets.push({
+                        label: dotLabel, data: pts,
+                        borderColor: '#ef4444', backgroundColor: '#ef4444',
+                        borderWidth: 0, pointRadius: 6, pointHoverRadius: 8, showLine: false
+                    });
+                    labelPrices[datasets.length - 1] = ep.price;
+                }
+            }
+
+            if (isChart1) {
+                addLine('BTC HIGH', 'BTC HIGH', '#f59e0b');
+                addLine('BTC LOW',  'BTC LOW',  '#f97316');
+                addLine('MSTR HIGH','MSTR HIGH', '#3b82f6');
+                addLine('MSTR LOW', 'MSTR LOW',  '#06b6d4');
+            } else {
+                addLine('ETH HIGH',  'ETH HIGH',  '#8b5cf6');
+                addLine('ETH LOW',   'ETH LOW',   '#a78bfa');
+                addLine('BMNR HIGH', 'BMNR HIGH', '#10b981');
+                addLine('BMNR LOW',  'BMNR LOW',  '#34d399');
+            }
+
+            if (showRefLine) {
+                datasets.push({
+                    label: 'Baseline (1.0)', data: data.map(() => 1.0),
+                    borderColor: '#ef4444', borderWidth: 2,
+                    borderDash: [5, 5], pointRadius: 0, fill: false
+                });
+            }
+
+            // Point background colors — highlight live data point
+            const liveIdx = data.findIndex(d => d.isLive);
+
+            window[canvasId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => {
+                        const date = new Date(d.date + 'T00:00:00');
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    }),
+                    datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e2e8f0', padding: 20,
+                                filter: item => !item.text.includes('MAX') && !item.text.includes('MIN')
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b', titleColor: '#f1f5f9',
+                            bodyColor: '#e2e8f0', borderColor: '#334155', borderWidth: 1, padding: 12,
+                            callbacks: {
+                                title: ctx => {
+                                    const d = data[ctx[0].dataIndex];
+                                    return d.date + (d.isLive ? ' (LIVE)' : '');
+                                },
+                                afterTitle: ctx => {
+                                    const d = data[ctx[0].dataIndex];
+                                    return isChart1
+                                        ? 'BTC: $' + fmt(d.btc)
+                                        : 'ETH: $' + fmt(d.eth);
+                                },
+                                label: ctx => {
+                                    if (ctx.dataset.label?.includes('MAX') || ctx.dataset.label?.includes('MIN')) return null;
+                                    return ctx.dataset.label + ': ' + (ctx.parsed.y ? ctx.parsed.y.toFixed(4) : 'N/A');
+                                }
+                            }
+                        },
+                        labelPlugin: { prices: labelPrices }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 12 } },
+                        y: {
+                            grid: { color: '#334155' }, ticks: { color: '#94a3b8' },
+                            title: { display: true, text: 'Ratio (Target / Market Price)', color: '#64748b' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ─── Boot ─────────────────────────────────────────────────────────────────
+        async function init() {
+            const overlay = document.getElementById('loadingOverlay');
+            try {
+                // 1. Load historical data
+                rawData = await loadHistoricalData();
+
+                const firstDate = rawData[0].date;
+                const lastHistDate = rawData[rawData.length - 1].date;
+
+                // 2. Fetch live prices (non-blocking — if it fails, charts still load)
+                let live = {};
+                try {
+                    live = await fetchLivePrices();
+                } catch(e) {
+                    console.warn('Live price fetch failed:', e.message);
+                }
+
+                // 3. Append a live "today" data point if we have prices and today isn't already in the data
+                const today = todayStr();
+                if ((live.btc || live.eth) && lastHistDate < today) {
+                    const livePoint = buildLiveDataPoint(live, today);
+                    if (livePoint) rawData = [...rawData, livePoint];
+                } else if ((live.btc || live.eth) && lastHistDate === today) {
+                    // Update the last entry with live prices if it exists for today
+                    rawData[rawData.length - 1] = {
+                        ...rawData[rawData.length - 1],
+                        btc: live.btc || rawData[rawData.length - 1].btc,
+                        eth: live.eth || rawData[rawData.length - 1].eth,
+                        mstr: live.mstr || rawData[rawData.length - 1].mstr,
+                        bmnr: live.bmnr || rawData[rawData.length - 1].bmnr,
+                        isLive: true
+                    };
+                }
+
+                dataDateMax = rawData[rawData.length - 1].date;
+
+                // 4. Update UI
+                const totalDays = rawData.length;
+                document.getElementById('dataBadge').textContent = `${firstDate} — ${dataDateMax} (${totalDays} days)`;
+                document.getElementById('dataBadge').className = 'info-badge live';
+                document.getElementById('subtitleText').textContent =
+                    `Data loaded: ${firstDate} to ${dataDateMax} (${totalDays} trading days)`;
+
+                updatePriceCard(live, rawData);
+                configureDateInputs(rawData);
+
+                // Wire up change listeners
+                ['btcHigh','btcLow','mstrHigh','mstrLow','ethHigh','ethLow','bmnrHigh','bmnrLow'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', () => {
+                        const c1s = document.getElementById('chart1Start').value;
+                        const c1e = document.getElementById('chart1End').value;
+                        const c2s = document.getElementById('chart2Start').value;
+                        const c2e = document.getElementById('chart2End').value;
+                        const inputs = {
+                            btcHigh:  parseFloat(document.getElementById('btcHigh').value)  || 0,
+                            btcLow:   parseFloat(document.getElementById('btcLow').value)   || 0,
+                            mstrHigh: parseFloat(document.getElementById('mstrHigh').value) || 0,
+                            mstrLow:  parseFloat(document.getElementById('mstrLow').value)  || 0,
+                            ethHigh:  parseFloat(document.getElementById('ethHigh').value)  || 0,
+                            ethLow:   parseFloat(document.getElementById('ethLow').value)   || 0,
+                            bmnrHigh: parseFloat(document.getElementById('bmnrHigh').value) || 0,
+                            bmnrLow:  parseFloat(document.getElementById('bmnrLow').value)  || 0,
+                        };
+                        const showRefLine = document.getElementById('showRefLine').checked;
+                        renderChart('chart1', prepareData(rawData, inputs, c1s, c1e, 'chart1'), showRefLine, true);
+                        renderChart('chart2', prepareData(rawData, inputs, c2s, c2e, 'chart2'), showRefLine, false);
+                    });
+                });
+                ['chart1Start','chart1End','chart2Start','chart2End'].forEach(id => {
+                    document.getElementById(id).addEventListener('change', updateCharts);
+                });
+
+                updateCharts();
+
+            } catch(err) {
+                showError('⚠ Failed to load dashboard data: ' + err.message + '. Make sure data.json is in the same folder as index.html.');
+                document.getElementById('dataBadge').textContent = 'Error';
+                console.error(err);
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
