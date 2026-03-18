@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Ratio Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
+
+        /* ── Tab Navigation ── */
+        .tab-nav { background: #1e293b; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 200; display: flex; padding: 0 20px; }
+        .tab-btn { background: none; border: none; border-bottom: 3px solid transparent; color: #64748b; padding: 16px 22px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .tab-btn:hover { color: #cbd5e1; }
+        .tab-btn.active { color: #f1f5f9; border-bottom-color: #3b82f6; }
+        .tab-content { display: none; padding: 20px; }
+        .tab-content.active { display: block; }
+
+        /* ── Shared ── */
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 10px; font-size: 28px; color: #f1f5f9; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: 14px; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #f1f5f9; }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 12px; font-weight: 500; color: #94a3b8; text-transform: uppercase; }
+        input[type="number"], input[type="date"] { padding: 10px 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #e2e8f0; font-size: 14px; width: 100%; }
+        input:focus { outline: none; border-color: #3b82f6; }
+        .input-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+        @media (min-width: 768px) { .input-grid { grid-template-columns: repeat(4,1fr); } }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 0; }
+        input[type="checkbox"] { width: 18px; height: 18px; accent-color: #ef4444; }
+        .date-controls { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+        .date-control { display: flex; align-items: center; gap: 8px; }
+        .date-control label { font-size: 13px; color: #94a3b8; }
+        .chart-wrapper { position: relative; height: 500px; width: 100%; }
+        .footer { text-align: center; margin-top: 20px; color: #64748b; font-size: 12px; padding: 0 20px 20px; }
+        .price-display { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px; font-size: 14px; }
+        .price-item { background: rgba(59,130,246,0.1); padding: 8px 12px; border-radius: 6px; border-left: 3px solid #3b82f6; }
+        .price-item.live { border-left-color: #10b981; background: rgba(16,185,129,0.1); }
+        .price-item.stale { border-left-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        .info-badge { display: inline-block; background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px; }
+        .info-badge.live { background: #10b981; }
+        .live-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #10b981; margin-left: 8px; }
+        .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite; }
+        .last-updated { font-size: 11px; color: #475569; margin-top: 8px; }
+        .error-banner { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; color: #fca5a5; font-size: 13px; display: none; }
+        .loading-overlay { position: fixed; top:0;left:0;right:0;bottom:0; background:#0f172a; display:flex; align-items:center; justify-content:center; z-index:1000; flex-direction:column; gap:16px; }
+        .loading-overlay.hidden { display: none; }
+        .spinner { width:48px;height:48px;border:4px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite; }
+        .loading-text { color:#94a3b8;font-size:14px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+        /* ── Geopolitics ── */
+        .geo-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .geo-split { grid-template-columns: 1fr; } }
+        .alert-banner { padding: 9px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .alert-banner.triggered-up { background: rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; }
+        .alert-banner.triggered-down { background: rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; }
+        .alert-banner.normal { background: rgba(100,116,139,0.1); border:1px solid #475569; color:#94a3b8; }
+        .alert-banner.loading { background: rgba(59,130,246,0.08); border:1px solid #334155; color:#64748b; }
+        .mini-chart-wrap { position: relative; height: 180px; }
+        .price-stat { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+        .price-change { font-size: 13px; margin-left: 8px; }
+        .price-change.up { color: #10b981; }
+        .price-change.down { color: #ef4444; }
+        .asset-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; margin-bottom: 8px; }
+        .market-status { font-size: 11px; color: #475569; margin-top: 6px; }
+        .odds-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+        @media (max-width: 900px) { .odds-grid { grid-template-columns: 1fr; } }
+        .odds-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+        .odds-category { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .odds-question { font-size: 13px; color: #cbd5e1; line-height: 1.4; margin-bottom: 14px; min-height: 38px; }
+        .odds-prob { font-size: 42px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+        .odds-bar { height: 6px; background: #1e293b; border-radius: 3px; margin: 8px 0; overflow: hidden; }
+        .odds-bar-fill { height: 100%; border-radius: 3px; }
+        .odds-outcomes { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+        .odds-volume { font-size: 11px; color: #475569; margin-top: 8px; }
+        .odds-link { font-size: 11px; color: #3b82f6; text-decoration: none; margin-top: 6px; display: inline-block; }
+        .odds-link:hover { color: #60a5fa; }
+        .fng-row { display: flex; align-items: center; gap: 28px; margin-bottom: 16px; flex-wrap: wrap; }
+        .fng-value { font-size: 52px; font-weight: 800; }
+        .fng-label { font-size: 18px; font-weight: 600; }
+        .fng-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+        .fng-chart-wrap { position: relative; height: 220px; }
+        .vix-chart-wrap { position: relative; height: 250px; }
+
+        /* ── FARTCOIN ── */
+        .fart-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .fart-stat-grid { grid-template-columns: repeat(2,1fr); } }
+        .stat-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; text-align: center; }
+        .stat-value { font-size: 30px; font-weight: 700; color: #f1f5f9; }
+        .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+        .fart-chart-wrap { position: relative; height: 500px; }
+        .data-notice { background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; color: #fbbf24; font-size: 13px; line-height: 1.6; }
+        .legend-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
+        .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
+        .event-row { display: grid; grid-template-columns: 140px 1fr 80px 90px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+        .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
+        .event-row:hover { background: rgba(255,255,255,0.02); }
+        .crash-confirmed { color: #ef4444; font-weight: 600; }
+        .crash-none { color: #64748b; }
+        .run-btn { background: #3b82f6; color: white; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
+        .run-btn:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Loading dashboard...</div>
+</div>
+
+<nav class="tab-nav">
+    <button class="tab-btn active" data-tab="ratio">Ratio Analysis</button>
+    <button class="tab-btn" data-tab="geo">Geopolitics</button>
+    <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
+</nav>
+
+<!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
+<div id="tab-ratio" class="tab-content active">
+<div class="container">
+    <h1>Price Ratio Dashboard <span class="info-badge live" id="dataBadge">Loading...</span></h1>
+    <div class="subtitle" id="subtitleText">Fetching data...</div>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="card">
+        <div class="card-title">Current Prices <span class="live-indicator" id="liveIndicator" style="display:none"><span class="live-dot"></span> LIVE</span></div>
+        <div class="price-display" id="priceDisplay">
+            <div class="price-item">BTC: Loading...</div><div class="price-item">ETH: Loading...</div>
+            <div class="price-item">MSTR: Loading...</div><div class="price-item">BMNR: Loading...</div>
+        </div>
+        <div class="last-updated" id="lastUpdated"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title" id="keyLevelsTitle">Key Price Levels (Min/Max from selected date range)</div>
+        <div class="input-grid">
+            <div class="input-group"><label id="btcHighLabel">BTC HIGH</label><input type="number" id="btcHigh" value="0" step="0.01"></div>
+            <div class="input-group"><label id="btcLowLabel">BTC LOW</label><input type="number" id="btcLow" value="0" step="0.01"></div>
+            <div class="input-group"><label id="mstrHighLabel">MSTR HIGH</label><input type="number" id="mstrHigh" value="0" step="0.01"></div>
+            <div class="input-group"><label id="mstrLowLabel">MSTR LOW</label><input type="number" id="mstrLow" value="0" step="0.01"></div>
+            <div class="input-group"><label id="ethHighLabel">ETH HIGH</label><input type="number" id="ethHigh" value="0" step="0.01"></div>
+            <div class="input-group"><label id="ethLowLabel">ETH LOW</label><input type="number" id="ethLow" value="0" step="0.01"></div>
+            <div class="input-group"><label id="bmnrHighLabel">BMNR HIGH</label><input type="number" id="bmnrHigh" value="0" step="0.01"></div>
+            <div class="input-group"><label id="bmnrLowLabel">BMNR LOW</label><input type="number" id="bmnrLow" value="0" step="0.01"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <label class="checkbox-group"><input type="checkbox" id="showRefLine" onchange="updateCharts()"><span>Show 1.0 reference line (red)</span></label>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Graph 1: BTC &amp; MSTR Ratios <span class="info-badge">Red dots = Max/Min points</span></div>
+        <div class="date-controls">
+            <div class="date-control"><label>From:</label><input type="date" id="chart1Start" value="2025-08-01"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="chart1End" value=""></div>
+        </div>
+        <div class="chart-wrapper"><canvas id="chart1"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Graph 2: ETH &amp; BMNR Ratios <span class="info-badge">Red dots = Max/Min points</span></div>
+        <div class="date-controls">
+            <div class="date-control"><label>From:</label><input type="date" id="chart2Start" value="2025-08-01"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="chart2End" value=""></div>
+        </div>
+        <div class="chart-wrapper"><canvas id="chart2"></canvas></div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB 2: GEOPOLITICS ══════════════════════════ -->
+<div id="tab-geo" class="tab-content">
+<div class="container">
+    <h1>Geopolitics</h1>
+    <div class="subtitle">Live market signals, prediction markets &amp; sentiment indicators</div>
+
+    <div class="card">
+        <div class="card-title">Market Alerts <span class="info-badge">~15 min delayed</span></div>
+        <div class="geo-split">
+            <div>
+                <div class="asset-label">🛢 Crude Oil (WTI)</div>
+                <div id="oil-alert" class="alert-banner loading">⏳ Loading...</div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+                    <span class="price-stat" id="oil-price">—</span>
+                    <span class="price-change" id="oil-change"></span>
+                </div>
+                <div class="mini-chart-wrap"><canvas id="oilChart"></canvas></div>
+                <div class="market-status" id="oil-status"></div>
+            </div>
+            <div>
+                <div class="asset-label">📈 Nasdaq 100 (QQQ)</div>
+                <div id="qqq-alert" class="alert-banner loading">⏳ Loading...</div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+                    <span class="price-stat" id="qqq-price">—</span>
+                    <span class="price-change" id="qqq-change"></span>
+                </div>
+                <div class="mini-chart-wrap"><canvas id="qqqChart"></canvas></div>
+                <div class="market-status" id="qqq-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Prediction Market Odds <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
+        <div class="odds-grid" id="oddsGrid">
+            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
+            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
+            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Crypto Fear &amp; Greed Index <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">Last 14 days</span></div>
+        <div class="fng-row">
+            <div>
+                <div class="fng-value" id="fngValue">—</div>
+                <div class="fng-label" id="fngLabel">Loading...</div>
+                <div class="fng-sub" id="fngDate"></div>
+            </div>
+            <div style="flex:1;max-width:220px;">
+                <div style="height:12px;background:#1e293b;border-radius:6px;overflow:hidden;">
+                    <div id="fngBar" style="height:100%;border-radius:6px;width:0%;transition:width 0.5s;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-top:4px;">
+                    <span>Extreme Fear</span><span>Extreme Greed</span>
+                </div>
+            </div>
+        </div>
+        <div class="fng-chart-wrap"><canvas id="fngChart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">VIX Volatility Index <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">Past 2 weeks</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:16px;">
+            <span class="price-stat" id="vixValue">—</span>
+            <span class="price-change" id="vixChange"></span>
+            <span style="font-size:12px;color:#64748b;margin-left:8px;">— dashed line at 20 = elevated fear</span>
+        </div>
+        <div class="vix-chart-wrap"><canvas id="vixChart"></canvas></div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB 3: FARTCOIN ══════════════════════════ -->
+<div id="tab-fart" class="tab-content">
+<div class="container">
+    <h1>FARTCOIN Analysis</h1>
+    <div class="subtitle">BTC divergence detection — events where BTC drops but FARTCOIN holds positive</div>
+
+    <div class="data-notice" id="fartNotice" style="display:none"></div>
+
+    <div class="card">
+        <div class="card-title">Analysis Parameters</div>
+        <div class="date-controls" style="flex-wrap:wrap;gap:16px;">
+            <div class="date-control"><label>From:</label><input type="date" id="fartStart" value="2025-08-01"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="fartEnd" value=""></div>
+            <div class="date-control">
+                <label>BTC drop threshold:</label>
+                <input type="number" id="btcDropThreshold" value="1.5" step="0.1" min="0.5" max="10" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% over 24hr</span>
+            </div>
+            <div class="date-control">
+                <label>FARTCOIN crash threshold:</label>
+                <input type="number" id="fartCrashThreshold" value="5" step="0.5" min="1" max="50" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% within 72hrs</span>
+            </div>
+            <button class="run-btn" onclick="runFartAnalysis()">▶ Run Analysis</button>
+        </div>
+        <div class="legend-row" style="margin-top:16px;">
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.6);"></div>Divergence (BTC ↓ 24hr, FARTCOIN still ↑) — crash followed</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.5);"></div>Confirmed crash window (≥ threshold within 72hrs)</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);"></div>Divergence — no crash followed</div>
+        </div>
+    </div>
+
+    <div class="fart-stat-grid">
+        <div class="stat-card"><div class="stat-value" id="statDivergences">—</div><div class="stat-label">Divergence Events</div></div>
+        <div class="stat-card"><div class="stat-value" id="statCrashes">—</div><div class="stat-label">Confirmed Crashes</div></div>
+        <div class="stat-card"><div class="stat-value" id="statHitRate">—</div><div class="stat-label">Crash Hit Rate</div></div>
+        <div class="stat-card"><div class="stat-value" id="statAvgCrash">—</div><div class="stat-label">Avg Crash Size</div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">FARTCOIN vs BTC — Hourly Chart with Divergence &amp; Crash Events</div>
+        <div class="fart-chart-wrap"><canvas id="fartChart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">All Detected Events</div>
+        <div id="fartEventsList" style="overflow-x:auto;">
+            <div style="color:#64748b;font-size:13px;">Run analysis to see events.</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div class="footer">
+    <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via alternative.me</p>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// UTILITIES
+// ──────────────────────────────────────────────
+function fmt(n,d=2){if(n==null||isNaN(n))return'N/A';return n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function showError(msg){const el=document.getElementById('errorBanner');el.textContent=msg;el.style.display='block';}
+const CORS_PROXIES=[
+    url=>'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    url=>'https://corsproxy.io/?'+encodeURIComponent(url),
+    url=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),
+];
+function proxyUrl(url){return CORS_PROXIES[0](url);}
+async function safeFetch(url,timeout=10000){
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),timeout);
+    try{const r=await fetch(url,{signal:ctrl.signal});clearTimeout(timer);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
+    catch(e){clearTimeout(timer);throw e;}
+}
+async function safeFetchWithProxy(rawUrl,timeout=10000){
+    for(let i=0;i<CORS_PROXIES.length;i++){
+        try{return await safeFetch(CORS_PROXIES[i](rawUrl),timeout);}
+        catch(e){console.warn(`Proxy ${i} failed for ${rawUrl}:`,e.message);if(i===CORS_PROXIES.length-1)throw e;}
+    }
+}
+
+// ──────────────────────────────────────────────
+// TAB SWITCHING
+// ──────────────────────────────────────────────
+const tabInit={ratio:false,geo:false,fart:false};
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        btn.classList.add('active');
+        const id=btn.dataset.tab;
+        document.getElementById('tab-'+id).classList.add('active');
+        if(id==='geo'&&!tabInit.geo){tabInit.geo=true;initGeopolitics();}
+        if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
+    });
+});
+
+// ──────────────────────────────────────────────
+// TAB 1 — RATIO ANALYSIS
+// ──────────────────────────────────────────────
+let rawData=[];
+
+async function loadHistoricalData(){
+    const r=await fetch('data.json?t='+Date.now());
+    if(!r.ok)throw new Error('Failed to load data.json');
+    const d=await r.json();
+    if(!Array.isArray(d)||!d.length)throw new Error('data.json empty');
+    return d;
+}
+
+async function fetchLivePrices(){
+    const p={};
+    try{
+        const cg=await safeFetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_high=true&include_24hr_low=true');
+        if(cg.bitcoin){p.btc=cg.bitcoin.usd;p.btc_high=cg.bitcoin.usd_24h_high;p.btc_low=cg.bitcoin.usd_24h_low;p.cryptoLive=true;}
+        if(cg.ethereum){p.eth=cg.ethereum.usd;p.eth_high=cg.ethereum.usd_24h_high;p.eth_low=cg.ethereum.usd_24h_low;}
+    }catch(e){console.warn('CoinGecko:',e.message);}
+    for(const[ticker,key]of[['MSTR','mstr'],['BMNR','bmnr']]){
+        try{
+            const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
+            const json=await safeFetchWithProxy(url);
+            const res=json?.chart?.result?.[0];
+            if(res){
+                const meta=res.meta,q=res.indicators?.quote?.[0],li=(res.timestamp?.length||1)-1;
+                p[key]=meta.regularMarketPrice||meta.previousClose;
+                if(q){p[key+'_high']=q.high?.[li];p[key+'_low']=q.low?.[li];}
+                p[key+'Live']=true;
+            }
+        }catch(e){console.warn('Yahoo',ticker,e.message);}
+    }
+    return p;
+}
+
+function buildLiveDataPoint(live,date){
+    if(!live.btc&&!live.eth)return null;
+    return{date,isLive:true,btc:live.btc||null,btc_high_price:live.btc_high||live.btc||null,btc_low_price:live.btc_low||live.btc||null,eth:live.eth||null,eth_high_price:live.eth_high||live.eth||null,eth_low_price:live.eth_low||live.eth||null,mstr:live.mstr||null,mstr_high_price:live.mstr_high||live.mstr||null,mstr_low_price:live.mstr_low||live.mstr||null,bmnr:live.bmnr||null,bmnr_high_price:live.bmnr_high||live.bmnr||null,bmnr_low_price:live.bmnr_low||live.bmnr||null};
+}
+
+function updatePriceCard(live,historical){
+    const now=new Date();
+    const ts=now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',timeZone:'Australia/Brisbane'});
+    const ds=now.toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric',timeZone:'Australia/Brisbane'});
+    const last=historical[historical.length-1];
+    document.getElementById('priceDisplay').innerHTML=[['BTC',live.btc||last.btc,!!live.btc],['ETH',live.eth||last.eth,!!live.eth],['MSTR',live.mstr||last.mstr,!!live.mstr],['BMNR',live.bmnr||last.bmnr,!!live.bmnr]].map(([n,p,l])=>`<div class="price-item ${l?'live':'stale'}">${n}: $${fmt(p)}${l?' ●':' (prev close)'}</div>`).join('');
+    if(live.btc||live.eth)document.getElementById('liveIndicator').style.display='inline-flex';
+    document.getElementById('lastUpdated').textContent=`Prices as of ${ts} AEST, ${ds}. ● = live.`;
+}
+
+function configureDateInputs(data){
+    const minD=data[0].date,maxD=data[data.length-1].date;
+    ['chart1Start','chart1End','chart2Start','chart2End'].forEach(id=>{const el=document.getElementById(id);el.min=minD;el.max=maxD;});
+    document.getElementById('chart1End').value=maxD;document.getElementById('chart2End').value=maxD;
+    const def='2025-08-01'>=minD?'2025-08-01':minD;
+    document.getElementById('chart1Start').value=def;document.getElementById('chart2Start').value=def;
+}
+
+function autoSetKeyLevels(){
+    const c1s=document.getElementById('chart1Start').value,c1e=document.getElementById('chart1End').value;
+    const c2s=document.getElementById('chart2Start').value,c2e=document.getElementById('chart2End').value;
+    const c1=rawData.filter(d=>d.date>=c1s&&d.date<=c1e),c2=rawData.filter(d=>d.date>=c2s&&d.date<=c2e);
+    const get=(arr,key)=>arr.filter(d=>d[key]).map(d=>d[key]);
+    const mx=a=>a.length?Math.max(...a):0,mn=a=>a.length?Math.min(...a):0;
+    const bH=mx(get(c1,'btc_high_price')),bL=mn(get(c1,'btc_low_price'));
+    const mH=mx(get(c1,'mstr_high_price')),mL=mn(get(c1,'mstr_low_price'));
+    const eH=mx(get(c2,'eth_high_price')),eL=mn(get(c2,'eth_low_price'));
+    const bnH=mx(get(c2,'bmnr_high_price')),bnL=mn(get(c2,'bmnr_low_price'));
+    [['btcHigh',bH,'BTC HIGH'],['btcLow',bL,'BTC LOW'],['mstrHigh',mH,'MSTR HIGH'],['mstrLow',mL,'MSTR LOW'],
+     ['ethHigh',eH,'ETH HIGH'],['ethLow',eL,'ETH LOW'],['bmnrHigh',bnH,'BMNR HIGH'],['bmnrLow',bnL,'BMNR LOW']].forEach(([id,val,lbl])=>{
+        document.getElementById(id).value=val.toFixed(2);
+        const parts=lbl.split(' ');
+        const suffix=parts[1]==='HIGH'?`(Max: $${fmt(val)})`:`(Min: $${fmt(val)})`;
+        document.getElementById(id+'Label').textContent=`${lbl} ${suffix}`;
+    });
+    document.getElementById('keyLevelsTitle').textContent=`Key Price Levels (Min/Max from ${c1s} to ${c1e})`;
+}
+
+function updateCharts(){
+    autoSetKeyLevels();
+    const inp={btcHigh:parseFloat(document.getElementById('btcHigh').value)||0,btcLow:parseFloat(document.getElementById('btcLow').value)||0,mstrHigh:parseFloat(document.getElementById('mstrHigh').value)||0,mstrLow:parseFloat(document.getElementById('mstrLow').value)||0,ethHigh:parseFloat(document.getElementById('ethHigh').value)||0,ethLow:parseFloat(document.getElementById('ethLow').value)||0,bmnrHigh:parseFloat(document.getElementById('bmnrHigh').value)||0,bmnrLow:parseFloat(document.getElementById('bmnrLow').value)||0};
+    const show=document.getElementById('showRefLine').checked;
+    renderChart('chart1',prepareData(rawData,inp,document.getElementById('chart1Start').value,document.getElementById('chart1End').value,'chart1'),show,true);
+    renderChart('chart2',prepareData(rawData,inp,document.getElementById('chart2Start').value,document.getElementById('chart2End').value,'chart2'),show,false);
+}
+
+function prepareData(data,inputs,s,e,type){
+    return data.filter(d=>d.date>=s&&d.date<=e).map(d=>{
+        const r={date:d.date,btc:d.btc,btc_high_price:d.btc_high_price,btc_low_price:d.btc_low_price,eth:d.eth,eth_high_price:d.eth_high_price,eth_low_price:d.eth_low_price,mstr:d.mstr,mstr_high_price:d.mstr_high_price,mstr_low_price:d.mstr_low_price,bmnr:d.bmnr,bmnr_high_price:d.bmnr_high_price,bmnr_low_price:d.bmnr_low_price,isLive:d.isLive||false};
+        if(type==='chart1'){if(d.btc){r['BTC HIGH']=inputs.btcHigh/d.btc;r['BTC LOW']=inputs.btcLow/d.btc;}if(d.mstr){r['MSTR HIGH']=inputs.mstrHigh/d.mstr;r['MSTR LOW']=inputs.mstrLow/d.mstr;}}
+        else{if(d.eth){r['ETH HIGH']=inputs.ethHigh/d.eth;r['ETH LOW']=inputs.ethLow/d.eth;}if(d.bmnr){r['BMNR HIGH']=inputs.bmnrHigh/d.bmnr;r['BMNR LOW']=inputs.bmnrLow/d.bmnr;}}
+        return r;
+    });
+}
+
+function findExtremePoints(data,keys){
+    const pts={};
+    keys.forEach(key=>{
+        let eV=key.includes('HIGH')?-Infinity:Infinity,eI=-1,eP=0;
+        data.forEach((d,i)=>{const v=d[key];if(v!=null){const b=key.includes('HIGH')?v>eV:v<eV;if(b){eV=v;eI=i;eP=(key.startsWith('BTC')||key.startsWith('MSTR'))?d.btc||0:d.eth||0;}}});
+        if(eI>=0)pts[key]={idx:eI,value:eV,price:eP,date:data[eI].date};
+    });
+    return pts;
+}
+
+const labelPlugin={id:'labelPlugin',afterDatasetsDraw(chart,args,options){
+    const ctx=chart.ctx;ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#ef4444';ctx.textAlign='center';
+    chart.data.datasets.forEach((ds,i)=>{
+        if(!ds.label||ds.pointRadius!==6)return;
+        const isH=ds.label.includes('HIGH'),isL=ds.label.includes('LOW');
+        if(!isH&&!isL)return;
+        const meta=chart.getDatasetMeta(i);
+        meta.data.forEach((pt,idx)=>{
+            if(ds.data[idx]==null)return;
+            const price=options.prices[i]||0;
+            if(price>0){ctx.textBaseline=isH?'bottom':'top';ctx.fillText('$'+price.toLocaleString('en-US',{maximumFractionDigits:0}),pt.x,pt.y+(isH?-8:8));}
+        });
+    });
+    ctx.restore();
+}};
+Chart.register(labelPlugin);
+
+function renderChart(canvasId,data,showRefLine,isChart1){
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    if(window[canvasId]?.destroy)window[canvasId].destroy();
+    const ek=isChart1?['BTC HIGH','BTC LOW','MSTR HIGH','MSTR LOW']:['ETH HIGH','ETH LOW','BMNR HIGH','BMNR LOW'];
+    const ep=findExtremePoints(data,ek);
+    const datasets=[],lp={};
+    function addLine(label,key,color){
+        datasets.push({label,data:data.map(d=>d[key]),borderColor:color,backgroundColor:color,borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.4,spanGaps:true});
+        const e=ep[key];
+        if(e){const pts=new Array(data.length).fill(null);pts[e.idx]=e.value;datasets.push({label:key+(key.includes('HIGH')?' MAX':' MIN'),data:pts,borderColor:'#ef4444',backgroundColor:'#ef4444',borderWidth:0,pointRadius:6,pointHoverRadius:8,showLine:false});lp[datasets.length-1]=e.price;}
+    }
+    if(isChart1){addLine('BTC HIGH','BTC HIGH','#f59e0b');addLine('BTC LOW','BTC LOW','#f97316');addLine('MSTR HIGH','MSTR HIGH','#3b82f6');addLine('MSTR LOW','MSTR LOW','#06b6d4');}
+    else{addLine('ETH HIGH','ETH HIGH','#8b5cf6');addLine('ETH LOW','ETH LOW','#a78bfa');addLine('BMNR HIGH','BMNR HIGH','#10b981');addLine('BMNR LOW','BMNR LOW','#34d399');}
+    if(showRefLine)datasets.push({label:'Baseline (1.0)',data:data.map(()=>1),borderColor:'#ef4444',borderWidth:2,borderDash:[5,5],pointRadius:0,fill:false});
+    window[canvasId]=new Chart(ctx,{type:'line',data:{labels:data.map(d=>{const dt=new Date(d.date+'T00:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});}),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>!item.text.includes('MAX')&&!item.text.includes('MIN')}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:12,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return d.date+(d.isLive?' (LIVE)':'');},afterTitle:ctx=>{const d=data[ctx[0].dataIndex];return isChart1?'BTC: $'+fmt(d.btc):'ETH: $'+fmt(d.eth);},label:ctx=>{if(ctx.dataset.label?.includes('MAX')||ctx.dataset.label?.includes('MIN'))return null;return ctx.dataset.label+': '+(ctx.parsed.y?ctx.parsed.y.toFixed(4):'N/A');}}},labelPlugin:{prices:lp}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:12}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio (Target / Market Price)',color:'#64748b'}}}}});
+}
+
+// ──────────────────────────────────────────────
+// TAB 2 — GEOPOLITICS
+// ──────────────────────────────────────────────
+async function initGeopolitics(){
+    fetchMarketAlert('CL%3DF','oil','WTI Crude Oil',3,3,'oilChart');
+    fetchMarketAlert('QQQ','qqq','Nasdaq 100',2,2,'qqqChart');
+    fetchPolymarketOdds();
+    fetchFearAndGreed();
+    fetchVIX();
+}
+
+async function fetchMarketAlert(ticker,prefix,name,thresholdPct,windowHours,canvasId){
+    const alertEl=document.getElementById(prefix+'-alert');
+    const priceEl=document.getElementById(prefix+'-price');
+    const changeEl=document.getElementById(prefix+'-change');
+    const statusEl=document.getElementById(prefix+'-status');
+    try{
+        const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=1d`;
+        const json=await safeFetchWithProxy(url,12000);
+        const result=json?.chart?.result?.[0];
+        if(!result)throw new Error('No data');
+        const meta=result.meta,ts=result.timestamp||[];
+        const q=result.indicators?.quote?.[0]||{};
+        const closes=q.close||[],highs=q.high||[],lows=q.low||[];
+        const nowTs=Date.now()/1000,wSec=windowHours*3600;
+        const recent=ts.map((t,i)=>({t,i})).filter(x=>x.t>=nowTs-wSec&&closes[x.i]!=null);
+        const cur=meta.regularMarketPrice||closes.filter(c=>c!=null).slice(-1)[0];
+        const prev=meta.chartPreviousClose||meta.previousClose;
+        const dayChg=prev?((cur-prev)/prev)*100:null;
+        priceEl.textContent='$'+fmt(cur);
+        if(dayChg!=null){changeEl.textContent=(dayChg>=0?'+':'')+dayChg.toFixed(2)+'% today';changeEl.className='price-change '+(dayChg>=0?'up':'down');}
+        statusEl.textContent=meta.marketState==='REGULAR'?'Market open':'Market closed — showing last session';
+        let triggered=false,up=false;
+        if(recent.length>=2){
+            const rc=recent.map(x=>closes[x.i]).filter(c=>c!=null);
+            const rh=Math.max(...recent.map(x=>highs[x.i]||closes[x.i]||0));
+            const rl=Math.min(...recent.map(x=>lows[x.i]||closes[x.i]||Infinity));
+            const move=Math.abs(rh-rl)/rl*100;
+            if(move>=thresholdPct){triggered=true;up=rc[rc.length-1]>rc[0];}
+        }
+        if(triggered){
+            alertEl.className='alert-banner '+(up?'triggered-up':'triggered-down');
+            alertEl.textContent=`🚨 ALERT: ${name} moved ${thresholdPct}%+ ${up?'▲ UP':'▼ DOWN'} in the last ${windowHours}hrs`;
+        }else{alertEl.className='alert-banner normal';alertEl.textContent=`✓ No significant move detected (< ${thresholdPct}% in ${windowHours}hrs)`;}
+        const chartWin=3*3600;
+        const chartData=ts.map((t,i)=>({t,c:closes[i]})).filter(x=>x.t>=nowTs-chartWin&&x.c!=null);
+        renderMiniChart(canvasId,chartData,triggered,up);
+    }catch(e){
+        console.warn('Market alert',prefix,e.message);
+        alertEl.className='alert-banner normal';alertEl.textContent='⚠ Could not load data';priceEl.textContent='Unavailable';
+    }
+}
+
+function renderMiniChart(canvasId,data,alerted,up){
+    if(window['_m_'+canvasId]?.destroy)window['_m_'+canvasId].destroy();
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    const color=!alerted?'#3b82f6':up?'#10b981':'#ef4444';
+    const labels=data.map(d=>{const dt=new Date(d.t*1000);return dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});});
+    window['_m_'+canvasId]=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:data.map(d=>d.c),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:8,callbacks:{label:ctx=>'$'+fmt(ctx.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{color:'#475569',maxTicksLimit:6,font:{size:10}}},y:{grid:{color:'#1e293b'},ticks:{color:'#475569',font:{size:10},callback:v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:0})}}}}});
+}
+
+const POLY_CONFIGS=[
+    {category:'Geopolitics',search:'Iran war ceasefire end 2026'},
+    {category:'Macro — BOJ',search:'Bank of Japan rate hike 2026'},
+    {category:'Macro — Fed',search:'Federal Reserve rate cut 2026 FOMC'},
+];
+
+async function fetchPolymarketOdds(){
+    const grid=document.getElementById('oddsGrid');
+    const cards=await Promise.all(POLY_CONFIGS.map(async cfg=>{
+        try{
+            const url=`https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=5&order=volume&ascending=false&search=${encodeURIComponent(cfg.search)}`;
+            const markets=await safeFetchWithProxy(url,10000);
+            if(!Array.isArray(markets)||!markets.length)throw new Error('No markets');
+            const m=markets.sort((a,b)=>parseFloat(b.volume||0)-parseFloat(a.volume||0))[0];
+            const prices=JSON.parse(m.outcomePrices||'[]');
+            const outcomes=JSON.parse(m.outcomes||'[]');
+            const yIdx=outcomes.findIndex(o=>o.toLowerCase()==='yes');
+            const prob=yIdx>=0?parseFloat(prices[yIdx]):parseFloat(prices[0]||0);
+            return{...cfg,question:m.question||m.title||'Unknown',prob:Math.round(prob*100),volume:parseFloat(m.volume||0),slug:m.slug,loaded:true};
+        }catch(e){console.warn('Polymarket',cfg.search,e.message);return{...cfg,loaded:false};}
+    }));
+    grid.innerHTML=cards.map(c=>{
+        if(!c.loaded)return`<div class="odds-card"><div class="odds-category">${c.category}</div><div class="odds-question" style="color:#475569;">Market unavailable — may not exist on Polymarket yet</div></div>`;
+        const p=c.prob;
+        const col=p>60?'#10b981':p>40?'#f59e0b':'#ef4444';
+        const vol=c.volume>1e6?'$'+fmt(c.volume/1e6,1)+'M vol':'$'+fmt(c.volume,0)+' vol';
+        return`<div class="odds-card">
+            <div class="odds-category">${c.category}</div>
+            <div class="odds-question">${c.question}</div>
+            <div class="odds-prob" style="color:${col}">${p}%</div>
+            <div class="odds-bar"><div class="odds-bar-fill" style="width:${p}%;background:${col};"></div></div>
+            <div class="odds-outcomes"><span>YES: ${p}%</span><span>NO: ${100-p}%</span></div>
+            <div class="odds-volume">${vol}</div>
+            ${c.slug?`<a class="odds-link" href="https://polymarket.com/market/${c.slug}" target="_blank">View on Polymarket →</a>`:''}
+        </div>`;
+    }).join('');
+}
+
+async function fetchFearAndGreed(){
+    try{
+        const data=await safeFetch('https://api.alternative.me/fng/?limit=14&format=json');
+        const entries=data.data||[];if(!entries.length)throw new Error('empty');
+        const latest=entries[0];
+        const val=parseInt(latest.value),lbl=latest.value_classification;
+        const color=val<=25?'#ef4444':val<=45?'#f97316':val<=55?'#f59e0b':val<=75?'#84cc16':'#10b981';
+        document.getElementById('fngValue').textContent=val;
+        document.getElementById('fngValue').style.color=color;
+        document.getElementById('fngLabel').textContent=lbl;
+        document.getElementById('fngDate').textContent='As of '+new Date(parseInt(latest.timestamp)*1000).toLocaleDateString('en-AU');
+        document.getElementById('fngBar').style.width=val+'%';
+        document.getElementById('fngBar').style.background=color;
+        const rev=[...entries].reverse();
+        const ctx=document.getElementById('fngChart').getContext('2d');
+        new Chart(ctx,{type:'line',data:{labels:rev.map(e=>new Date(parseInt(e.timestamp)*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets:[{data:rev.map(e=>parseInt(e.value)),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3,pointBackgroundColor:rev.map(e=>{const v=parseInt(e.value);return v<=25?'#ef4444':v<=45?'#f97316':v<=55?'#f59e0b':v<=75?'#84cc16':'#10b981';})}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},min:0,max:100,title:{display:true,text:'Fear & Greed (0=Fear, 100=Greed)',color:'#64748b'}}}}});
+    }catch(e){console.warn('F&G:',e.message);document.getElementById('fngLabel').textContent='Could not load';}
+}
+
+async function fetchVIX(){
+    try{
+        const json=await safeFetchWithProxy('https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=1mo',12000);
+        const result=json?.chart?.result?.[0];if(!result)throw new Error('no data');
+        const ts=result.timestamp||[],closes=result.indicators?.quote?.[0]?.close||[],meta=result.meta;
+        const cur=meta.regularMarketPrice;
+        const prev=closes.filter(c=>c!=null).slice(-2,-1)[0];
+        const chg=prev?((cur-prev)/prev)*100:null;
+        document.getElementById('vixValue').textContent=fmt(cur);
+        if(chg!=null){const el=document.getElementById('vixChange');el.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%';el.className='price-change '+(chg>=0?'up':'down');}
+        const cutoff=Date.now()/1000-14*86400;
+        const cd=ts.map((t,i)=>({t,c:closes[i]})).filter(x=>x.t>=cutoff&&x.c!=null);
+        const labels=cd.map(d=>new Date(d.t*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
+        const values=cd.map(d=>d.c);
+        const vColor=cur<20?'#10b981':cur<30?'#f59e0b':'#ef4444';
+        const ctx=document.getElementById('vixChart').getContext('2d');
+        new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'VIX',data:values,borderColor:vColor,backgroundColor:vColor+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3},{label:'Fear threshold (20)',data:values.map(()=>20),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e2e8f0',filter:item=>item.text==='Fear threshold (20)'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:ctx=>ctx.dataset.label==='Fear threshold (20)'?null:'VIX: '+fmt(ctx.parsed.y)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'VIX',color:'#64748b'}}}}});
+    }catch(e){console.warn('VIX:',e.message);document.getElementById('vixValue').textContent='Unavailable';}
+}
+
+// ──────────────────────────────────────────────
+// TAB 3 — FARTCOIN ANALYSIS
+// ──────────────────────────────────────────────
+let fartData=[];
+let fartChartInst=null;
+
+const zonePlugin={id:'zonePlugin',beforeDraw(chart,args,options){
+    const zones=options.zones;if(!zones||!zones.length)return;
+    const ctx=chart.ctx,xAxis=chart.scales.x,{top,bottom}=chart.chartArea;
+    ctx.save();
+    zones.forEach(z=>{
+        const x1=xAxis.getPixelForValue(z.start),x2=xAxis.getPixelForValue(z.end);
+        ctx.fillStyle=z.color;ctx.fillRect(x1,top,x2-x1,bottom-top);
+    });
+    ctx.restore();
+}};
+Chart.register(zonePlugin);
+
+async function initFartcoin(){
+    document.getElementById('fartEnd').value=todayStr();
+    try{
+        const r=await fetch('fartcoin_hourly.json?t='+Date.now());
+        if(r.ok){const j=await r.json();fartData=j.hours||[];}
+    }catch(e){fartData=[];}
+    const notice=document.getElementById('fartNotice');
+    if(fartData.length<24){
+        notice.style.display='block';
+        notice.innerHTML=`⚠ <strong>Hourly data collection started.</strong> Your GitHub Actions workflow will collect BTC &amp; FARTCOIN hourly data nightly. Currently <strong>${fartData.length}</strong> hourly data points available.<br>
+        To backfill the last 90 days immediately: run <code style="background:#1e293b;padding:2px 6px;border-radius:3px;">python backfill_fartcoin.py</code> locally, then upload the generated <code style="background:#1e293b;padding:2px 6px;border-radius:3px;">fartcoin_hourly.json</code> to your GitHub repo.<br><br>
+        Or click <strong>▶ Run Analysis</strong> to fetch the last 90 days of data live from CoinGecko (takes ~10 seconds).`;
+        document.getElementById('fartEventsList').innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No data yet. Click ▶ Run Analysis to fetch live data from CoinGecko, or run the backfill script.</div>';
+        return;
+    }
+    runFartAnalysis();
+}
+
+async function fetchFartcoinLive(){
+    const notice=document.getElementById('fartNotice');
+    notice.style.display='block';
+    notice.innerHTML='⏳ <strong>Fetching BTC &amp; FARTCOIN hourly data from CoinGecko...</strong> This may take ~10 seconds.';
+    try{
+        const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=90&interval=hourly');
+        const btcPrices={};
+        for(const[ts,price]of(btcResp.prices||[])){
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00:00Z');
+            btcPrices[key]=price;
+        }
+        // Small delay for rate limit
+        await new Promise(r=>setTimeout(r,2000));
+        const fartResp=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=90&interval=hourly');
+        const fartPrices={};
+        for(const[ts,price]of(fartResp.prices||[])){
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00:00Z');
+            fartPrices[key]=price;
+        }
+        const allTs=Object.keys(btcPrices).filter(t=>t in fartPrices).sort();
+        fartData=allTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,fart:Math.round(fartPrices[t]*1000000)/1000000}));
+        notice.innerHTML=`✅ <strong>Fetched ${fartData.length} hourly data points live from CoinGecko.</strong> To persist this data, run the backfill script and commit the JSON to your repo.`;
+        return true;
+    }catch(e){
+        notice.innerHTML=`❌ <strong>Failed to fetch live data:</strong> ${e.message}. Try running the backfill script locally instead.`;
+        return false;
+    }
+}
+
+async function runFartAnalysis(){
+    if(fartData.length<25){
+        const ok=await fetchFartcoinLive();
+        if(!ok||fartData.length<25){
+            document.getElementById('fartEventsList').innerHTML='<div style="color:#fbbf24;font-size:13px;padding:12px 0;">Not enough data to run analysis. Need at least 25 hourly data points.</div>';
+            return;
+        }
+    }
+    const startDate=document.getElementById('fartStart').value;
+    const endDate=document.getElementById('fartEnd').value;
+    const btcThr=parseFloat(document.getElementById('btcDropThreshold').value)/100;
+    const fartThr=parseFloat(document.getElementById('fartCrashThreshold').value)/100;
+    const filtered=fartData.filter(d=>d.t>=startDate&&d.t<=(endDate+'T23:59:59Z'));
+    if(filtered.length<25){document.getElementById('fartEventsList').innerHTML='<div style="color:#64748b;font-size:13px;">Not enough data in selected range.</div>';return;}
+
+    const LB=24,CW=72;
+    // Find divergence hours
+    const divHours=[];
+    for(let i=LB;i<filtered.length;i++){
+        const bn=filtered[i].btc,bp=filtered[i-LB].btc,fn=filtered[i].fart,fp=filtered[i-LB].fart;
+        if(!bn||!bp||!fn||!fp)continue;
+        if((bn-bp)/bp<=-btcThr&&(fn-fp)/fp>=0)divHours.push(i);
+    }
+    // Cluster (gap ≤ 3hrs)
+    const clusters=[];
+    if(divHours.length>0){
+        let cur=[divHours[0]];
+        for(let k=1;k<divHours.length;k++){
+            if(divHours[k]-divHours[k-1]<=3)cur.push(divHours[k]);
+            else{clusters.push([...cur]);cur=[divHours[k]];}
+        }
+        clusters.push(cur);
+    }
+    // Evaluate each cluster
+    const events=[];const used=new Set();
+    for(const cl of clusters){
+        const ds=cl[0],de=cl[cl.length-1];
+        if(cl.some(i=>used.has(i)))continue;
+        const peakF=Math.max(...cl.map(i=>filtered[i].fart));
+        let minF=peakF,ceIdx=de;
+        for(let j=de+1;j<Math.min(de+CW+1,filtered.length);j++){
+            if(filtered[j].fart!=null&&filtered[j].fart<minF){minF=filtered[j].fart;ceIdx=j;}
+        }
+        const crashPct=(peakF-minF)/peakF;
+        const confirmed=crashPct>=fartThr;
+        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,crashPct:crashPct*100,confirmed});
+        if(confirmed)cl.forEach(i=>used.add(i));
+    }
+    // Stats
+    const conf=events.filter(e=>e.confirmed);
+    const avgC=conf.length?conf.reduce((s,e)=>s+e.crashPct,0)/conf.length:0;
+    const hr=events.length?(conf.length/events.length*100):0;
+    document.getElementById('statDivergences').textContent=events.length;
+    document.getElementById('statCrashes').textContent=conf.length;
+    document.getElementById('statHitRate').textContent=hr.toFixed(0)+'%';
+    document.getElementById('statAvgCrash').textContent=avgC.toFixed(1)+'%';
+    renderFartChart(filtered,events);
+    renderFartTable(events,filtered);
+}
+
+function renderFartChart(data,events){
+    const ctx=document.getElementById('fartChart').getContext('2d');
+    if(fartChartInst?.destroy)fartChartInst.destroy();
+    const step=Math.max(1,Math.floor(data.length/24));
+    const labels=data.map((d,i)=>i%step===0?new Date(d.t).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+    const zones=[];
+    events.forEach(e=>{
+        zones.push({start:e.ds,end:e.de,color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)'});
+        if(e.confirmed)zones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
+    });
+    fartChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+}
+
+function renderFartTable(events,data){
+    const el=document.getElementById('fartEventsList');
+    if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>FART Crash</span><span>Result</span></div>`;
+    const rows=events.map(e=>{
+        const dur=e.de-e.ds;
+        const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+    }).join('');
+    el.innerHTML=header+rows;
+}
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+async function init(){
+    const overlay=document.getElementById('loadingOverlay');
+    try{
+        rawData=await loadHistoricalData();
+        let live={};
+        try{live=await fetchLivePrices();}catch(e){console.warn('Live:',e.message);}
+        const today=todayStr(),lastD=rawData[rawData.length-1].date;
+        if((live.btc||live.eth)&&lastD<today){const lp=buildLiveDataPoint(live,today);if(lp)rawData=[...rawData,lp];}
+        else if((live.btc||live.eth)&&lastD===today){rawData[rawData.length-1]={...rawData[rawData.length-1],btc:live.btc||rawData[rawData.length-1].btc,eth:live.eth||rawData[rawData.length-1].eth,mstr:live.mstr||rawData[rawData.length-1].mstr,bmnr:live.bmnr||rawData[rawData.length-1].bmnr,isLive:true};}
+        // Forward-fill MSTR/BMNR gaps (weekends/holidays) so chart lines stay continuous
+        for(let i=1;i<rawData.length;i++){
+            const prev=rawData[i-1],cur=rawData[i];
+            ['mstr','mstr_high_price','mstr_low_price','bmnr','bmnr_high_price','bmnr_low_price'].forEach(k=>{
+                if((cur[k]==null||cur[k]===undefined)&&prev[k]!=null)cur[k]=prev[k];
+            });
+        }
+        const maxD=rawData[rawData.length-1].date;
+        document.getElementById('dataBadge').textContent=`${rawData[0].date} — ${maxD} (${rawData.length} days)`;
+        document.getElementById('subtitleText').textContent=`Data loaded: ${rawData[0].date} to ${maxD} (${rawData.length} trading days)`;
+        updatePriceCard(live,rawData);
+        configureDateInputs(rawData);
+        ['btcHigh','btcLow','mstrHigh','mstrLow','ethHigh','ethLow','bmnrHigh','bmnrLow'].forEach(id=>{
+            document.getElementById(id).addEventListener('input',()=>{
+                const show=document.getElementById('showRefLine').checked;
+                const inp={btcHigh:parseFloat(document.getElementById('btcHigh').value)||0,btcLow:parseFloat(document.getElementById('btcLow').value)||0,mstrHigh:parseFloat(document.getElementById('mstrHigh').value)||0,mstrLow:parseFloat(document.getElementById('mstrLow').value)||0,ethHigh:parseFloat(document.getElementById('ethHigh').value)||0,ethLow:parseFloat(document.getElementById('ethLow').value)||0,bmnrHigh:parseFloat(document.getElementById('bmnrHigh').value)||0,bmnrLow:parseFloat(document.getElementById('bmnrLow').value)||0};
+                renderChart('chart1',prepareData(rawData,inp,document.getElementById('chart1Start').value,document.getElementById('chart1End').value,'chart1'),show,true);
+                renderChart('chart2',prepareData(rawData,inp,document.getElementById('chart2Start').value,document.getElementById('chart2End').value,'chart2'),show,false);
+            });
+        });
+        ['chart1Start','chart1End','chart2Start','chart2End'].forEach(id=>{document.getElementById(id).addEventListener('change',updateCharts);});
+        updateCharts();
+    }catch(err){showError('⚠ Failed to load: '+err.message);console.error(err);}
+    finally{overlay.classList.add('hidden');}
+}
+init();
+</script>
+</body>
+</html>
