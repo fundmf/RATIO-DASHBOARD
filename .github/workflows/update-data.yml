@@ -1,0 +1,38 @@
+name: Update Dashboard Data
+
+on:
+  schedule:
+    # Runs at 8:00 AM AEST (22:00 UTC previous day)
+    # This ensures US market close data (4pm ET) is fully settled before fetching
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch:
+    # Allows you to manually trigger from GitHub Actions tab anytime
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests yfinance pycoingecko
+
+      - name: Run data update script
+        run: python update_data.py
+
+      - name: Commit and push if data changed
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data.json fartcoin_hourly.json
+          git diff --staged --quiet || git commit -m "Auto-update: $(date -u '+%Y-%m-%d') data refresh"
+          git push
