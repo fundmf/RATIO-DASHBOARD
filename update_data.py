@@ -98,12 +98,25 @@ def fetch_yahoo_ohlc(ticker, start_str, end_str):
         # Add a day buffer to end for yfinance
         end_dt = (datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=2)).strftime("%Y-%m-%d")
         df = yf.download(ticker, start=start_str, end=end_dt, progress=False, auto_adjust=True)
+        if df.empty:
+            return result
+        # Flatten multi-level columns if present (yfinance >= 1.x)
+        if hasattr(df.columns, 'levels') and df.columns.nlevels > 1:
+            df.columns = df.columns.get_level_values(0)
         for idx, row in df.iterrows():
             d = idx.strftime("%Y-%m-%d")
+            c = row["Close"]
+            h = row["High"]
+            l = row["Low"]
+            # Handle Series/array values from multi-ticker returns
+            if hasattr(c, 'item'):
+                c, h, l = c.item(), h.item(), l.item()
+            elif hasattr(c, '__iter__') and not isinstance(c, str):
+                c, h, l = float(list(c)[0]), float(list(h)[0]), float(list(l)[0])
             result[d] = {
-                "close": round(float(row["Close"]), 4),
-                "high":  round(float(row["High"]),  4),
-                "low":   round(float(row["Low"]),   4),
+                "close": round(float(c), 4),
+                "high":  round(float(h), 4),
+                "low":   round(float(l), 4),
             }
     except Exception as e:
         print(f"  Yahoo Finance error for {ticker}: {e}")
@@ -204,6 +217,28 @@ def main():
         print(f"\n✓ Added {len(new_records)} new records. Total: {len(data)}")
     else:
         print("\n No new records to add.")
+
+    # Backfill missing MSTR/BMNR for existing weekday records
+    patched = 0
+    for rec in data:
+        d_str = rec["date"]
+        if not is_weekday(d_str):
+            continue
+        needs_mstr = "mstr" not in rec and d_str in mstr_data
+        needs_bmnr = "bmnr" not in rec and d_str in bmnr_data
+        if needs_mstr:
+            rec["mstr"]           = round(mstr_data[d_str]["close"], 2)
+            rec["mstr_high_price"] = round(mstr_data[d_str]["high"],  2)
+            rec["mstr_low_price"]  = round(mstr_data[d_str]["low"],   2)
+            patched += 1
+        if needs_bmnr:
+            rec["bmnr"]           = round(bmnr_data[d_str]["close"], 2)
+            rec["bmnr_high_price"] = round(bmnr_data[d_str]["high"],  2)
+            rec["bmnr_low_price"]  = round(bmnr_data[d_str]["low"],   2)
+            patched += 1
+    if patched:
+        save_data(data)
+        print(f"✓ Backfilled {patched} missing stock entries.")
 
 if __name__ == "__main__":
     main()

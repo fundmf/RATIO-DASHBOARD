@@ -91,7 +91,7 @@
         .legend-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
-        .event-row { display: grid; grid-template-columns: 140px 1fr 80px 100px 90px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+        .event-row { display: grid; grid-template-columns: 130px 1fr 75px 95px 90px 85px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -810,7 +810,8 @@ async function runFartAnalysis(){
         const crashPct=(peakF-minF)/peakF;
         const confirmed=crashPct>=fartThr;
         const timeToPeak=peakIdx-ds;
-        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,crashPct:crashPct*100,confirmed,timeToPeak});
+        const risePct=timeToPeak>0?(peakF-filtered[ds].fart)/filtered[ds].fart*100:0;
+        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,crashPct:crashPct*100,confirmed,timeToPeak,risePct});
         usedDays.add(day);
         if(confirmed)cl.forEach(i=>used.add(i));
     }
@@ -842,11 +843,12 @@ function renderFartChart(data,events){
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
