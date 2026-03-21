@@ -557,47 +557,37 @@ function getNext6Months(){
     return months;
 }
 
-async function fetchHikeOdds(searchPrefix,keywords,months){
+async function fetchHikeOddsViaEvents(slugPrefix,targetYear,months){
     const results=[];
     for(const m of months){
         let prob=null,vol=0,slug=null;
         try{
-            const searches=[`${searchPrefix} ${m.month}`,`${searchPrefix} ${m.month} ${m.year}`,`${searchPrefix} rate ${m.month}`];
-            for(const s of searches){
-                if(prob!==null)break;
-                const url=`https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=10&order=volume&ascending=false&search=${encodeURIComponent(s)}`;
-                const markets=await polyFetch(url,10000);
-                if(!Array.isArray(markets)||!markets.length)continue;
-                console.log(`[RateHike] "${s}" => ${markets.length} results`);
-                for(const mk of markets){
-                    const txt=((mk.question||'')+(mk.title||'')+(mk.description||'')).toLowerCase();
-                    if(!keywords.some(kw=>txt.includes(kw)))continue;
-                    if(!txt.includes(m.month))continue;
-                    console.log(`[RateHike] Match: ${mk.question||mk.title} | outcomes=${mk.outcomes} | prices=${mk.outcomePrices}`);
-                    const prices=JSON.parse(mk.outcomePrices||'[]');
-                    const outcomes=JSON.parse(mk.outcomes||'[]');
-                    // Check if it's a specific hike/increase Yes/No market
-                    if(txt.includes('increase')||txt.includes('hike')||txt.includes('raise')){
-                        const yIdx=outcomes.findIndex(o=>o.toLowerCase()==='yes');
-                        prob=Math.round((yIdx>=0?parseFloat(prices[yIdx]):parseFloat(prices[0]||0))*100);
-                        vol=parseFloat(mk.volume||0);slug=mk.slug;break;
-                    }
-                    // Otherwise it's a decision market — sum all non-"no change" non-"decrease" non-"cut" outcomes
+            const eventSlug=`${slugPrefix}-${m.month}`;
+            const url=`https://gamma-api.polymarket.com/events?slug=${eventSlug}`;
+            const events=await polyFetch(url,10000);
+            if(Array.isArray(events)&&events.length>0){
+                const ev=events[0];
+                const markets=ev.markets||[];
+                // Filter to current/future year markets only
+                const hikeMarkets=markets.filter(mk=>{
+                    const q=(mk.question||'').toLowerCase();
+                    return q.includes(String(targetYear))&&(q.includes('increase')||q.includes('hike')||q.includes('raise'));
+                });
+                if(hikeMarkets.length>0){
+                    // Sum all hike outcome probabilities (25bps + 50+bps etc)
                     let hikeProb=0;
-                    outcomes.forEach((o,i)=>{
-                        const ol=o.toLowerCase();
-                        if(ol==='no change'||ol.includes('decrease')||ol.includes('cut'))return;
-                        // Match any outcome with positive bps or "increase"/"hike"
-                        if(ol.includes('increase')||ol.includes('hike')||ol.includes('raise')||/\+?\d+\s*bp/.test(ol)||(ol.includes('bps')&&!ol.includes('-'))){
-                            hikeProb+=parseFloat(prices[i]||0);
-                        }
+                    hikeMarkets.forEach(mk=>{
+                        const prices=JSON.parse(mk.outcomePrices||'[]');
+                        hikeProb+=parseFloat(prices[0]||0);
                     });
-                    if(hikeProb>0){prob=Math.round(hikeProb*100);vol=parseFloat(mk.volume||0);slug=mk.slug;break;}
+                    prob=Math.round(hikeProb*100);
+                    slug=hikeMarkets[0].slug;
+                    vol=parseFloat(hikeMarkets[0].volume||0);
                 }
             }
         }catch(e){console.warn('Rate hike fetch',m.month,e.message);}
         results.push({label:m.label,prob,vol,slug});
-        await new Promise(r=>setTimeout(r,800));
+        await new Promise(r=>setTimeout(r,600));
     }
     return results;
 }
@@ -617,17 +607,18 @@ async function fetchRateHikeOdds(){
     const fedStatus=document.getElementById('fedHikeStatus');
     const bojStatus=document.getElementById('bojHikeStatus');
     // Fetch Fed data
+    const targetYear=months[0].year;
     fedStatus.textContent='⏳ Fetching Fed markets...';
-    const fedData=await fetchHikeOdds('Fed decision in',['fed','fomc','federal reserve'],months);
+    const fedData=await fetchHikeOddsViaEvents('fed-decision-in',targetYear,months);
     const fedLoaded=fedData.filter(d=>d.prob!==null).length;
     fedHikeChartInst=renderHikeChart('fedHikeChart',fedData,'#3b82f6',fedHikeChartInst);
-    fedStatus.textContent=fedLoaded?`${fedLoaded}/${months.length} months loaded · Data from Polymarket`:'No Fed hike markets found on Polymarket';
+    fedStatus.textContent=fedLoaded?`${fedLoaded}/${months.length} months with data · via Polymarket`:'No Fed hike markets found — FOMC may not meet these months';
     // Fetch BOJ data
     bojStatus.textContent='⏳ Fetching BOJ markets...';
-    const bojData=await fetchHikeOdds('Bank of Japan decision in',['japan','boj','bank of japan'],months);
+    const bojData=await fetchHikeOddsViaEvents('bank-of-japan-decision-in',targetYear,months);
     const bojLoaded=bojData.filter(d=>d.prob!==null).length;
     bojHikeChartInst=renderHikeChart('bojHikeChart',bojData,'#f59e0b',bojHikeChartInst);
-    bojStatus.textContent=bojLoaded?`${bojLoaded}/${months.length} months loaded · Data from Polymarket`:'No BOJ hike markets found on Polymarket';
+    bojStatus.textContent=bojLoaded?`${bojLoaded}/${months.length} months with data · via Polymarket`:'No BOJ hike markets found — BOJ may not meet these months';
 }
 
 async function fetchFearAndGreed(){
