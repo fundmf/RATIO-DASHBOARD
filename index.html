@@ -68,18 +68,11 @@
         .price-change.down { color: #ef4444; }
         .asset-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; margin-bottom: 8px; }
         .market-status { font-size: 11px; color: #475569; margin-top: 6px; }
-        .odds-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-        @media (max-width: 900px) { .odds-grid { grid-template-columns: 1fr; } }
-        .odds-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
-        .odds-category { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; margin-bottom: 6px; }
-        .odds-question { font-size: 13px; color: #cbd5e1; line-height: 1.4; margin-bottom: 14px; min-height: 38px; }
-        .odds-prob { font-size: 42px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
-        .odds-bar { height: 6px; background: #1e293b; border-radius: 3px; margin: 8px 0; overflow: hidden; }
-        .odds-bar-fill { height: 100%; border-radius: 3px; }
-        .odds-outcomes { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
-        .odds-volume { font-size: 11px; color: #475569; margin-top: 8px; }
-        .odds-link { font-size: 11px; color: #3b82f6; text-decoration: none; margin-top: 6px; display: inline-block; }
-        .odds-link:hover { color: #60a5fa; }
+        .rate-hike-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
+        @media (max-width: 900px) { .rate-hike-grid { grid-template-columns: 1fr; } }
+        .rate-hike-chart-wrap { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+        .rate-hike-label { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 10px; }
+        .rate-hike-status { font-size: 11px; color: #64748b; margin-top: 8px; }
         .fng-row { display: flex; align-items: center; gap: 28px; margin-bottom: 16px; flex-wrap: wrap; }
         .fng-value { font-size: 52px; font-weight: 800; }
         .fng-label { font-size: 18px; font-weight: 600; }
@@ -98,7 +91,7 @@
         .legend-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
-        .event-row { display: grid; grid-template-columns: 140px 1fr 80px 90px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+        .event-row { display: grid; grid-template-columns: 140px 1fr 80px 100px 90px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -207,11 +200,18 @@
     </div>
 
     <div class="card">
-        <div class="card-title">Prediction Market Odds <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
-        <div class="odds-grid" id="oddsGrid">
-            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
-            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
-            <div class="odds-card" style="color:#64748b;font-size:13px;padding:24px;">⏳ Loading markets...</div>
+        <div class="card-title">Interest Rate Hike Odds — Next 6 Months <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
+        <div class="rate-hike-grid">
+            <div class="rate-hike-chart-wrap">
+                <div class="rate-hike-label">US Federal Reserve</div>
+                <div style="position:relative;height:220px;"><canvas id="fedHikeChart"></canvas></div>
+                <div class="rate-hike-status" id="fedHikeStatus">⏳ Loading...</div>
+            </div>
+            <div class="rate-hike-chart-wrap">
+                <div class="rate-hike-label">Bank of Japan</div>
+                <div style="position:relative;height:220px;"><canvas id="bojHikeChart"></canvas></div>
+                <div class="rate-hike-status" id="bojHikeStatus">⏳ Loading...</div>
+            </div>
         </div>
     </div>
 
@@ -488,7 +488,7 @@ function renderChart(canvasId,data,showRefLine,isChart1){
 async function initGeopolitics(){
     fetchMarketAlert('CL%3DF','oil','WTI Crude Oil',3,3,'oilChart');
     fetchMarketAlert('QQQ','qqq','Nasdaq 100',2,2,'qqqChart');
-    fetchPolymarketOdds();
+    fetchRateHikeOdds();
     fetchFearAndGreed();
     fetchVIX();
 }
@@ -543,59 +543,106 @@ function renderMiniChart(canvasId,data,alerted,up){
     window['_m_'+canvasId]=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:data.map(d=>d.c),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:8,callbacks:{label:ctx=>'$'+fmt(ctx.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{color:'#475569',maxTicksLimit:6,font:{size:10}}},y:{grid:{color:'#1e293b'},ticks:{color:'#475569',font:{size:10},callback:v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:0})}}}}});
 }
 
-const POLY_CONFIGS=[
-    {category:'Geopolitics',searches:['Iran Israel war','Iran ceasefire','Iran war end'],keywords:['iran','war','ceasefire','israel','strike','conflict']},
-    {category:'Macro — BOJ',searches:['Bank of Japan rate','BOJ interest rate','Japan rate hike'],keywords:['japan','boj','rate','bank of japan']},
-    {category:'Macro — Fed',searches:['Fed rate cut','FOMC rate decision','Federal Reserve rate'],keywords:['fed','fomc','rate','federal reserve','interest']},
-];
+let fedHikeChartInst=null,bojHikeChartInst=null;
+const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-async function fetchPolymarketOdds(){
-    const grid=document.getElementById('oddsGrid');
-    const usedIds=new Set();
-    const cards=[];
-    for(const cfg of POLY_CONFIGS){
-        let found=null;
-        for(const search of cfg.searches){
-            if(found)break;
-            try{
-                const url=`https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=10&order=volume&ascending=false&search=${encodeURIComponent(search)}`;
+function getNext6Months(){
+    const now=new Date();
+    const months=[];
+    for(let i=1;i<=6;i++){
+        const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+        months.push({month:MONTH_NAMES[d.getMonth()].toLowerCase(),label:MONTH_SHORT[d.getMonth()]+' '+d.getFullYear().toString().slice(2),year:d.getFullYear()});
+    }
+    return months;
+}
+
+async function fetchHikeOdds(searchPrefix,keyword,months){
+    const results=[];
+    for(const m of months){
+        let prob=null,vol=0,slug=null;
+        try{
+            const searches=[`${searchPrefix} ${m.month}`,`${searchPrefix} ${m.month} ${m.year}`];
+            for(const s of searches){
+                if(prob!==null)break;
+                const url=`https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=10&order=volume&ascending=false&search=${encodeURIComponent(s)}`;
                 const markets=await polyFetch(url,10000);
                 if(!Array.isArray(markets)||!markets.length)continue;
-                // Filter to relevant markets and exclude already-used ones
-                const relevant=markets.filter(m=>{
-                    if(usedIds.has(m.id||m.slug))return false;
-                    const txt=((m.question||'')+(m.title||'')+(m.description||'')).toLowerCase();
-                    return cfg.keywords.some(kw=>txt.includes(kw));
-                }).sort((a,b)=>parseFloat(b.volume||0)-parseFloat(a.volume||0));
-                if(relevant.length)found=relevant[0];
-            }catch(e){console.warn('Polymarket',search,e.message);}
-        }
-        if(found){
-            usedIds.add(found.id||found.slug);
-            const prices=JSON.parse(found.outcomePrices||'[]');
-            const outcomes=JSON.parse(found.outcomes||'[]');
-            const yIdx=outcomes.findIndex(o=>o.toLowerCase()==='yes');
-            const prob=yIdx>=0?parseFloat(prices[yIdx]):parseFloat(prices[0]||0);
-            cards.push({...cfg,question:found.question||found.title||'Unknown',prob:Math.round(prob*100),volume:parseFloat(found.volume||0),slug:found.slug,loaded:true});
-        }else{
-            cards.push({...cfg,loaded:false});
-        }
+                // Find markets about rate increase/hike for this month
+                for(const mk of markets){
+                    const txt=((mk.question||'')+(mk.title||'')).toLowerCase();
+                    if(!txt.includes(keyword))continue;
+                    if(!txt.includes(m.month))continue;
+                    if(txt.includes('increase')||txt.includes('hike')||txt.includes('raise')){
+                        // This is a specific hike market (Yes/No)
+                        const prices=JSON.parse(mk.outcomePrices||'[]');
+                        const outcomes=JSON.parse(mk.outcomes||'[]');
+                        const yIdx=outcomes.findIndex(o=>o.toLowerCase()==='yes');
+                        prob=Math.round((yIdx>=0?parseFloat(prices[yIdx]):parseFloat(prices[0]||0))*100);
+                        vol=parseFloat(mk.volume||0);
+                        slug=mk.slug;
+                        break;
+                    }
+                }
+                // If no specific hike market, look for decision market and sum hike outcomes
+                if(prob===null){
+                    for(const mk of markets){
+                        const txt=((mk.question||'')+(mk.title||'')).toLowerCase();
+                        if(!txt.includes(keyword)||!txt.includes(m.month))continue;
+                        if(txt.includes('decision')||txt.includes('rate')){
+                            const prices=JSON.parse(mk.outcomePrices||'[]');
+                            const outcomes=JSON.parse(mk.outcomes||'[]');
+                            // Sum probabilities of all increase/hike outcomes
+                            let hikeProb=0;
+                            outcomes.forEach((o,i)=>{
+                                const ol=o.toLowerCase();
+                                if(ol.includes('increase')||ol.includes('hike')||ol.includes('raise')||(ol.includes('bps')&&!ol.includes('decrease')&&!ol.includes('cut')&&!ol.includes('no change')&&!ol.includes('no cut'))){
+                                    hikeProb+=parseFloat(prices[i]||0);
+                                }
+                            });
+                            if(hikeProb>0){
+                                prob=Math.round(hikeProb*100);
+                                vol=parseFloat(mk.volume||0);
+                                slug=mk.slug;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }catch(e){console.warn('Rate hike fetch',m.month,e.message);}
+        results.push({label:m.label,prob,vol,slug});
+        await new Promise(r=>setTimeout(r,800));
     }
-    grid.innerHTML=cards.map(c=>{
-        if(!c.loaded)return`<div class="odds-card"><div class="odds-category">${c.category}</div><div class="odds-question" style="color:#475569;">No matching market found on Polymarket</div></div>`;
-        const p=c.prob;
-        const col=p>60?'#10b981':p>40?'#f59e0b':'#ef4444';
-        const vol=c.volume>1e6?'$'+fmt(c.volume/1e6,1)+'M vol':'$'+fmt(c.volume,0)+' vol';
-        return`<div class="odds-card">
-            <div class="odds-category">${c.category}</div>
-            <div class="odds-question">${c.question}</div>
-            <div class="odds-prob" style="color:${col}">${p}%</div>
-            <div class="odds-bar"><div class="odds-bar-fill" style="width:${p}%;background:${col};"></div></div>
-            <div class="odds-outcomes"><span>YES: ${p}%</span><span>NO: ${100-p}%</span></div>
-            <div class="odds-volume">${vol}</div>
-            ${c.slug?`<a class="odds-link" href="https://polymarket.com/market/${c.slug}" target="_blank">View on Polymarket →</a>`:''}
-        </div>`;
-    }).join('');
+    return results;
+}
+
+function renderHikeChart(canvasId,data,color,existingChart){
+    if(existingChart?.destroy)existingChart.destroy();
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    const labels=data.map(d=>d.label);
+    const values=data.map(d=>d.prob!==null?d.prob:0);
+    const bgColors=data.map(d=>d.prob!==null?color+'cc':'#334155');
+    const borderColors=data.map(d=>d.prob!==null?color:'#475569');
+    return new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Hike Probability %',data:values,backgroundColor:bgColors,borderColor:borderColors,borderWidth:1,borderRadius:4,barPercentage:0.6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:ctx=>{const d=data[ctx.dataIndex];return d.prob!==null?`Hike: ${d.prob}%`:'No market data';}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},min:0,max:100,title:{display:true,text:'Hike Probability',color:'#64748b'}}}}});
+}
+
+async function fetchRateHikeOdds(){
+    const months=getNext6Months();
+    const fedStatus=document.getElementById('fedHikeStatus');
+    const bojStatus=document.getElementById('bojHikeStatus');
+    // Fetch Fed data
+    fedStatus.textContent='⏳ Fetching Fed markets...';
+    const fedData=await fetchHikeOdds('Fed decision in','fed',months);
+    const fedLoaded=fedData.filter(d=>d.prob!==null).length;
+    fedHikeChartInst=renderHikeChart('fedHikeChart',fedData,'#3b82f6',fedHikeChartInst);
+    fedStatus.textContent=fedLoaded?`${fedLoaded}/${months.length} months loaded · Data from Polymarket`:'No Fed hike markets found on Polymarket';
+    // Fetch BOJ data
+    bojStatus.textContent='⏳ Fetching BOJ markets...';
+    const bojData=await fetchHikeOdds('Bank of Japan decision in','japan',months);
+    const bojLoaded=bojData.filter(d=>d.prob!==null).length;
+    bojHikeChartInst=renderHikeChart('bojHikeChart',bojData,'#f59e0b',bojHikeChartInst);
+    bojStatus.textContent=bojLoaded?`${bojLoaded}/${months.length} months loaded · Data from Polymarket`:'No BOJ hike markets found on Polymarket';
 }
 
 async function fetchFearAndGreed(){
@@ -613,7 +660,7 @@ async function fetchFearAndGreed(){
         document.getElementById('fngBar').style.background=color;
         const rev=[...entries].reverse();
         const ctx=document.getElementById('fngChart').getContext('2d');
-        new Chart(ctx,{type:'line',data:{labels:rev.map(e=>new Date(parseInt(e.timestamp)*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets:[{data:rev.map(e=>parseInt(e.value)),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3,pointBackgroundColor:rev.map(e=>{const v=parseInt(e.value);return v<=25?'#ef4444':v<=45?'#f97316':v<=55?'#f59e0b':v<=75?'#84cc16':'#10b981';})}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},min:0,max:100,title:{display:true,text:'Fear & Greed (0=Fear, 100=Greed)',color:'#64748b'}}}}});
+        new Chart(ctx,{type:'line',data:{labels:rev.map(e=>new Date(parseInt(e.timestamp)*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets:[{data:rev.map(e=>parseInt(e.value)),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3,pointBackgroundColor:rev.map(e=>{const v=parseInt(e.value);return v<=25?'#ef4444':v<=45?'#f97316':v<=55?'#f59e0b':v<=75?'#84cc16':'#10b981';})}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},min:0,max:70,title:{display:true,text:'Fear & Greed (0=Fear, 70=Greed)',color:'#64748b'}}}}});
     }catch(e){console.warn('F&G:',e.message);document.getElementById('fngLabel').textContent='Could not load';}
 }
 
@@ -671,29 +718,40 @@ async function initFartcoin(){
         return;
     }
     runFartAnalysis();
+    // Fetch latest live data in background to update stale JSON, then re-run
+    fetchFartcoinLive().then(ok=>{if(ok){document.getElementById('fartEnd').value=todayStr();runFartAnalysis();}});
+    // Auto-refresh every hour: fetch latest data and re-run analysis
+    setInterval(async()=>{
+        const ok=await fetchFartcoinLive();
+        if(ok){document.getElementById('fartEnd').value=todayStr();runFartAnalysis();}
+    },3600000);
 }
 
 async function fetchFartcoinLive(){
     const notice=document.getElementById('fartNotice');
     notice.style.display='block';
-    notice.innerHTML='⏳ <strong>Fetching BTC &amp; FARTCOIN hourly data from CoinGecko...</strong> This may take ~10 seconds.';
+    notice.innerHTML='⏳ <strong>Fetching latest BTC &amp; FARTCOIN hourly data from CoinGecko...</strong> This may take ~10 seconds.';
     try{
-        const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=90&interval=hourly');
+        const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30&interval=hourly');
         const btcPrices={};
         for(const[ts,price]of(btcResp.prices||[])){
-            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00:00Z');
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
             btcPrices[key]=price;
         }
-        // Small delay for rate limit
         await new Promise(r=>setTimeout(r,2000));
-        const fartResp=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=90&interval=hourly');
+        const fartResp=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=30&interval=hourly');
         const fartPrices={};
         for(const[ts,price]of(fartResp.prices||[])){
-            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00:00Z');
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
             fartPrices[key]=price;
         }
-        const allTs=Object.keys(btcPrices).filter(t=>t in fartPrices).sort();
-        fartData=allTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,fart:Math.round(fartPrices[t]*1000000)/1000000}));
+        const liveTs=Object.keys(btcPrices).filter(t=>t in fartPrices).sort();
+        const liveData=liveTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,fart:Math.round(fartPrices[t]*1000000)/1000000}));
+        // Merge with existing data: keep older static data, append/overwrite with fresh live data
+        const merged={};
+        for(const d of fartData)merged[d.t]=d;
+        for(const d of liveData)merged[d.t]=d;
+        fartData=Object.values(merged).sort((a,b)=>a.t.localeCompare(b.t));
         notice.innerHTML=`✅ <strong>Fetched ${fartData.length} hourly data points live from CoinGecko.</strong> To persist this data, run the backfill script and commit the JSON to your repo.`;
         return true;
     }catch(e){
@@ -735,19 +793,25 @@ async function runFartAnalysis(){
         }
         clusters.push(cur);
     }
-    // Evaluate each cluster
-    const events=[];const used=new Set();
+    // Evaluate each cluster (max one event per calendar day)
+    const events=[];const used=new Set();const usedDays=new Set();
     for(const cl of clusters){
         const ds=cl[0],de=cl[cl.length-1];
         if(cl.some(i=>used.has(i)))continue;
-        const peakF=Math.max(...cl.map(i=>filtered[i].fart));
+        const day=new Date(filtered[ds].t).toLocaleDateString('en-AU');
+        if(usedDays.has(day))continue;
+        let peakF=Math.max(...cl.map(i=>filtered[i].fart));
+        let peakIdx=cl.reduce((best,i)=>filtered[i].fart>=filtered[best].fart?i:best,cl[0]);
         let minF=peakF,ceIdx=de;
         for(let j=de+1;j<Math.min(de+CW+1,filtered.length);j++){
+            if(filtered[j].fart!=null&&filtered[j].fart>peakF){peakF=filtered[j].fart;peakIdx=j;}
             if(filtered[j].fart!=null&&filtered[j].fart<minF){minF=filtered[j].fart;ceIdx=j;}
         }
         const crashPct=(peakF-minF)/peakF;
         const confirmed=crashPct>=fartThr;
-        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,crashPct:crashPct*100,confirmed});
+        const timeToPeak=peakIdx-ds;
+        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,crashPct:crashPct*100,confirmed,timeToPeak});
+        usedDays.add(day);
         if(confirmed)cl.forEach(i=>used.add(i));
     }
     // Stats
@@ -778,11 +842,11 @@ function renderFartChart(data,events){
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
