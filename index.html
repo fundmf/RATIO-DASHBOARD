@@ -557,57 +557,42 @@ function getNext6Months(){
     return months;
 }
 
-async function fetchHikeOdds(searchPrefix,keyword,months){
+async function fetchHikeOdds(searchPrefix,keywords,months){
     const results=[];
     for(const m of months){
         let prob=null,vol=0,slug=null;
         try{
-            const searches=[`${searchPrefix} ${m.month}`,`${searchPrefix} ${m.month} ${m.year}`];
+            const searches=[`${searchPrefix} ${m.month}`,`${searchPrefix} ${m.month} ${m.year}`,`${searchPrefix} rate ${m.month}`];
             for(const s of searches){
                 if(prob!==null)break;
                 const url=`https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=10&order=volume&ascending=false&search=${encodeURIComponent(s)}`;
                 const markets=await polyFetch(url,10000);
                 if(!Array.isArray(markets)||!markets.length)continue;
-                // Find markets about rate increase/hike for this month
+                console.log(`[RateHike] "${s}" => ${markets.length} results`);
                 for(const mk of markets){
-                    const txt=((mk.question||'')+(mk.title||'')).toLowerCase();
-                    if(!txt.includes(keyword))continue;
+                    const txt=((mk.question||'')+(mk.title||'')+(mk.description||'')).toLowerCase();
+                    if(!keywords.some(kw=>txt.includes(kw)))continue;
                     if(!txt.includes(m.month))continue;
+                    console.log(`[RateHike] Match: ${mk.question||mk.title} | outcomes=${mk.outcomes} | prices=${mk.outcomePrices}`);
+                    const prices=JSON.parse(mk.outcomePrices||'[]');
+                    const outcomes=JSON.parse(mk.outcomes||'[]');
+                    // Check if it's a specific hike/increase Yes/No market
                     if(txt.includes('increase')||txt.includes('hike')||txt.includes('raise')){
-                        // This is a specific hike market (Yes/No)
-                        const prices=JSON.parse(mk.outcomePrices||'[]');
-                        const outcomes=JSON.parse(mk.outcomes||'[]');
                         const yIdx=outcomes.findIndex(o=>o.toLowerCase()==='yes');
                         prob=Math.round((yIdx>=0?parseFloat(prices[yIdx]):parseFloat(prices[0]||0))*100);
-                        vol=parseFloat(mk.volume||0);
-                        slug=mk.slug;
-                        break;
+                        vol=parseFloat(mk.volume||0);slug=mk.slug;break;
                     }
-                }
-                // If no specific hike market, look for decision market and sum hike outcomes
-                if(prob===null){
-                    for(const mk of markets){
-                        const txt=((mk.question||'')+(mk.title||'')).toLowerCase();
-                        if(!txt.includes(keyword)||!txt.includes(m.month))continue;
-                        if(txt.includes('decision')||txt.includes('rate')){
-                            const prices=JSON.parse(mk.outcomePrices||'[]');
-                            const outcomes=JSON.parse(mk.outcomes||'[]');
-                            // Sum probabilities of all increase/hike outcomes
-                            let hikeProb=0;
-                            outcomes.forEach((o,i)=>{
-                                const ol=o.toLowerCase();
-                                if(ol.includes('increase')||ol.includes('hike')||ol.includes('raise')||(ol.includes('bps')&&!ol.includes('decrease')&&!ol.includes('cut')&&!ol.includes('no change')&&!ol.includes('no cut'))){
-                                    hikeProb+=parseFloat(prices[i]||0);
-                                }
-                            });
-                            if(hikeProb>0){
-                                prob=Math.round(hikeProb*100);
-                                vol=parseFloat(mk.volume||0);
-                                slug=mk.slug;
-                                break;
-                            }
+                    // Otherwise it's a decision market — sum all non-"no change" non-"decrease" non-"cut" outcomes
+                    let hikeProb=0;
+                    outcomes.forEach((o,i)=>{
+                        const ol=o.toLowerCase();
+                        if(ol==='no change'||ol.includes('decrease')||ol.includes('cut'))return;
+                        // Match any outcome with positive bps or "increase"/"hike"
+                        if(ol.includes('increase')||ol.includes('hike')||ol.includes('raise')||/\+?\d+\s*bp/.test(ol)||(ol.includes('bps')&&!ol.includes('-'))){
+                            hikeProb+=parseFloat(prices[i]||0);
                         }
-                    }
+                    });
+                    if(hikeProb>0){prob=Math.round(hikeProb*100);vol=parseFloat(mk.volume||0);slug=mk.slug;break;}
                 }
             }
         }catch(e){console.warn('Rate hike fetch',m.month,e.message);}
@@ -633,13 +618,13 @@ async function fetchRateHikeOdds(){
     const bojStatus=document.getElementById('bojHikeStatus');
     // Fetch Fed data
     fedStatus.textContent='⏳ Fetching Fed markets...';
-    const fedData=await fetchHikeOdds('Fed decision in','fed',months);
+    const fedData=await fetchHikeOdds('Fed decision in',['fed','fomc','federal reserve'],months);
     const fedLoaded=fedData.filter(d=>d.prob!==null).length;
     fedHikeChartInst=renderHikeChart('fedHikeChart',fedData,'#3b82f6',fedHikeChartInst);
     fedStatus.textContent=fedLoaded?`${fedLoaded}/${months.length} months loaded · Data from Polymarket`:'No Fed hike markets found on Polymarket';
     // Fetch BOJ data
     bojStatus.textContent='⏳ Fetching BOJ markets...';
-    const bojData=await fetchHikeOdds('Bank of Japan decision in','japan',months);
+    const bojData=await fetchHikeOdds('Bank of Japan decision in',['japan','boj','bank of japan'],months);
     const bojLoaded=bojData.filter(d=>d.prob!==null).length;
     bojHikeChartInst=renderHikeChart('bojHikeChart',bojData,'#f59e0b',bojHikeChartInst);
     bojStatus.textContent=bojLoaded?`${bojLoaded}/${months.length} months loaded · Data from Polymarket`:'No BOJ hike markets found on Polymarket';
