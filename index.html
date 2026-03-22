@@ -124,6 +124,8 @@
     <button class="tab-btn" data-tab="geo">Geopolitics</button>
     <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
     <button class="tab-btn" data-tab="cvix">Crypto VIX</button>
+    <button class="tab-btn" data-tab="ifart">Inverse FARTCOIN</button>
+    <button class="tab-btn" data-tab="spx">SPX Analysis</button>
 </nav>
 
 <!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
@@ -313,6 +315,112 @@
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB 6: SPX ANALYSIS ══════════════════════════ -->
+<div id="tab-spx" class="tab-content">
+<div class="container">
+    <h1>SPX6900 Analysis</h1>
+    <div class="subtitle">BTC divergence detection — events where BTC drops but SPX6900 holds positive</div>
+
+    <div class="data-notice" id="spxNotice" style="display:none"></div>
+
+    <div class="card">
+        <div class="card-title">Analysis Parameters</div>
+        <div class="date-controls" style="flex-wrap:wrap;gap:16px;">
+            <div class="date-control"><label>From:</label><input type="date" id="spxStart" value="2025-01-01"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="spxEnd" value=""></div>
+            <div class="date-control">
+                <label>BTC drop threshold:</label>
+                <input type="number" id="spxBtcDropThreshold" value="1.5" step="0.1" min="0.5" max="10" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% over 24hr</span>
+            </div>
+            <div class="date-control">
+                <label>SPX6900 crash threshold:</label>
+                <input type="number" id="spxCrashThreshold" value="5" step="0.5" min="1" max="50" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% within 72hrs</span>
+            </div>
+            <button class="run-btn" onclick="runSpxAnalysis()">▶ Run Analysis</button>
+        </div>
+        <div class="legend-row" style="margin-top:16px;">
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.6);"></div>Divergence (BTC ↓ 24hr, SPX6900 still ↑) — crash followed</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.5);"></div>Confirmed crash window (≥ threshold within 72hrs)</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);"></div>Divergence — no crash followed</div>
+        </div>
+    </div>
+
+    <div class="fart-stat-grid">
+        <div class="stat-card"><div class="stat-value" id="spxStatDivergences">—</div><div class="stat-label">Divergence Events</div></div>
+        <div class="stat-card"><div class="stat-value" id="spxStatCrashes">—</div><div class="stat-label">Confirmed Crashes</div></div>
+        <div class="stat-card"><div class="stat-value" id="spxStatHitRate">—</div><div class="stat-label">Crash Hit Rate</div></div>
+        <div class="stat-card"><div class="stat-value" id="spxStatAvgCrash">—</div><div class="stat-label">Avg Crash Size</div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">SPX6900 vs BTC — Hourly Chart with Divergence &amp; Crash Events</div>
+        <div class="fart-chart-wrap"><canvas id="spxChart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">All Detected Events</div>
+        <div id="spxEventsList" style="overflow-x:auto;">
+            <div style="color:#64748b;font-size:13px;">Run analysis to see events.</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB 5: INVERSE FARTCOIN ══════════════════════════ -->
+<div id="tab-ifart" class="tab-content">
+<div class="container">
+    <h1>Inverse FARTCOIN Analysis</h1>
+    <div class="subtitle">Inverse divergence detection — events where FARTCOIN drops but BTC holds positive, then tracking FARTCOIN run-ups within 72hrs</div>
+
+    <div class="data-notice" id="ifartNotice" style="display:none"></div>
+
+    <div class="card">
+        <div class="card-title">Analysis Parameters</div>
+        <div class="date-controls" style="flex-wrap:wrap;gap:16px;">
+            <div class="date-control"><label>From:</label><input type="date" id="ifartStart" value="2025-08-01"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="ifartEnd" value=""></div>
+            <div class="date-control">
+                <label>FARTCOIN drop threshold:</label>
+                <input type="number" id="ifartDropThreshold" value="1.5" step="0.1" min="0.5" max="10" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% over 24hr</span>
+            </div>
+            <div class="date-control">
+                <label>FARTCOIN pump threshold:</label>
+                <input type="number" id="ifartPumpThreshold" value="5" step="0.5" min="1" max="50" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% within 72hrs</span>
+            </div>
+            <button class="run-btn" onclick="runInverseFartAnalysis()">▶ Run Analysis</button>
+        </div>
+        <div class="legend-row" style="margin-top:16px;">
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(16,185,129,0.25);border:1px solid rgba(16,185,129,0.6);"></div>Divergence (FART ↓ 24hr, BTC still ↑) — pump followed</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);"></div>Confirmed pump window (≥ threshold within 72hrs)</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);"></div>Divergence — no pump followed</div>
+        </div>
+    </div>
+
+    <div class="fart-stat-grid">
+        <div class="stat-card"><div class="stat-value" id="istatDivergences">—</div><div class="stat-label">Divergence Events</div></div>
+        <div class="stat-card"><div class="stat-value" id="istatPumps">—</div><div class="stat-label">Confirmed Pumps</div></div>
+        <div class="stat-card"><div class="stat-value" id="istatHitRate">—</div><div class="stat-label">Pump Hit Rate</div></div>
+        <div class="stat-card"><div class="stat-value" id="istatAvgPump">—</div><div class="stat-label">Avg Pump Size</div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">FARTCOIN vs BTC — Hourly Chart with Inverse Divergence &amp; Pump Events</div>
+        <div class="fart-chart-wrap"><canvas id="ifartChart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">All Detected Events</div>
+        <div id="ifartEventsList" style="overflow-x:auto;">
+            <div style="color:#64748b;font-size:13px;">Run analysis to see events.</div>
+        </div>
+    </div>
+</div>
+</div>
+
 <!-- ══════════════════════════ TAB 4: CRYPTO VIX ══════════════════════════ -->
 <div id="tab-cvix" class="tab-content">
 <div class="container">
@@ -392,7 +500,7 @@ async function polyFetch(polyUrl,timeout=10000){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,fart:false,cvix:false};
+const tabInit={ratio:false,geo:false,fart:false,cvix:false,ifart:false,spx:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -403,6 +511,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='geo'&&!tabInit.geo){tabInit.geo=true;initGeopolitics();}
         if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
         if(id==='cvix'&&!tabInit.cvix){tabInit.cvix=true;initCryptoVix();}
+        if(id==='ifart'&&!tabInit.ifart){tabInit.ifart=true;initInverseFartcoin();}
+        if(id==='spx'&&!tabInit.spx){tabInit.spx=true;initSpxAnalysis();}
     });
 });
 
@@ -923,6 +1033,331 @@ async function init(){
     }catch(err){showError('⚠ Failed to load: '+err.message);console.error(err);}
     finally{overlay.classList.add('hidden');}
 }
+// ──────────────────────────────────────────────
+// TAB 6 — SPX6900 ANALYSIS
+// ──────────────────────────────────────────────
+let spxData=[];
+let spxChartInst=null;
+
+async function initSpxAnalysis(){
+    document.getElementById('spxStart').value='2025-01-01';
+    document.getElementById('spxEnd').value=todayStr();
+    const notice=document.getElementById('spxNotice');
+    notice.style.display='block';
+    notice.innerHTML='⏳ <strong>Fetching SPX6900 &amp; BTC hourly data from CoinGecko (all 2025)...</strong> This may take ~30 seconds.';
+    const ok=await fetchSpxFull();
+    if(ok&&spxData.length>=25){
+        runSpxAnalysis();
+    } else {
+        document.getElementById('spxEventsList').innerHTML='<div style="color:#fbbf24;font-size:13px;padding:12px 0;">Not enough data. Click ▶ Run Analysis to retry.</div>';
+    }
+    // Auto-refresh every hour with just latest 30 days
+    setInterval(async()=>{
+        const ok=await fetchSpxChunk(30);
+        if(ok){document.getElementById('spxEnd').value=todayStr();runSpxAnalysis();}
+    },3600000);
+}
+
+async function fetchSpxChunk(days,timeout=15000){
+    const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days='+days+'&interval=hourly',timeout);
+    const btcPrices={};
+    for(const[ts,price]of(btcResp.prices||[])){
+        const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
+        btcPrices[key]=price;
+    }
+    await new Promise(r=>setTimeout(r,2500));
+    const spxResp=await safeFetch('https://api.coingecko.com/api/v3/coins/spx6900/market_chart?vs_currency=usd&days='+days+'&interval=hourly',timeout);
+    const spxPrices={};
+    for(const[ts,price]of(spxResp.prices||[])){
+        const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
+        spxPrices[key]=price;
+    }
+    const liveTs=Object.keys(btcPrices).filter(t=>t in spxPrices).sort();
+    const liveData=liveTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,spx:Math.round(spxPrices[t]*1000000)/1000000}));
+    const merged={};
+    for(const d of spxData)merged[d.t]=d;
+    for(const d of liveData)merged[d.t]=d;
+    spxData=Object.values(merged).sort((a,b)=>a.t.localeCompare(b.t));
+    return true;
+}
+
+async function fetchSpxFull(){
+    const notice=document.getElementById('spxNotice');
+    notice.style.display='block';
+    try{
+        // Fetch in 3 chunks: 90 days, then 60 days, then 30 days to cover all of 2025
+        // CoinGecko free tier returns hourly data for up to 90 days
+        notice.innerHTML='⏳ <strong>Fetching chunk 1/3 (oldest 90 days)...</strong>';
+        await fetchSpxChunk(90,20000);
+        await new Promise(r=>setTimeout(r,2500));
+
+        notice.innerHTML='⏳ <strong>Fetching chunk 2/3 (60 days)...</strong>';
+        await fetchSpxChunk(60,20000);
+        await new Promise(r=>setTimeout(r,2500));
+
+        notice.innerHTML='⏳ <strong>Fetching chunk 3/3 (latest 30 days)...</strong>';
+        await fetchSpxChunk(30,20000);
+
+        notice.innerHTML=`✅ <strong>Loaded ${spxData.length} hourly data points covering 2025.</strong>`;
+        return true;
+    }catch(e){
+        // If we got partial data, still try to use it
+        if(spxData.length>=25){
+            notice.innerHTML=`⚠️ <strong>Partial data loaded (${spxData.length} points).</strong> Some chunks failed: ${e.message}`;
+            return true;
+        }
+        notice.innerHTML=`❌ <strong>Failed to fetch data:</strong> ${e.message}`;
+        return false;
+    }
+}
+
+async function runSpxAnalysis(){
+    if(spxData.length<25){
+        const ok=await fetchSpxLive();
+        if(!ok||spxData.length<25){
+            document.getElementById('spxEventsList').innerHTML='<div style="color:#fbbf24;font-size:13px;padding:12px 0;">Not enough data. Need at least 25 hourly data points.</div>';
+            return;
+        }
+    }
+    const startDate=document.getElementById('spxStart').value;
+    const endDate=document.getElementById('spxEnd').value;
+    const btcThr=parseFloat(document.getElementById('spxBtcDropThreshold').value)/100;
+    const spxThr=parseFloat(document.getElementById('spxCrashThreshold').value)/100;
+    const filtered=spxData.filter(d=>d.t>=startDate&&d.t<=(endDate+'T23:59:59Z'));
+    if(filtered.length<25){document.getElementById('spxEventsList').innerHTML='<div style="color:#64748b;font-size:13px;">Not enough data in selected range.</div>';return;}
+
+    const LB=24,CW=72;
+    const divHours=[];
+    for(let i=LB;i<filtered.length;i++){
+        const bn=filtered[i].btc,bp=filtered[i-LB].btc,sn=filtered[i].spx,sp=filtered[i-LB].spx;
+        if(!bn||!bp||!sn||!sp)continue;
+        if((bn-bp)/bp<=-btcThr&&(sn-sp)/sp>=0)divHours.push(i);
+    }
+    const clusters=[];
+    if(divHours.length>0){
+        let cur=[divHours[0]];
+        for(let k=1;k<divHours.length;k++){
+            if(divHours[k]-divHours[k-1]<=3)cur.push(divHours[k]);
+            else{clusters.push([...cur]);cur=[divHours[k]];}
+        }
+        clusters.push(cur);
+    }
+    const events=[];const used=new Set();const usedDays=new Set();
+    for(const cl of clusters){
+        const ds=cl[0],de=cl[cl.length-1];
+        if(cl.some(i=>used.has(i)))continue;
+        const day=new Date(filtered[ds].t).toLocaleDateString('en-AU');
+        if(usedDays.has(day))continue;
+        let peakS=Math.max(...cl.map(i=>filtered[i].spx));
+        let peakIdx=cl.reduce((best,i)=>filtered[i].spx>=filtered[best].spx?i:best,cl[0]);
+        let minS=peakS,ceIdx=de;
+        for(let j=de+1;j<Math.min(de+CW+1,filtered.length);j++){
+            if(filtered[j].spx!=null&&filtered[j].spx>peakS){peakS=filtered[j].spx;peakIdx=j;}
+            if(filtered[j].spx!=null&&filtered[j].spx<minS){minS=filtered[j].spx;ceIdx=j;}
+        }
+        const crashPct=(peakS-minS)/peakS;
+        const confirmed=crashPct>=spxThr;
+        const timeToPeak=peakIdx-ds;
+        const risePct=timeToPeak>0?(peakS-filtered[ds].spx)/filtered[ds].spx*100:0;
+        events.push({ds,de,ceIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,ceTime:filtered[ceIdx].t,btcAtStart:filtered[ds].btc,spxAtStart:filtered[ds].spx,crashPct:crashPct*100,confirmed,timeToPeak,risePct});
+        usedDays.add(day);
+        if(confirmed)cl.forEach(i=>used.add(i));
+    }
+    const conf=events.filter(e=>e.confirmed);
+    const avgC=conf.length?conf.reduce((s,e)=>s+e.crashPct,0)/conf.length:0;
+    const hr=events.length?(conf.length/events.length*100):0;
+    document.getElementById('spxStatDivergences').textContent=events.length;
+    document.getElementById('spxStatCrashes').textContent=conf.length;
+    document.getElementById('spxStatHitRate').textContent=hr.toFixed(0)+'%';
+    document.getElementById('spxStatAvgCrash').textContent=avgC.toFixed(1)+'%';
+    renderSpxChart(filtered,events);
+    renderSpxTable(events,filtered);
+}
+
+function renderSpxChart(data,events){
+    const ctx=document.getElementById('spxChart').getContext('2d');
+    if(spxChartInst?.destroy)spxChartInst.destroy();
+    const step=Math.max(1,Math.floor(data.length/24));
+    const labels=data.map((d,i)=>i%step===0?new Date(d.t).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+    const zones=[];
+    events.forEach(e=>{
+        zones.push({start:e.ds,end:e.de,color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)'});
+        if(e.confirmed)zones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
+    });
+    spxChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'SPX6900 ($)',data:data.map(d=>d.spx),borderColor:'#34d399',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yS'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='SPX6900 ($)'?'SPX6900: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yS:{position:'left',grid:{color:'#334155'},ticks:{color:'#34d399'},title:{display:true,text:'SPX6900 ($)',color:'#34d399'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+}
+
+function renderSpxTable(events,data){
+    const el=document.getElementById('spxEventsList');
+    if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → SPX6900 at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
+    const rows=events.map(e=>{
+        const dur=e.de-e.ds;
+        const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
+        const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.spxAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+    }).join('');
+    el.innerHTML=header+rows;
+}
+
+// ──────────────────────────────────────────────
+// TAB 5 — INVERSE FARTCOIN ANALYSIS
+// ──────────────────────────────────────────────
+let ifartChartInst=null;
+
+async function initInverseFartcoin(){
+    document.getElementById('ifartEnd').value=todayStr();
+    // Reuse fartData — if FARTCOIN tab already loaded it, we have it; otherwise load it
+    if(fartData.length<25){
+        try{
+            const r=await fetch('fartcoin_hourly.json?t='+Date.now());
+            if(r.ok){const j=await r.json();fartData=j.hours||[];}
+        }catch(e){fartData=[];}
+    }
+    const notice=document.getElementById('ifartNotice');
+    if(fartData.length<24){
+        notice.style.display='block';
+        notice.innerHTML=`⚠ <strong>Not enough data.</strong> Open the FARTCOIN Analysis tab first to load data, or click <strong>▶ Run Analysis</strong> to fetch live data from CoinGecko.`;
+        return;
+    }
+    runInverseFartAnalysis();
+    // If data is stale, fetch live in background
+    if(!tabInit.fart){
+        fetchFartcoinLiveForInverse().then(ok=>{if(ok){document.getElementById('ifartEnd').value=todayStr();runInverseFartAnalysis();}});
+    }
+    // Auto-refresh every hour
+    setInterval(async()=>{
+        const ok=await fetchFartcoinLiveForInverse();
+        if(ok){document.getElementById('ifartEnd').value=todayStr();runInverseFartAnalysis();}
+    },3600000);
+}
+
+async function fetchFartcoinLiveForInverse(){
+    const notice=document.getElementById('ifartNotice');
+    notice.style.display='block';
+    notice.innerHTML='⏳ <strong>Fetching latest BTC &amp; FARTCOIN hourly data from CoinGecko...</strong>';
+    try{
+        const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30&interval=hourly');
+        const btcPrices={};
+        for(const[ts,price]of(btcResp.prices||[])){
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
+            btcPrices[key]=price;
+        }
+        await new Promise(r=>setTimeout(r,2000));
+        const fartResp=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=30&interval=hourly');
+        const fartPrices={};
+        for(const[ts,price]of(fartResp.prices||[])){
+            const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
+            fartPrices[key]=price;
+        }
+        const liveTs=Object.keys(btcPrices).filter(t=>t in fartPrices).sort();
+        const liveData=liveTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,fart:Math.round(fartPrices[t]*1000000)/1000000}));
+        const merged={};
+        for(const d of fartData)merged[d.t]=d;
+        for(const d of liveData)merged[d.t]=d;
+        fartData=Object.values(merged).sort((a,b)=>a.t.localeCompare(b.t));
+        notice.innerHTML=`✅ <strong>Loaded ${fartData.length} hourly data points.</strong>`;
+        return true;
+    }catch(e){
+        notice.innerHTML=`❌ <strong>Failed to fetch live data:</strong> ${e.message}`;
+        return false;
+    }
+}
+
+async function runInverseFartAnalysis(){
+    if(fartData.length<25){
+        const ok=await fetchFartcoinLiveForInverse();
+        if(!ok||fartData.length<25){
+            document.getElementById('ifartEventsList').innerHTML='<div style="color:#fbbf24;font-size:13px;padding:12px 0;">Not enough data. Need at least 25 hourly data points.</div>';
+            return;
+        }
+    }
+    const startDate=document.getElementById('ifartStart').value;
+    const endDate=document.getElementById('ifartEnd').value;
+    const fartDropThr=parseFloat(document.getElementById('ifartDropThreshold').value)/100;
+    const pumpThr=parseFloat(document.getElementById('ifartPumpThreshold').value)/100;
+    const filtered=fartData.filter(d=>d.t>=startDate&&d.t<=(endDate+'T23:59:59Z'));
+    if(filtered.length<25){document.getElementById('ifartEventsList').innerHTML='<div style="color:#64748b;font-size:13px;">Not enough data in selected range.</div>';return;}
+
+    const LB=24,CW=72;
+    // Find inverse divergence hours: FARTCOIN drops, BTC holds positive
+    const divHours=[];
+    for(let i=LB;i<filtered.length;i++){
+        const bn=filtered[i].btc,bp=filtered[i-LB].btc,fn=filtered[i].fart,fp=filtered[i-LB].fart;
+        if(!bn||!bp||!fn||!fp)continue;
+        if((fn-fp)/fp<=-fartDropThr&&(bn-bp)/bp>=0)divHours.push(i);
+    }
+    // Cluster (gap ≤ 3hrs)
+    const clusters=[];
+    if(divHours.length>0){
+        let cur=[divHours[0]];
+        for(let k=1;k<divHours.length;k++){
+            if(divHours[k]-divHours[k-1]<=3)cur.push(divHours[k]);
+            else{clusters.push([...cur]);cur=[divHours[k]];}
+        }
+        clusters.push(cur);
+    }
+    // Evaluate each cluster (max one event per calendar day)
+    const events=[];const used=new Set();const usedDays=new Set();
+    for(const cl of clusters){
+        const ds=cl[0],de=cl[cl.length-1];
+        if(cl.some(i=>used.has(i)))continue;
+        const day=new Date(filtered[ds].t).toLocaleDateString('en-AU');
+        if(usedDays.has(day))continue;
+        // Find the trough (lowest FARTCOIN) during divergence
+        let troughF=Math.min(...cl.map(i=>filtered[i].fart));
+        let troughIdx=cl.reduce((best,i)=>filtered[i].fart<=filtered[best].fart?i:best,cl[0]);
+        // Look for max FARTCOIN pump in 72hr window after divergence
+        let maxF=troughF,peakIdx=de;
+        for(let j=de+1;j<Math.min(de+CW+1,filtered.length);j++){
+            if(filtered[j].fart!=null&&filtered[j].fart>maxF){maxF=filtered[j].fart;peakIdx=j;}
+        }
+        const pumpPct=(maxF-troughF)/troughF;
+        const confirmed=pumpPct>=pumpThr;
+        const timeToPeak=peakIdx-ds;
+        const riseFromStart=timeToPeak>0?(maxF-filtered[ds].fart)/filtered[ds].fart*100:0;
+        events.push({ds,de,peakIdx,dsTime:filtered[ds].t,deTime:filtered[de].t,peakTime:filtered[peakIdx].t,btcAtStart:filtered[ds].btc,fartAtStart:filtered[ds].fart,pumpPct:pumpPct*100,confirmed,timeToPeak,riseFromStart});
+        usedDays.add(day);
+        if(confirmed)cl.forEach(i=>used.add(i));
+    }
+    // Stats
+    const conf=events.filter(e=>e.confirmed);
+    const avgP=conf.length?conf.reduce((s,e)=>s+e.pumpPct,0)/conf.length:0;
+    const hr=events.length?(conf.length/events.length*100):0;
+    document.getElementById('istatDivergences').textContent=events.length;
+    document.getElementById('istatPumps').textContent=conf.length;
+    document.getElementById('istatHitRate').textContent=hr.toFixed(0)+'%';
+    document.getElementById('istatAvgPump').textContent=avgP.toFixed(1)+'%';
+    renderInverseFartChart(filtered,events);
+    renderInverseFartTable(events,filtered);
+}
+
+function renderInverseFartChart(data,events){
+    const ctx=document.getElementById('ifartChart').getContext('2d');
+    if(ifartChartInst?.destroy)ifartChartInst.destroy();
+    const step=Math.max(1,Math.floor(data.length/24));
+    const labels=data.map((d,i)=>i%step===0?new Date(d.t).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+    const zones=[];
+    events.forEach(e=>{
+        zones.push({start:e.ds,end:e.de,color:e.confirmed?'rgba(16,185,129,0.15)':'rgba(245,158,11,0.10)'});
+        if(e.confirmed)zones.push({start:e.de,end:e.peakIdx,color:'rgba(59,130,246,0.12)'});
+    });
+    ifartChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+}
+
+function renderInverseFartTable(events,data){
+    const el=document.getElementById('ifartEventsList');
+    if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No inverse divergence events found. Try lowering the FARTCOIN drop threshold.</div>';return;}
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Pump</span><span>Result</span></div>`;
+    const rows=events.map(e=>{
+        const dur=e.de-e.ds;
+        const res=e.confirmed?`<span style="color:#10b981;font-weight:600;">✓ ${e.pumpPct.toFixed(1)}% pump</span>`:`<span class="crash-none">No pump (${e.pumpPct.toFixed(1)}%)</span>`;
+        const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.riseFromStart.toFixed(1)}%</span>`:'—';
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.pumpPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+    }).join('');
+    el.innerHTML=header+rows;
+}
+
 // ──────────────────────────────────────────────
 // TAB 4 — CRYPTO VIX
 // ──────────────────────────────────────────────
