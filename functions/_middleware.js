@@ -94,6 +94,33 @@ export async function onRequest(context) {
         }
     }
 
+    // ── Deribit proxy route ──
+    if (url.pathname === '/api/deribit') {
+        const targetUrl = url.searchParams.get('url');
+        if (!targetUrl || !targetUrl.includes('deribit.com')) {
+            return new Response('Bad request', { status: 400 });
+        }
+        try {
+            const resp = await fetch(targetUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+            });
+            const data = await resp.text();
+            return new Response(data, {
+                status: resp.status,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=600',
+                },
+            });
+        } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), {
+                status: 502,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+    }
+
     // ── All other requests: serve normally ──
     return await next();
 }

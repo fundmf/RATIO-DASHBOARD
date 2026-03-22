@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Ratio Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
@@ -98,6 +99,17 @@
         .crash-none { color: #64748b; }
         .run-btn { background: #3b82f6; color: white; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
         .run-btn:hover { background: #2563eb; }
+
+        /* ── Crypto VIX ── */
+        .cvix-current { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 20px; }
+        .cvix-reading { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 20px 28px; text-align: center; flex: 1; min-width: 200px; }
+        .cvix-reading .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .cvix-reading .value { font-size: 42px; font-weight: 800; }
+        .cvix-reading .regime { font-size: 13px; font-weight: 600; margin-top: 4px; }
+        .cvix-chart-wrap { position: relative; height: 400px; }
+        .cvix-regime-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; justify-content: center; }
+        .cvix-regime-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+        .cvix-regime-swatch { width: 14px; height: 10px; border-radius: 2px; }
     </style>
 </head>
 <body>
@@ -111,6 +123,7 @@
     <button class="tab-btn active" data-tab="ratio">Ratio Analysis</button>
     <button class="tab-btn" data-tab="geo">Geopolitics</button>
     <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
+    <button class="tab-btn" data-tab="cvix">Crypto VIX</button>
 </nav>
 
 <!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
@@ -300,8 +313,58 @@
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB 4: CRYPTO VIX ══════════════════════════ -->
+<div id="tab-cvix" class="tab-content">
+<div class="container">
+    <h1>Crypto VIX</h1>
+    <div class="subtitle">BTC volatility analysis — realized (historical) vs implied (forward-looking via Deribit DVOL)</div>
+
+    <div class="cvix-current">
+        <div class="cvix-reading">
+            <div class="label">30-Day Realized Volatility</div>
+            <div class="value" id="cvixRealizedValue" style="color:#64748b;">—</div>
+            <div class="regime" id="cvixRealizedRegime"></div>
+        </div>
+        <div class="cvix-reading">
+            <div class="label">Deribit DVOL (Implied)</div>
+            <div class="value" id="cvixDvolValue" style="color:#64748b;">—</div>
+            <div class="regime" id="cvixDvolRegime"></div>
+        </div>
+        <div class="cvix-reading">
+            <div class="label">Vol Spread (Implied − Realized)</div>
+            <div class="value" id="cvixSpreadValue" style="color:#64748b;">—</div>
+            <div class="regime" id="cvixSpreadRegime"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Chart 1: BTC 30-Day Realized Volatility</div>
+        <div class="subtitle" style="margin-bottom:12px;text-align:left;">Annualized standard deviation of daily log returns over a rolling 30-day window. Calculated from CoinGecko daily price data.</div>
+        <div class="cvix-chart-wrap"><canvas id="cvixRealizedChart"></canvas></div>
+        <div class="cvix-regime-legend">
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(16,185,129,0.25)"></div> Low (&lt;40%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(59,130,246,0.2)"></div> Normal (40–65%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(245,158,11,0.25)"></div> High (65–90%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(239,68,68,0.25)"></div> Extreme (&gt;90%)</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Chart 2: Deribit DVOL — BTC Implied Volatility Index</div>
+        <div class="subtitle" style="margin-bottom:12px;text-align:left;">30-day forward-looking implied volatility derived from BTC options on Deribit. The crypto equivalent of the VIX.</div>
+        <div class="cvix-chart-wrap"><canvas id="cvixDvolChart"></canvas></div>
+        <div class="cvix-regime-legend">
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(16,185,129,0.25)"></div> Low (&lt;40%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(59,130,246,0.2)"></div> Normal (40–65%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(245,158,11,0.25)"></div> High (65–90%)</div>
+            <div class="cvix-regime-item"><div class="cvix-regime-swatch" style="background:rgba(239,68,68,0.25)"></div> Extreme (&gt;90%)</div>
+        </div>
+    </div>
+</div>
+</div>
+
 <div class="footer">
-    <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via alternative.me</p>
+    <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via alternative.me · DVOL via Deribit</p>
 </div>
 
 <script>
@@ -329,7 +392,7 @@ async function polyFetch(polyUrl,timeout=10000){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,fart:false};
+const tabInit={ratio:false,geo:false,fart:false,cvix:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -339,6 +402,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         document.getElementById('tab-'+id).classList.add('active');
         if(id==='geo'&&!tabInit.geo){tabInit.geo=true;initGeopolitics();}
         if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
+        if(id==='cvix'&&!tabInit.cvix){tabInit.cvix=true;initCryptoVix();}
     });
 });
 
@@ -859,6 +923,221 @@ async function init(){
     }catch(err){showError('⚠ Failed to load: '+err.message);console.error(err);}
     finally{overlay.classList.add('hidden');}
 }
+// ──────────────────────────────────────────────
+// TAB 4 — CRYPTO VIX
+// ──────────────────────────────────────────────
+let cvixRealizedChartInst=null, cvixDvolChartInst=null;
+
+function volRegime(v){
+    if(v<40) return {label:'Low Volatility',color:'#10b981'};
+    if(v<65) return {label:'Normal',color:'#3b82f6'};
+    if(v<90) return {label:'High Volatility',color:'#f59e0b'};
+    return {label:'Extreme',color:'#ef4444'};
+}
+
+function spreadRegime(s){
+    if(s>10) return {label:'Market expects more vol (risk-on hedging)',color:'#f59e0b'};
+    if(s<-10) return {label:'Realized > Implied (unusual calm priced in)',color:'#10b981'};
+    return {label:'Roughly in line',color:'#3b82f6'};
+}
+
+function calcRealizedVol(prices){
+    // prices = [{date,price},...] sorted by date ascending
+    // Returns [{date, vol},...] with 30-day rolling annualized vol
+    const result=[];
+    for(let i=30;i<prices.length;i++){
+        const window=prices.slice(i-30,i);
+        const logReturns=[];
+        for(let j=1;j<window.length;j++){
+            logReturns.push(Math.log(window[j].price/window[j-1].price));
+        }
+        const mean=logReturns.reduce((a,b)=>a+b,0)/logReturns.length;
+        const variance=logReturns.reduce((a,r)=>a+(r-mean)**2,0)/(logReturns.length-1);
+        const dailyVol=Math.sqrt(variance);
+        const annualVol=dailyVol*Math.sqrt(365)*100; // annualize with 365 for crypto (trades every day)
+        result.push({date:prices[i].date, vol:annualVol});
+    }
+    return result;
+}
+
+async function fetchBtcDailyPrices(){
+    // Fetch 180 days of daily BTC prices from CoinGecko (need 30 extra for the rolling window)
+    const url='https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=180&interval=daily';
+    const json=await safeFetch(url,15000);
+    if(!json.prices||!json.prices.length) throw new Error('No BTC price data from CoinGecko');
+    return json.prices.map(p=>({date:new Date(p[0]),price:p[1]}));
+}
+
+async function fetchDvolData(){
+    const now=Date.now();
+    const start=now-150*24*60*60*1000; // 150 days back
+    const url=`https://www.deribit.com/api/v2/public/get_volatility_index_data?currency=BTC&resolution=43200&start_timestamp=${start}&end_timestamp=${now}`;
+    // Try direct first, fall back to proxy
+    try {
+        const json=await safeFetch(url,15000);
+        if(json.result?.data?.length) return json.result.data;
+    } catch(e) { console.warn('Direct Deribit failed, trying proxy:', e.message); }
+    // Try via proxy
+    const proxyUrl='/api/deribit?url='+encodeURIComponent(url);
+    const json2=await safeFetch(proxyUrl,15000);
+    if(json2.result?.data?.length) return json2.result.data;
+    throw new Error('No DVOL data available');
+}
+
+function renderVolChart(canvasId, dataPoints, label, color, chartRef){
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    if(chartRef?.destroy) chartRef.destroy();
+
+    const labels=dataPoints.map(d=>d.date instanceof Date?d.date:new Date(d.date));
+    const values=dataPoints.map(d=>d.vol);
+
+    // Build regime background zones
+    const zonePlugin={
+        id:'volZones',
+        beforeDraw(chart){
+            const{ctx:c,chartArea:{left,right,top,bottom},scales:{y}}=chart;
+            const bands=[
+                {min:0,max:40,color:'rgba(16,185,129,0.08)'},
+                {min:40,max:65,color:'rgba(59,130,246,0.06)'},
+                {min:65,max:90,color:'rgba(245,158,11,0.08)'},
+                {min:90,max:200,color:'rgba(239,68,68,0.08)'}
+            ];
+            c.save();
+            bands.forEach(b=>{
+                const yTop=y.getPixelForValue(Math.min(b.max,y.max));
+                const yBot=y.getPixelForValue(Math.max(b.min,y.min));
+                if(yBot>top&&yTop<bottom){
+                    c.fillStyle=b.color;
+                    c.fillRect(left,Math.max(yTop,top),right-left,Math.min(yBot,bottom)-Math.max(yTop,top));
+                }
+            });
+            c.restore();
+        }
+    };
+
+    const inst=new Chart(ctx,{
+        type:'line',
+        data:{
+            labels,
+            datasets:[{
+                label,
+                data:values,
+                borderColor:color,
+                backgroundColor:'transparent',
+                borderWidth:2,
+                pointRadius:0,
+                tension:0.3,
+                fill:false
+            }]
+        },
+        plugins:[zonePlugin],
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{labels:{color:'#e2e8f0',padding:20}},
+                tooltip:{
+                    backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+                    borderColor:'#334155',borderWidth:1,padding:10,
+                    callbacks:{
+                        title:ctx=>{
+                            const d=labels[ctx[0].dataIndex];
+                            return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+                        },
+                        label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'%'
+                    }
+                }
+            },
+            scales:{
+                x:{
+                    type:'time',
+                    time:{unit:'week',displayFormats:{week:'d MMM'}},
+                    grid:{color:'#334155'},
+                    ticks:{color:'#94a3b8',maxTicksLimit:14}
+                },
+                y:{
+                    grid:{color:'#334155'},
+                    ticks:{color:'#94a3b8',callback:v=>v+'%'},
+                    title:{display:true,text:'Annualized Volatility (%)',color:'#94a3b8'},
+                    min:0,
+                    suggestedMax:120
+                }
+            }
+        }
+    });
+    return inst;
+}
+
+async function initCryptoVix(){
+    const rVal=document.getElementById('cvixRealizedValue');
+    const rReg=document.getElementById('cvixRealizedRegime');
+    const dVal=document.getElementById('cvixDvolValue');
+    const dReg=document.getElementById('cvixDvolRegime');
+    const sVal=document.getElementById('cvixSpreadValue');
+    const sReg=document.getElementById('cvixSpreadRegime');
+
+    // ── Chart 1: Realized Volatility ──
+    try {
+        rVal.textContent='...';
+        const btcPrices=await fetchBtcDailyPrices();
+        const realizedData=calcRealizedVol(btcPrices);
+        if(realizedData.length){
+            const latest=realizedData[realizedData.length-1].vol;
+            const regime=volRegime(latest);
+            rVal.textContent=latest.toFixed(1)+'%';
+            rVal.style.color=regime.color;
+            rReg.textContent=regime.label;
+            rReg.style.color=regime.color;
+
+            cvixRealizedChartInst=renderVolChart('cvixRealizedChart',realizedData,'30-Day Realized Vol','#a78bfa',cvixRealizedChartInst);
+
+            // ── Spread calculation (only if DVOL also loads) ──
+            window._cvixRealizedLatest=latest;
+        }
+    } catch(e) {
+        console.error('Realized vol error:', e);
+        rVal.textContent='Error';
+        rVal.style.color='#ef4444';
+        rReg.textContent=e.message;
+        rReg.style.color='#ef4444';
+    }
+
+    // ── Chart 2: Deribit DVOL ──
+    try {
+        dVal.textContent='...';
+        const dvolRaw=await fetchDvolData();
+        // dvolRaw = [[timestamp_ms, open, high, low, close], ...]
+        const dvolData=dvolRaw.map(d=>({date:new Date(d[0]),vol:d[4]})); // use close
+        if(dvolData.length){
+            const latest=dvolData[dvolData.length-1].vol;
+            const regime=volRegime(latest);
+            dVal.textContent=latest.toFixed(1)+'%';
+            dVal.style.color=regime.color;
+            dReg.textContent=regime.label;
+            dReg.style.color=regime.color;
+
+            cvixDvolChartInst=renderVolChart('cvixDvolChart',dvolData,'Deribit DVOL (Implied)','#38bdf8',cvixDvolChartInst);
+
+            // Spread
+            if(window._cvixRealizedLatest!=null){
+                const spread=latest-window._cvixRealizedLatest;
+                const sr=spreadRegime(spread);
+                sVal.textContent=(spread>0?'+':'')+spread.toFixed(1)+'%';
+                sVal.style.color=sr.color;
+                sReg.textContent=sr.label;
+                sReg.style.color=sr.color;
+            }
+        }
+    } catch(e) {
+        console.error('DVOL error:', e);
+        dVal.textContent='Error';
+        dVal.style.color='#ef4444';
+        dReg.textContent=e.message;
+        dReg.style.color='#ef4444';
+    }
+}
+
 init();
 </script>
 </body>
