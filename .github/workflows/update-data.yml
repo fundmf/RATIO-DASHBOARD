@@ -29,10 +29,13 @@ jobs:
       - name: Run data update script
         run: python update_data.py
 
+      - name: Update hourly data (BTC, FARTCOIN, SPX6900)
+        run: python backfill_hourly.py
+
       - name: Commit and push if data changed
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data.json fartcoin_hourly.json
+          git add data.json fartcoin_hourly.json spx6900_hourly.json
           git diff --staged --quiet || git commit -m "Auto-update: $(date -u '+%Y-%m-%d') data refresh"
           git push
