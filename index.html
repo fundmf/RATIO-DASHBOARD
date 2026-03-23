@@ -110,6 +110,7 @@
 <nav class="tab-nav">
     <button class="tab-btn active" data-tab="ratio">Ratio Analysis</button>
     <button class="tab-btn" data-tab="geo">Geopolitics</button>
+    <button class="tab-btn" data-tab="liq">Market Liquidity</button>
     <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
     <button class="tab-btn" data-tab="ifart">Inverse FARTCOIN</button>
     <button class="tab-btn" data-tab="spx">SPX Analysis</button>
@@ -246,6 +247,40 @@
             <span style="font-size:12px;color:#64748b;margin-left:8px;">— dashed line at 20 = elevated fear</span>
         </div>
         <div class="vix-chart-wrap"><canvas id="vixChart"></canvas></div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB: MARKET LIQUIDITY ══════════════════════════ -->
+<div id="tab-liq" class="tab-content">
+<div class="container">
+    <h1>Market Liquidity</h1>
+    <div class="subtitle">Daily BTC price vs total crypto market volume (CoinGecko)</div>
+
+    <div class="data-notice" id="liqNotice" style="display:none"></div>
+
+    <div class="card">
+        <div class="card-title">Date Range</div>
+        <div class="date-controls">
+            <div class="date-control"><label>From:</label><input type="date" id="liqStart" value="2025-03-24"></div>
+            <div class="date-control"><label>To:</label><input type="date" id="liqEnd" value=""></div>
+            <button onclick="renderLiquidityChart()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Chart</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">BTC Price vs Market Volume</div>
+        <div class="chart-wrapper"><canvas id="liqChart"></canvas></div>
+    </div>
+
+    <div class="card" id="liqStatsCard" style="display:none">
+        <div class="card-title">Summary</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+            <div class="price-item"><strong>Data Points:</strong> <span id="liqStatDays">—</span></div>
+            <div class="price-item"><strong>Avg Daily Volume:</strong> <span id="liqStatAvgVol">—</span></div>
+            <div class="price-item"><strong>Max Daily Volume:</strong> <span id="liqStatMaxVol">—</span></div>
+            <div class="price-item"><strong>BTC Range:</strong> <span id="liqStatBtcRange">—</span></div>
+        </div>
     </div>
 </div>
 </div>
@@ -513,7 +548,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,fart:false,ifart:false,spx:false,bfspx:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,ifart:false,spx:false,bfspx:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -522,6 +557,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         const id=btn.dataset.tab;
         document.getElementById('tab-'+id).classList.add('active');
         if(id==='geo'&&!tabInit.geo){tabInit.geo=true;initGeopolitics();}
+        if(id==='liq'&&!tabInit.liq){tabInit.liq=true;initLiquidity();}
         if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
         if(id==='ifart'&&!tabInit.ifart){tabInit.ifart=true;initInverseFartcoin();}
         if(id==='spx'&&!tabInit.spx){tabInit.spx=true;initSpxAnalysis();}
@@ -845,6 +881,100 @@ async function fetchVIX(){
         const ctx=document.getElementById('vixChart').getContext('2d');
         new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'VIX',data:values,borderColor:vColor,backgroundColor:vColor+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3},{label:'Fear threshold (20)',data:values.map(()=>20),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e2e8f0',filter:item=>item.text==='Fear threshold (20)'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:ctx=>ctx.dataset.label==='Fear threshold (20)'?null:'VIX: '+fmt(ctx.parsed.y)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'VIX',color:'#64748b'}}}}});
     }catch(e){console.warn('VIX:',e.message);document.getElementById('vixValue').textContent='Unavailable';}
+}
+
+// ──────────────────────────────────────────────
+// TAB — MARKET LIQUIDITY
+// ──────────────────────────────────────────────
+let liqData=[];
+let liqChartInst=null;
+
+async function initLiquidity(){
+    document.getElementById('liqStart').value='2025-03-24';
+    document.getElementById('liqEnd').value=todayStr();
+    const notice=document.getElementById('liqNotice');
+    // Load static JSON first
+    try{
+        const r=await fetch('liquidity_daily.json?t='+Date.now());
+        if(r.ok){const j=await r.json();liqData=j.days||[];}
+    }catch(e){liqData=[];}
+    if(liqData.length>5) renderLiquidityChart();
+    // Top up with latest 30 days from CoinGecko
+    notice.style.display='block';
+    notice.innerHTML='<strong>Fetching latest data...</strong>';
+    try{
+        const resp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30',20000);
+        const liveDays={};
+        for(const[ts,price]of(resp.prices||[])){
+            const d=new Date(ts).toISOString().slice(0,10);
+            liveDays[d]=liveDays[d]||{date:d,btc_price:0,volume:0};
+            liveDays[d].btc_price=Math.round(price*100)/100;
+        }
+        for(const[ts,vol]of(resp.total_volumes||[])){
+            const d=new Date(ts).toISOString().slice(0,10);
+            if(liveDays[d])liveDays[d].volume=Math.round(vol*100)/100;
+        }
+        const merged={};
+        for(const d of liqData)merged[d.date]=d;
+        for(const d of Object.values(liveDays))if(d.btc_price&&d.volume)merged[d.date]=d;
+        liqData=Object.values(merged).sort((a,b)=>a.date.localeCompare(b.date));
+        document.getElementById('liqEnd').value=todayStr();
+        renderLiquidityChart();
+        notice.innerHTML=`<strong>Loaded ${liqData.length} daily data points.</strong>`;
+    }catch(e){
+        notice.innerHTML=`<strong>Loaded ${liqData.length} daily data points from cache.</strong>`;
+    }
+    // Refresh once per hour
+    setInterval(async()=>{
+        try{
+            const resp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=2',20000);
+            const liveDays={};
+            for(const[ts,price]of(resp.prices||[])){
+                const d=new Date(ts).toISOString().slice(0,10);
+                liveDays[d]=liveDays[d]||{date:d,btc_price:0,volume:0};
+                liveDays[d].btc_price=Math.round(price*100)/100;
+            }
+            for(const[ts,vol]of(resp.total_volumes||[])){
+                const d=new Date(ts).toISOString().slice(0,10);
+                if(liveDays[d])liveDays[d].volume=Math.round(vol*100)/100;
+            }
+            const merged={};
+            for(const d of liqData)merged[d.date]=d;
+            for(const d of Object.values(liveDays))if(d.btc_price&&d.volume)merged[d.date]=d;
+            liqData=Object.values(merged).sort((a,b)=>a.date.localeCompare(b.date));
+            renderLiquidityChart();
+        }catch(e){}
+    },3600000);
+}
+
+function renderLiquidityChart(){
+    const startDate=document.getElementById('liqStart').value;
+    const endDate=document.getElementById('liqEnd').value;
+    const filtered=liqData.filter(d=>d.date>=startDate&&d.date<=endDate);
+    if(!filtered.length)return;
+
+    const ctx=document.getElementById('liqChart').getContext('2d');
+    if(liqChartInst?.destroy)liqChartInst.destroy();
+
+    const step=Math.max(1,Math.floor(filtered.length/30));
+    const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+
+    liqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
+        {label:'BTC Price ($)',data:filtered.map(d=>d.btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
+        {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.datasetIndex===0)return'BTC: $'+fmt(ctx.parsed.y);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC Price ($)',color:'#f59e0b'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#3b82f6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#3b82f6'}}}}});
+
+    // Update stats
+    const statsCard=document.getElementById('liqStatsCard');
+    statsCard.style.display='block';
+    document.getElementById('liqStatDays').textContent=filtered.length;
+    const avgVol=filtered.reduce((s,d)=>s+d.volume,0)/filtered.length;
+    const maxVol=Math.max(...filtered.map(d=>d.volume));
+    const minBtc=Math.min(...filtered.map(d=>d.btc_price));
+    const maxBtc=Math.max(...filtered.map(d=>d.btc_price));
+    document.getElementById('liqStatAvgVol').textContent='$'+(avgVol/1e9).toFixed(2)+'B';
+    document.getElementById('liqStatMaxVol').textContent='$'+(maxVol/1e9).toFixed(2)+'B';
+    document.getElementById('liqStatBtcRange').textContent='$'+fmt(minBtc)+' - $'+fmt(maxBtc);
 }
 
 // ──────────────────────────────────────────────
