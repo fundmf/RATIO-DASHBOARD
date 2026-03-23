@@ -224,16 +224,14 @@
     </div>
 
     <div class="card">
-        <div class="card-title">6-Month Rate Outlook <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
+        <div class="card-title">6-Month Rate Outlook <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">Market Consensus</span></div>
         <table class="rate-table" id="rateSixMonthTable">
             <thead>
-                <tr><th>Month</th><th>US Fed Rate Cut</th><th>BOJ Rate Hike</th></tr>
+                <tr><th>Meeting</th><th>US Fed Rate Cut</th><th>BOJ Rate Hike</th></tr>
             </thead>
-            <tbody id="sixMonthBody">
-                <tr><td colspan="3" style="color:#64748b;text-align:center;padding:20px;">⏳ Loading 6-month outlook...</td></tr>
-            </tbody>
+            <tbody id="sixMonthBody"></tbody>
         </table>
-        <div class="rate-table-status" id="sixMonthStatus">⏳ Fetching data...</div>
+        <div class="rate-table-status" id="sixMonthStatus"></div>
     </div>
 
     <div class="card">
@@ -272,7 +270,7 @@
 <div id="tab-liq" class="tab-content">
 <div class="container">
     <h1>Market Liquidity</h1>
-    <div class="subtitle">Daily BTC price vs total crypto market volume (CoinGecko)</div>
+    <div class="subtitle">Daily price vs volume for BTC &amp; FARTCOIN (CoinGecko)</div>
 
     <div class="data-notice" id="liqNotice" style="display:none"></div>
 
@@ -281,7 +279,7 @@
         <div class="date-controls">
             <div class="date-control"><label>From:</label><input type="date" id="liqStart" value="2025-03-24"></div>
             <div class="date-control"><label>To:</label><input type="date" id="liqEnd" value=""></div>
-            <button onclick="renderLiquidityChart()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Chart</button>
+            <button onclick="renderLiquidityChart();renderFartLiqChart();" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Charts</button>
         </div>
     </div>
 
@@ -291,12 +289,27 @@
     </div>
 
     <div class="card" id="liqStatsCard" style="display:none">
-        <div class="card-title">Summary</div>
+        <div class="card-title">BTC Summary</div>
         <div style="display:flex;gap:24px;flex-wrap:wrap;">
             <div class="price-item"><strong>Data Points:</strong> <span id="liqStatDays">—</span></div>
             <div class="price-item"><strong>Avg Daily Volume:</strong> <span id="liqStatAvgVol">—</span></div>
             <div class="price-item"><strong>Max Daily Volume:</strong> <span id="liqStatMaxVol">—</span></div>
             <div class="price-item"><strong>BTC Range:</strong> <span id="liqStatBtcRange">—</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">FARTCOIN Price vs Volume</div>
+        <div class="chart-wrapper"><canvas id="fartLiqChart"></canvas></div>
+    </div>
+
+    <div class="card" id="fartLiqStatsCard" style="display:none">
+        <div class="card-title">FARTCOIN Summary</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+            <div class="price-item"><strong>Data Points:</strong> <span id="fartLiqStatDays">—</span></div>
+            <div class="price-item"><strong>Avg Daily Volume:</strong> <span id="fartLiqStatAvgVol">—</span></div>
+            <div class="price-item"><strong>Max Daily Volume:</strong> <span id="fartLiqStatMaxVol">—</span></div>
+            <div class="price-item"><strong>FARTCOIN Range:</strong> <span id="fartLiqStatRange">—</span></div>
         </div>
     </div>
 </div>
@@ -836,13 +849,37 @@ async function fetchEventOdds(slugPrefix,monthObj,filterType){
     return null;
 }
 
+// ── 6-Month Consensus Outlook (manually updated from credible sources) ──
+// Sources: CME FedWatch, BofA, ING, Reuters polls, CNBC, Morningstar
+// Last updated: 23 March 2026
+// Fed current rate: 3.50–3.75% | BOJ current rate: 0.75%
+const RATE_OUTLOOK=[
+    {meeting:'May 6–7',   fed:8,    boj:null, bojNote:'No BOJ meeting'},
+    {meeting:'Jun 17–18', fed:11,   boj:55,   bojNote:'BofA base case for hike'},
+    {meeting:'Jul 29–30', fed:20,   boj:65,   bojNote:'Reuters poll median'},
+    {meeting:'Sep 16–17', fed:35,   boj:75,   bojNote:'Cumulative expectation'},
+    {meeting:'Oct 28–29', fed:40,   boj:null, bojNote:'ING base case for BOJ hike'},
+    {meeting:'Dec 16–17', fed:49,   boj:85,   bojNote:'~50% chance of at least 1 Fed cut by Dec'},
+];
+
+function renderRateOutlook(){
+    const tbody=document.getElementById('sixMonthBody');
+    tbody.innerHTML='';
+    for(const r of RATE_OUTLOOK){
+        const tr=document.createElement('tr');
+        const bojCell=r.boj!==null?oddsDisplay(r.boj):`<span class="rate-odds none" title="${r.bojNote||''}">${r.bojNote||'—'}</span>`;
+        tr.innerHTML=`<td>${r.meeting}</td><td>${oddsDisplay(r.fed)}</td><td>${bojCell}</td>`;
+        tbody.appendChild(tr);
+    }
+    document.getElementById('sixMonthStatus').textContent='Sources: CME FedWatch, BofA, ING, Reuters · Fed rate: 3.50–3.75% · BOJ rate: 0.75% · Last updated: 23 Mar 2026';
+}
+
 async function fetchRateOdds(){
     const months=getNext6Months();
     const nextMonth=months[0];
     const nextMonthStatus=document.getElementById('nextMonthStatus');
-    const sixMonthStatus=document.getElementById('sixMonthStatus');
 
-    // Table 1: Next month only
+    // Table 1: Next month only (live from Polymarket)
     document.getElementById('fedNextMonth').textContent=nextMonth.label;
     document.getElementById('bojNextMonth').textContent=nextMonth.label;
 
@@ -856,22 +893,8 @@ async function fetchRateOdds(){
     const nextLoaded=[fedCutNext,bojHikeNext].filter(v=>v!==null).length;
     nextMonthStatus.textContent=nextLoaded?`Updated ${new Date().toLocaleString('en-AU')} · via Polymarket`:'No market data found for '+nextMonth.label;
 
-    // Table 2: 6-month outlook
-    sixMonthStatus.textContent='⏳ Fetching 6-month outlook...';
-    const tbody=document.getElementById('sixMonthBody');
-    tbody.innerHTML='';
-    let sixLoaded=0;
-    for(const m of months){
-        const fedProb=m===nextMonth?fedCutNext:await fetchEventOdds('fed-decision-in',m,'cut');
-        if(m!==nextMonth)await new Promise(r=>setTimeout(r,600));
-        const bojProb=m===nextMonth?bojHikeNext:await fetchEventOdds('bank-of-japan-decision-in',m,'hike');
-        if(m!==nextMonth)await new Promise(r=>setTimeout(r,600));
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${m.label}</td><td>${oddsDisplay(fedProb)}</td><td>${oddsDisplay(bojProb)}</td>`;
-        tbody.appendChild(tr);
-        if(fedProb!==null||bojProb!==null)sixLoaded++;
-    }
-    sixMonthStatus.textContent=sixLoaded?`${sixLoaded}/${months.length} months with data · Updated ${new Date().toLocaleString('en-AU')} · via Polymarket`:'No market data found';
+    // Table 2: Static consensus outlook
+    renderRateOutlook();
 }
 
 async function fetchFearAndGreed(){
@@ -918,6 +941,8 @@ async function fetchVIX(){
 // ──────────────────────────────────────────────
 let liqData=[];
 let liqChartInst=null;
+let fartLiqData=[];
+let fartLiqChartInst=null;
 
 async function initLiquidity(){
     document.getElementById('liqStart').value='2025-03-24';
@@ -954,6 +979,32 @@ async function initLiquidity(){
     }catch(e){
         notice.innerHTML=`<strong>Loaded ${liqData.length} daily data points from cache.</strong>`;
     }
+    // Load FARTCOIN liquidity data
+    try{
+        const r2=await fetch('fartcoin_liquidity_daily.json?t='+Date.now());
+        if(r2.ok){const j=await r2.json();fartLiqData=j.days||[];}
+    }catch(e){fartLiqData=[];}
+    if(fartLiqData.length>5) renderFartLiqChart();
+    // Top up FARTCOIN with latest 30 days
+    try{
+        const resp2=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=30',20000);
+        const fLive={};
+        for(const[ts,price]of(resp2.prices||[])){
+            const d=new Date(ts).toISOString().slice(0,10);
+            fLive[d]=fLive[d]||{date:d,fart_price:0,volume:0};
+            fLive[d].fart_price=Math.round(price*1e6)/1e6;
+        }
+        for(const[ts,vol]of(resp2.total_volumes||[])){
+            const d=new Date(ts).toISOString().slice(0,10);
+            if(fLive[d])fLive[d].volume=Math.round(vol*100)/100;
+        }
+        const fm={};
+        for(const d of fartLiqData)fm[d.date]=d;
+        for(const d of Object.values(fLive))if(d.fart_price&&d.volume)fm[d.date]=d;
+        fartLiqData=Object.values(fm).sort((a,b)=>a.date.localeCompare(b.date));
+        renderFartLiqChart();
+    }catch(e){}
+
     // Refresh once per hour
     setInterval(async()=>{
         try{
@@ -973,6 +1024,26 @@ async function initLiquidity(){
             for(const d of Object.values(liveDays))if(d.btc_price&&d.volume)merged[d.date]=d;
             liqData=Object.values(merged).sort((a,b)=>a.date.localeCompare(b.date));
             renderLiquidityChart();
+        }catch(e){}
+        // FARTCOIN refresh
+        await new Promise(r=>setTimeout(r,2500));
+        try{
+            const resp2=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=2',20000);
+            const fLive={};
+            for(const[ts,price]of(resp2.prices||[])){
+                const d=new Date(ts).toISOString().slice(0,10);
+                fLive[d]=fLive[d]||{date:d,fart_price:0,volume:0};
+                fLive[d].fart_price=Math.round(price*1e6)/1e6;
+            }
+            for(const[ts,vol]of(resp2.total_volumes||[])){
+                const d=new Date(ts).toISOString().slice(0,10);
+                if(fLive[d])fLive[d].volume=Math.round(vol*100)/100;
+            }
+            const fm={};
+            for(const d of fartLiqData)fm[d.date]=d;
+            for(const d of Object.values(fLive))if(d.fart_price&&d.volume)fm[d.date]=d;
+            fartLiqData=Object.values(fm).sort((a,b)=>a.date.localeCompare(b.date));
+            renderFartLiqChart();
         }catch(e){}
     },3600000);
 }
@@ -1005,6 +1076,36 @@ function renderLiquidityChart(){
     document.getElementById('liqStatAvgVol').textContent='$'+(avgVol/1e9).toFixed(2)+'B';
     document.getElementById('liqStatMaxVol').textContent='$'+(maxVol/1e9).toFixed(2)+'B';
     document.getElementById('liqStatBtcRange').textContent='$'+fmt(minBtc)+' - $'+fmt(maxBtc);
+}
+
+function renderFartLiqChart(){
+    const startDate=document.getElementById('liqStart').value;
+    const endDate=document.getElementById('liqEnd').value;
+    const filtered=fartLiqData.filter(d=>d.date>=startDate&&d.date<=endDate);
+    if(!filtered.length)return;
+
+    const ctx=document.getElementById('fartLiqChart').getContext('2d');
+    if(fartLiqChartInst?.destroy)fartLiqChartInst.destroy();
+
+    const step=Math.max(1,Math.floor(filtered.length/30));
+    const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+
+    fartLiqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
+        {label:'FARTCOIN Price ($)',data:filtered.map(d=>d.fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yPrice'},
+        {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.08)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.datasetIndex===0)return'FARTCOIN: $'+ctx.parsed.y.toFixed(4);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yPrice:{position:'left',grid:{color:'#334155'},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN Price ($)',color:'#10b981'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#8b5cf6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#8b5cf6'}}}}});
+
+    // Update FARTCOIN stats
+    const statsCard=document.getElementById('fartLiqStatsCard');
+    statsCard.style.display='block';
+    document.getElementById('fartLiqStatDays').textContent=filtered.length;
+    const avgVol=filtered.reduce((s,d)=>s+d.volume,0)/filtered.length;
+    const maxVol=Math.max(...filtered.map(d=>d.volume));
+    const minP=Math.min(...filtered.map(d=>d.fart_price));
+    const maxP=Math.max(...filtered.map(d=>d.fart_price));
+    document.getElementById('fartLiqStatAvgVol').textContent=avgVol>=1e9?'$'+(avgVol/1e9).toFixed(2)+'B':'$'+(avgVol/1e6).toFixed(1)+'M';
+    document.getElementById('fartLiqStatMaxVol').textContent=maxVol>=1e9?'$'+(maxVol/1e9).toFixed(2)+'B':'$'+(maxVol/1e6).toFixed(1)+'M';
+    document.getElementById('fartLiqStatRange').textContent='$'+minP.toFixed(4)+' - $'+maxP.toFixed(4);
 }
 
 // ──────────────────────────────────────────────
