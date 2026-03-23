@@ -313,10 +313,14 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="combinedLiqCard">
         <div class="card-title">Combined View — Standardised Volume Comparison</div>
-        <div style="font-size:12px;color:#64748b;margin:-8px 0 12px 0;">Volume is z-score normalised so BTC and FARTCOIN can be compared on the same scale</div>
-        <div class="chart-wrapper" style="height:420px;"><canvas id="combinedLiqChart"></canvas></div>
+        <div style="font-size:12px;color:#64748b;margin:-8px 0 12px 0;">Hover over any panel to see all values for that date. Volume is z-score normalised (0 = average day, ±2 = unusually high/low).</div>
+        <div style="padding:0;">
+            <div style="height:200px;position:relative;"><canvas id="comboPrice"></canvas></div>
+            <div style="height:150px;position:relative;border-top:1px solid #334155;"><canvas id="comboBtcVol"></canvas></div>
+            <div style="height:150px;position:relative;border-top:1px solid #334155;"><canvas id="comboFartVol"></canvas></div>
+        </div>
     </div>
 </div>
 </div>
@@ -949,7 +953,6 @@ let liqData=[];
 let liqChartInst=null;
 let fartLiqData=[];
 let fartLiqChartInst=null;
-let combinedLiqChartInst=null;
 
 async function initLiquidity(){
     document.getElementById('liqStart').value='2025-03-24';
@@ -1117,10 +1120,57 @@ function renderFartLiqChart(){
     document.getElementById('fartLiqStatRange').textContent='$'+minP.toFixed(4)+' - $'+maxP.toFixed(4);
 }
 
+// Shared crosshair plugin for synced panels
+const crosshairPlugin={id:'crosshairSync',afterEvent(chart,args){
+    const evt=args.event;
+    if(evt.type==='mousemove'&&chart._comboGroup){
+        const charts=chart._comboGroup;
+        const rect=chart.canvas.getBoundingClientRect();
+        const xPx=evt.x;
+        // Sync tooltip on sibling charts
+        for(const c of charts){
+            if(c===chart)continue;
+            c.setActiveElements([]);
+            c.tooltip.setActiveElements([],{x:xPx,y:0});
+            // Trigger index tooltip at the same x pixel
+            const points=c.getElementsAtEventForMode({x:xPx,y:c.chartArea.top},'index',{intersect:false},false);
+            if(points.length){
+                c.tooltip.setActiveElements(points,{x:xPx,y:c.chartArea.top});
+                c.setActiveElements(points);
+            }
+            c.update('none');
+        }
+    }
+    if(evt.type==='mouseout'&&chart._comboGroup){
+        for(const c of chart._comboGroup){
+            if(c===chart)continue;
+            c.tooltip.setActiveElements([],{x:0,y:0});
+            c.setActiveElements([]);
+            c.update('none');
+        }
+    }
+},afterDraw(chart){
+    if(!chart.tooltip||!chart.tooltip.getActiveElements().length)return;
+    const x=chart.tooltip.caretX;
+    if(!x)return;
+    const ctx=chart.ctx;
+    const top=chart.chartArea.top;
+    const bottom=chart.chartArea.bottom;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x,top);
+    ctx.lineTo(x,bottom);
+    ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(148,163,184,0.4)';
+    ctx.stroke();
+    ctx.restore();
+}};
+
+let comboPriceChart=null,comboBtcVolChart=null,comboFartVolChart=null;
+
 function renderCombinedLiqChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
-    // Build a map of dates that exist in BOTH datasets
     const btcMap={};
     for(const d of liqData)if(d.date>=startDate&&d.date<=endDate)btcMap[d.date]=d;
     const fartMap={};
@@ -1128,29 +1178,62 @@ function renderCombinedLiqChart(){
     const dates=Object.keys(btcMap).filter(dt=>fartMap[dt]).sort();
     if(dates.length<3)return;
 
-    // Z-score normalise volumes
     const btcVols=dates.map(dt=>btcMap[dt].volume);
     const fartVols=dates.map(dt=>fartMap[dt].volume);
     function zScore(arr){
         const mean=arr.reduce((s,v)=>s+v,0)/arr.length;
         const std=Math.sqrt(arr.reduce((s,v)=>s+(v-mean)**2,0)/arr.length)||1;
-        return arr.map(v=>(v-mean)/std);
+        return arr.map(v=>Math.round((v-mean)/std*100)/100);
     }
     const btcVolZ=zScore(btcVols);
     const fartVolZ=zScore(fartVols);
 
-    const ctx=document.getElementById('combinedLiqChart').getContext('2d');
-    if(combinedLiqChartInst?.destroy)combinedLiqChartInst.destroy();
-
     const step=Math.max(1,Math.floor(dates.length/30));
     const labels=dates.map((dt,i)=>i%step===0?new Date(dt+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
 
-    combinedLiqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
-        {label:'BTC Price',data:dates.map(dt=>btcMap[dt].btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
-        {label:'FARTCOIN Price',data:dates.map(dt=>fartMap[dt].fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yFart'},
-        {label:'BTC Volume (z)',data:btcVolZ,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yZ'},
-        {label:'FARTCOIN Volume (z)',data:fartVolZ,borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yZ'}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:16}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{return new Date(dates[ctx[0].dataIndex]+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{const i=ctx.datasetIndex;const v=ctx.parsed.y;if(i===0)return'BTC: $'+fmt(v);if(i===1)return'FARTCOIN: $'+v.toFixed(4);if(i===2)return'BTC Vol z-score: '+v.toFixed(2);return'FART Vol z-score: '+v.toFixed(2);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#1e293b44'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC ($)',color:'#f59e0b'}},yFart:{position:'left',grid:{display:false},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN ($)',color:'#10b981'},offset:true},yZ:{position:'right',grid:{display:false},ticks:{color:'#94a3b8',callback:v=>v.toFixed(1)+'σ'},title:{display:true,text:'Volume (z-score)',color:'#94a3b8'}}}}});
+    if(comboPriceChart?.destroy)comboPriceChart.destroy();
+    if(comboBtcVolChart?.destroy)comboBtcVolChart.destroy();
+    if(comboFartVolChart?.destroy)comboFartVolChart.destroy();
+
+    const sharedTooltip={backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,
+        callbacks:{title:ctx=>{if(!ctx.length)return'';return new Date(dates[ctx[0].dataIndex]+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});}}};
+    const sharedInteraction={mode:'index',intersect:false};
+
+    // Panel 1 — Prices
+    comboPriceChart=new Chart(document.getElementById('comboPrice').getContext('2d'),{type:'line',
+        plugins:[crosshairPlugin],
+        data:{labels,datasets:[
+            {label:'BTC Price',data:dates.map(dt=>btcMap[dt].btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
+            {label:'FARTCOIN Price',data:dates.map(dt=>fartMap[dt].fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yFart'}
+        ]},options:{responsive:true,maintainAspectRatio:false,interaction:sharedInteraction,plugins:{legend:{labels:{color:'#e2e8f0',padding:12,font:{size:11}}},tooltip:{...sharedTooltip,callbacks:{...sharedTooltip.callbacks,label:ctx=>ctx.datasetIndex===0?'BTC: $'+fmt(ctx.parsed.y):'FARTCOIN: $'+ctx.parsed.y.toFixed(4)}}},scales:{
+            x:{display:false},
+            yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',font:{size:10},callback:v=>'$'+fmt(v)}},
+            yFart:{position:'right',grid:{display:false},ticks:{color:'#10b981',font:{size:10},callback:v=>'$'+v.toFixed(2)}}
+        }}});
+
+    // Panel 2 — BTC Volume
+    comboBtcVolChart=new Chart(document.getElementById('comboBtcVol').getContext('2d'),{type:'bar',
+        plugins:[crosshairPlugin],
+        data:{labels,datasets:[
+            {label:'BTC Volume (z-score)',data:btcVolZ,backgroundColor:btcVolZ.map(v=>v>=1.5?'rgba(59,130,246,0.7)':v<=-1.5?'rgba(239,68,68,0.5)':'rgba(59,130,246,0.3)'),borderColor:'transparent',borderWidth:0,yAxisID:'y'}
+        ]},options:{responsive:true,maintainAspectRatio:false,interaction:sharedInteraction,plugins:{legend:{labels:{color:'#e2e8f0',padding:12,font:{size:11}}},tooltip:{...sharedTooltip,callbacks:{...sharedTooltip.callbacks,label:ctx=>{const i=ctx.dataIndex;const raw=btcVols[i];const z=btcVolZ[i];const volStr=raw>=1e9?'$'+(raw/1e9).toFixed(2)+'B':'$'+(raw/1e6).toFixed(0)+'M';return'BTC Vol: '+volStr+' (z: '+z.toFixed(2)+')';}}}},scales:{
+            x:{display:false},
+            y:{grid:{color:'#334155'},ticks:{color:'#3b82f6',font:{size:10},callback:v=>v.toFixed(1)+'σ'},title:{display:true,text:'BTC Vol (z)',color:'#3b82f6',font:{size:10}}}
+        }}});
+
+    // Panel 3 — FARTCOIN Volume
+    comboFartVolChart=new Chart(document.getElementById('comboFartVol').getContext('2d'),{type:'bar',
+        plugins:[crosshairPlugin],
+        data:{labels,datasets:[
+            {label:'FARTCOIN Volume (z-score)',data:fartVolZ,backgroundColor:fartVolZ.map(v=>v>=1.5?'rgba(139,92,246,0.7)':v<=-1.5?'rgba(239,68,68,0.5)':'rgba(139,92,246,0.3)'),borderColor:'transparent',borderWidth:0,yAxisID:'y'}
+        ]},options:{responsive:true,maintainAspectRatio:false,interaction:sharedInteraction,plugins:{legend:{labels:{color:'#e2e8f0',padding:12,font:{size:11}}},tooltip:{...sharedTooltip,callbacks:{...sharedTooltip.callbacks,label:ctx=>{const i=ctx.dataIndex;const raw=fartVols[i];const z=fartVolZ[i];const volStr=raw>=1e9?'$'+(raw/1e9).toFixed(2)+'B':'$'+(raw/1e6).toFixed(0)+'M';return'FART Vol: '+volStr+' (z: '+z.toFixed(2)+')';}}}},scales:{
+            x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',font:{size:10},maxTicksLimit:20}},
+            y:{grid:{color:'#334155'},ticks:{color:'#8b5cf6',font:{size:10},callback:v=>v.toFixed(1)+'σ'},title:{display:true,text:'FART Vol (z)',color:'#8b5cf6',font:{size:10}}}
+        }}});
+
+    // Link all 3 charts for synced crosshair
+    const group=[comboPriceChart,comboBtcVolChart,comboFartVolChart];
+    for(const c of group)c._comboGroup=group;
 }
 
 // ──────────────────────────────────────────────
