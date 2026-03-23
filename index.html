@@ -68,11 +68,17 @@
         .price-change.down { color: #ef4444; }
         .asset-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; margin-bottom: 8px; }
         .market-status { font-size: 11px; color: #475569; margin-top: 6px; }
-        .rate-hike-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
-        @media (max-width: 900px) { .rate-hike-grid { grid-template-columns: 1fr; } }
-        .rate-hike-chart-wrap { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
-        .rate-hike-label { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 10px; }
-        .rate-hike-status { font-size: 11px; color: #64748b; margin-top: 8px; }
+        .rate-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .rate-table th, .rate-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #334155; font-size: 14px; }
+        .rate-table th { color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; background: #0f172a; }
+        .rate-table td { color: #e2e8f0; }
+        .rate-table tr:hover { background: rgba(255,255,255,0.02); }
+        .rate-odds { font-weight: 700; font-size: 18px; }
+        .rate-odds.high { color: #10b981; }
+        .rate-odds.medium { color: #f59e0b; }
+        .rate-odds.low { color: #ef4444; }
+        .rate-odds.none { color: #475569; }
+        .rate-table-status { font-size: 11px; color: #64748b; margin-top: 8px; }
         .fng-row { display: flex; align-items: center; gap: 28px; margin-bottom: 16px; flex-wrap: wrap; }
         .fng-value { font-size: 52px; font-weight: 800; }
         .fng-label { font-size: 18px; font-weight: 600; }
@@ -204,19 +210,30 @@
     </div>
 
     <div class="card">
-        <div class="card-title">Interest Rate Hike Odds — Next 6 Months <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
-        <div class="rate-hike-grid">
-            <div class="rate-hike-chart-wrap">
-                <div class="rate-hike-label">US Federal Reserve</div>
-                <div style="position:relative;height:220px;"><canvas id="fedHikeChart"></canvas></div>
-                <div class="rate-hike-status" id="fedHikeStatus">⏳ Loading...</div>
-            </div>
-            <div class="rate-hike-chart-wrap">
-                <div class="rate-hike-label">Bank of Japan</div>
-                <div style="position:relative;height:220px;"><canvas id="bojHikeChart"></canvas></div>
-                <div class="rate-hike-status" id="bojHikeStatus">⏳ Loading...</div>
-            </div>
-        </div>
+        <div class="card-title">Interest Rate Odds — Next Month <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
+        <table class="rate-table" id="rateNextMonthTable">
+            <thead>
+                <tr><th>Central Bank</th><th>Event</th><th>Month</th><th>Odds</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>US Federal Reserve</td><td>Rate Cut</td><td id="fedNextMonth">—</td><td id="fedNextOdds"><span class="rate-odds none">⏳</span></td></tr>
+                <tr><td>Bank of Japan</td><td>Rate Hike</td><td id="bojNextMonth">—</td><td id="bojNextOdds"><span class="rate-odds none">⏳</span></td></tr>
+            </tbody>
+        </table>
+        <div class="rate-table-status" id="nextMonthStatus">⏳ Fetching Polymarket data...</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">6-Month Rate Outlook <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via Polymarket</span></div>
+        <table class="rate-table" id="rateSixMonthTable">
+            <thead>
+                <tr><th>Month</th><th>US Fed Rate Cut</th><th>BOJ Rate Hike</th></tr>
+            </thead>
+            <tbody id="sixMonthBody">
+                <tr><td colspan="3" style="color:#64748b;text-align:center;padding:20px;">⏳ Loading 6-month outlook...</td></tr>
+            </tbody>
+        </table>
+        <div class="rate-table-status" id="sixMonthStatus">⏳ Fetching data...</div>
     </div>
 
     <div class="card">
@@ -711,7 +728,7 @@ function renderChart(canvasId,data,showRefLine,isChart1){
 async function initGeopolitics(){
     fetchMarketAlert('CL%3DF','oil','WTI Crude Oil',3,3,'oilChart');
     fetchMarketAlert('QQQ','qqq','Nasdaq 100',2,2,'qqqChart');
-    fetchRateHikeOdds();
+    fetchRateOdds();
     fetchFearAndGreed();
     fetchVIX();
 }
@@ -766,7 +783,6 @@ function renderMiniChart(canvasId,data,alerted,up){
     window['_m_'+canvasId]=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:data.map(d=>d.c),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:8,callbacks:{label:ctx=>'$'+fmt(ctx.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{color:'#475569',maxTicksLimit:6,font:{size:10}}},y:{grid:{color:'#1e293b'},ticks:{color:'#475569',font:{size:10},callback:v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:0})}}}}});
 }
 
-let fedHikeChartInst=null,bojHikeChartInst=null;
 const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -780,68 +796,82 @@ function getNext6Months(){
     return months;
 }
 
-async function fetchHikeOddsViaEvents(slugPrefix,targetYear,months){
-    const results=[];
-    for(const m of months){
-        let prob=null,vol=0,slug=null;
-        try{
-            const eventSlug=`${slugPrefix}-${m.month}`;
-            const url=`https://gamma-api.polymarket.com/events?slug=${eventSlug}`;
-            const events=await polyFetch(url,10000);
-            if(Array.isArray(events)&&events.length>0){
-                const ev=events[0];
-                const markets=ev.markets||[];
-                // Filter to current/future year markets only
-                const hikeMarkets=markets.filter(mk=>{
-                    const q=(mk.question||'').toLowerCase();
-                    return q.includes(String(targetYear))&&(q.includes('increase')||q.includes('hike')||q.includes('raise'));
+function oddsClass(prob){
+    if(prob===null)return 'none';
+    if(prob>=50)return 'high';
+    if(prob>=20)return 'medium';
+    return 'low';
+}
+
+function oddsDisplay(prob){
+    if(prob===null)return '<span class="rate-odds none">No data</span>';
+    return `<span class="rate-odds ${oddsClass(prob)}">${prob}%</span>`;
+}
+
+async function fetchEventOdds(slugPrefix,monthObj,filterType){
+    try{
+        const eventSlug=`${slugPrefix}-${monthObj.month}`;
+        const url=`https://gamma-api.polymarket.com/events?slug=${eventSlug}`;
+        const events=await polyFetch(url,10000);
+        if(Array.isArray(events)&&events.length>0){
+            const ev=events[0];
+            const markets=ev.markets||[];
+            let keywords;
+            if(filterType==='cut')keywords=['decrease','cut','lower'];
+            else keywords=['increase','hike','raise'];
+            const matched=markets.filter(mk=>{
+                const q=(mk.question||'').toLowerCase();
+                return q.includes(String(monthObj.year))&&keywords.some(k=>q.includes(k));
+            });
+            if(matched.length>0){
+                let prob=0;
+                matched.forEach(mk=>{
+                    const prices=JSON.parse(mk.outcomePrices||'[]');
+                    prob+=parseFloat(prices[0]||0);
                 });
-                if(hikeMarkets.length>0){
-                    // Sum all hike outcome probabilities (25bps + 50+bps etc)
-                    let hikeProb=0;
-                    hikeMarkets.forEach(mk=>{
-                        const prices=JSON.parse(mk.outcomePrices||'[]');
-                        hikeProb+=parseFloat(prices[0]||0);
-                    });
-                    prob=Math.round(hikeProb*100);
-                    slug=hikeMarkets[0].slug;
-                    vol=parseFloat(hikeMarkets[0].volume||0);
-                }
+                return Math.round(prob*100);
             }
-        }catch(e){console.warn('Rate hike fetch',m.month,e.message);}
-        results.push({label:m.label,prob,vol,slug});
-        await new Promise(r=>setTimeout(r,600));
-    }
-    return results;
+        }
+    }catch(e){console.warn('Rate odds fetch',slugPrefix,monthObj.month,e.message);}
+    return null;
 }
 
-function renderHikeChart(canvasId,data,color,existingChart){
-    if(existingChart?.destroy)existingChart.destroy();
-    const ctx=document.getElementById(canvasId).getContext('2d');
-    const labels=data.map(d=>d.label);
-    const values=data.map(d=>d.prob!==null?d.prob:0);
-    const bgColors=data.map(d=>d.prob!==null?color+'cc':'#334155');
-    const borderColors=data.map(d=>d.prob!==null?color:'#475569');
-    return new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Hike Probability %',data:values,backgroundColor:bgColors,borderColor:borderColors,borderWidth:1,borderRadius:4,barPercentage:0.6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:ctx=>{const d=data[ctx.dataIndex];return d.prob!==null?`Hike: ${d.prob}%`:'No market data';}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},min:0,max:100,title:{display:true,text:'Hike Probability',color:'#64748b'}}}}});
-}
-
-async function fetchRateHikeOdds(){
+async function fetchRateOdds(){
     const months=getNext6Months();
-    const fedStatus=document.getElementById('fedHikeStatus');
-    const bojStatus=document.getElementById('bojHikeStatus');
-    // Fetch Fed data
-    const targetYear=months[0].year;
-    fedStatus.textContent='⏳ Fetching Fed markets...';
-    const fedData=await fetchHikeOddsViaEvents('fed-decision-in',targetYear,months);
-    const fedLoaded=fedData.filter(d=>d.prob!==null).length;
-    fedHikeChartInst=renderHikeChart('fedHikeChart',fedData,'#3b82f6',fedHikeChartInst);
-    fedStatus.textContent=fedLoaded?`${fedLoaded}/${months.length} months with data · via Polymarket`:'No Fed hike markets found — FOMC may not meet these months';
-    // Fetch BOJ data
-    bojStatus.textContent='⏳ Fetching BOJ markets...';
-    const bojData=await fetchHikeOddsViaEvents('bank-of-japan-decision-in',targetYear,months);
-    const bojLoaded=bojData.filter(d=>d.prob!==null).length;
-    bojHikeChartInst=renderHikeChart('bojHikeChart',bojData,'#f59e0b',bojHikeChartInst);
-    bojStatus.textContent=bojLoaded?`${bojLoaded}/${months.length} months with data · via Polymarket`:'No BOJ hike markets found — BOJ may not meet these months';
+    const nextMonth=months[0];
+    const nextMonthStatus=document.getElementById('nextMonthStatus');
+    const sixMonthStatus=document.getElementById('sixMonthStatus');
+
+    // Table 1: Next month only
+    document.getElementById('fedNextMonth').textContent=nextMonth.label;
+    document.getElementById('bojNextMonth').textContent=nextMonth.label;
+
+    nextMonthStatus.textContent='⏳ Fetching Polymarket data...';
+    const fedCutNext=await fetchEventOdds('fed-decision-in',nextMonth,'cut');
+    document.getElementById('fedNextOdds').innerHTML=oddsDisplay(fedCutNext);
+    await new Promise(r=>setTimeout(r,600));
+    const bojHikeNext=await fetchEventOdds('bank-of-japan-decision-in',nextMonth,'hike');
+    document.getElementById('bojNextOdds').innerHTML=oddsDisplay(bojHikeNext);
+
+    const nextLoaded=[fedCutNext,bojHikeNext].filter(v=>v!==null).length;
+    nextMonthStatus.textContent=nextLoaded?`Updated ${new Date().toLocaleString('en-AU')} · via Polymarket`:'No market data found for '+nextMonth.label;
+
+    // Table 2: 6-month outlook
+    sixMonthStatus.textContent='⏳ Fetching 6-month outlook...';
+    const tbody=document.getElementById('sixMonthBody');
+    tbody.innerHTML='';
+    let sixLoaded=0;
+    for(const m of months){
+        const fedProb=m===nextMonth?fedCutNext:await fetchEventOdds('fed-decision-in',m,'cut');
+        if(m!==nextMonth)await new Promise(r=>setTimeout(r,600));
+        const bojProb=m===nextMonth?bojHikeNext:await fetchEventOdds('bank-of-japan-decision-in',m,'hike');
+        if(m!==nextMonth)await new Promise(r=>setTimeout(r,600));
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${m.label}</td><td>${oddsDisplay(fedProb)}</td><td>${oddsDisplay(bojProb)}</td>`;
+        tbody.appendChild(tr);
+        if(fedProb!==null||bojProb!==null)sixLoaded++;
+    }
+    sixMonthStatus.textContent=sixLoaded?`${sixLoaded}/${months.length} months with data · Updated ${new Date().toLocaleString('en-AU')} · via Polymarket`:'No market data found';
 }
 
 async function fetchFearAndGreed(){
