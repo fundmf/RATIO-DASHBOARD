@@ -2,9 +2,8 @@ name: Update Dashboard Data
 
 on:
   schedule:
-    # Runs at 8:00 AM AEST (22:00 UTC previous day)
-    # This ensures US market close data (4pm ET) is fully settled before fetching
-    - cron: '0 22 * * 1-5'
+    # Run every hour to pick up new divergence events quickly
+    - cron: '0 * * * *'
   workflow_dispatch:
     # Allows you to manually trigger from GitHub Actions tab anytime
 
@@ -26,16 +25,27 @@ jobs:
       - name: Install dependencies
         run: pip install requests yfinance pycoingecko
 
-      - name: Run data update script
+      - name: Run data update script (ratio analysis)
         run: python update_data.py
 
       - name: Update hourly data (BTC, FARTCOIN, SPX6900)
         run: python backfill_hourly.py
 
-      - name: Commit and push if data changed
+      - name: Commit updated data
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add data.json fartcoin_hourly.json spx6900_hourly.json
-          git diff --staged --quiet || git commit -m "Auto-update: $(date -u '+%Y-%m-%d') data refresh"
+          git diff --staged --quiet || git commit -m "Auto-update: $(date -u '+%Y-%m-%dT%H:%M') data refresh"
+          git push
+
+      - name: Detect divergence events and alert Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: python detect_events.py
+
+      - name: Commit event state
+        run: |
+          git add last_events.json
+          git diff --staged --quiet || git commit -m "Update event detection state"
           git push

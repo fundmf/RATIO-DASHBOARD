@@ -1,0 +1,59 @@
+{
+  "fartcoin": [
+    "fartcoin:2025-12-27",
+    "fartcoin:2026-02-02",
+    "fartcoin:2026-02-04",
+    "fartcoin:2026-02-05",
+    "fartcoin:2026-02-08",
+    "fartcoin:2026-02-13",
+    "fartcoin:2026-03-18",
+    "fartcoin:2026-03-19"
+  ],
+  "inverse_fartcoin": [
+    "inverse_fartcoin:2025-09-12",
+    "inverse_fartcoin:2025-09-13",
+    "inverse_fartcoin:2025-09-14",
+    "inverse_fartcoin:2025-09-15",
+    "inverse_fartcoin:2025-09-16",
+    "inverse_fartcoin:2025-09-21",
+    "inverse_fartcoin:2025-10-14",
+    "inverse_fartcoin:2025-10-21",
+    "inverse_fartcoin:2025-10-22",
+    "inverse_fartcoin:2025-10-23",
+    "inverse_fartcoin:2026-01-26",
+    "inverse_fartcoin:2026-01-27",
+    "inverse_fartcoin:2026-01-29",
+    "inverse_fartcoin:2026-01-31",
+    "inverse_fartcoin:2026-02-03",
+    "inverse_fartcoin:2026-02-07",
+    "inverse_fartcoin:2026-02-09",
+    "inverse_fartcoin:2026-02-20",
+    "inverse_fartcoin:2026-02-22",
+    "inverse_fartcoin:2026-03-12",
+    "inverse_fartcoin:2026-03-21"
+  ],
+  "spx": [
+    "spx:2025-09-10",
+    "spx:2025-10-15",
+    "spx:2025-12-27",
+    "spx:2026-02-02",
+    "spx:2026-02-04",
+    "spx:2026-02-05",
+    "spx:2026-02-11",
+    "spx:2026-02-12",
+    "spx:2026-02-17",
+    "spx:2026-02-18",
+    "spx:2026-02-19",
+    "spx:2026-02-25"
+  ],
+  "bfspx": [
+    "bfspx:2025-12-27",
+    "bfspx:2026-02-02",
+    "bfspx:2026-02-04",
+    "bfspx:2026-02-05",
+    "bfspx:2026-02-08",
+    "bfspx:2026-02-13",
+    "bfspx:2026-03-18",
+    "bfspx:2026-03-19"
+  ]
+}
