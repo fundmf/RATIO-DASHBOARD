@@ -279,7 +279,7 @@
         <div class="date-controls">
             <div class="date-control"><label>From:</label><input type="date" id="liqStart" value="2025-03-24"></div>
             <div class="date-control"><label>To:</label><input type="date" id="liqEnd" value=""></div>
-            <button onclick="renderLiquidityChart();renderFartLiqChart();" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Charts</button>
+            <button onclick="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Charts</button>
         </div>
     </div>
 
@@ -311,6 +311,12 @@
             <div class="price-item"><strong>Max Daily Volume:</strong> <span id="fartLiqStatMaxVol">—</span></div>
             <div class="price-item"><strong>FARTCOIN Range:</strong> <span id="fartLiqStatRange">—</span></div>
         </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Combined View — Standardised Volume Comparison</div>
+        <div style="font-size:12px;color:#64748b;margin:-8px 0 12px 0;">Volume is z-score normalised so BTC and FARTCOIN can be compared on the same scale</div>
+        <div class="chart-wrapper" style="height:420px;"><canvas id="combinedLiqChart"></canvas></div>
     </div>
 </div>
 </div>
@@ -943,6 +949,7 @@ let liqData=[];
 let liqChartInst=null;
 let fartLiqData=[];
 let fartLiqChartInst=null;
+let combinedLiqChartInst=null;
 
 async function initLiquidity(){
     document.getElementById('liqStart').value='2025-03-24';
@@ -1003,6 +1010,7 @@ async function initLiquidity(){
         for(const d of Object.values(fLive))if(d.fart_price&&d.volume)fm[d.date]=d;
         fartLiqData=Object.values(fm).sort((a,b)=>a.date.localeCompare(b.date));
         renderFartLiqChart();
+        renderCombinedLiqChart();
     }catch(e){}
 
     // Refresh once per hour
@@ -1044,6 +1052,7 @@ async function initLiquidity(){
             for(const d of Object.values(fLive))if(d.fart_price&&d.volume)fm[d.date]=d;
             fartLiqData=Object.values(fm).sort((a,b)=>a.date.localeCompare(b.date));
             renderFartLiqChart();
+            renderCombinedLiqChart();
         }catch(e){}
     },3600000);
 }
@@ -1106,6 +1115,42 @@ function renderFartLiqChart(){
     document.getElementById('fartLiqStatAvgVol').textContent=avgVol>=1e9?'$'+(avgVol/1e9).toFixed(2)+'B':'$'+(avgVol/1e6).toFixed(1)+'M';
     document.getElementById('fartLiqStatMaxVol').textContent=maxVol>=1e9?'$'+(maxVol/1e9).toFixed(2)+'B':'$'+(maxVol/1e6).toFixed(1)+'M';
     document.getElementById('fartLiqStatRange').textContent='$'+minP.toFixed(4)+' - $'+maxP.toFixed(4);
+}
+
+function renderCombinedLiqChart(){
+    const startDate=document.getElementById('liqStart').value;
+    const endDate=document.getElementById('liqEnd').value;
+    // Build a map of dates that exist in BOTH datasets
+    const btcMap={};
+    for(const d of liqData)if(d.date>=startDate&&d.date<=endDate)btcMap[d.date]=d;
+    const fartMap={};
+    for(const d of fartLiqData)if(d.date>=startDate&&d.date<=endDate)fartMap[d.date]=d;
+    const dates=Object.keys(btcMap).filter(dt=>fartMap[dt]).sort();
+    if(dates.length<3)return;
+
+    // Z-score normalise volumes
+    const btcVols=dates.map(dt=>btcMap[dt].volume);
+    const fartVols=dates.map(dt=>fartMap[dt].volume);
+    function zScore(arr){
+        const mean=arr.reduce((s,v)=>s+v,0)/arr.length;
+        const std=Math.sqrt(arr.reduce((s,v)=>s+(v-mean)**2,0)/arr.length)||1;
+        return arr.map(v=>(v-mean)/std);
+    }
+    const btcVolZ=zScore(btcVols);
+    const fartVolZ=zScore(fartVols);
+
+    const ctx=document.getElementById('combinedLiqChart').getContext('2d');
+    if(combinedLiqChartInst?.destroy)combinedLiqChartInst.destroy();
+
+    const step=Math.max(1,Math.floor(dates.length/30));
+    const labels=dates.map((dt,i)=>i%step===0?new Date(dt+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+
+    combinedLiqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
+        {label:'BTC Price',data:dates.map(dt=>btcMap[dt].btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
+        {label:'FARTCOIN Price',data:dates.map(dt=>fartMap[dt].fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yFart'},
+        {label:'BTC Volume (z)',data:btcVolZ,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yZ'},
+        {label:'FARTCOIN Volume (z)',data:fartVolZ,borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yZ'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:16}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{return new Date(dates[ctx[0].dataIndex]+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{const i=ctx.datasetIndex;const v=ctx.parsed.y;if(i===0)return'BTC: $'+fmt(v);if(i===1)return'FARTCOIN: $'+v.toFixed(4);if(i===2)return'BTC Vol z-score: '+v.toFixed(2);return'FART Vol z-score: '+v.toFixed(2);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#1e293b44'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC ($)',color:'#f59e0b'}},yFart:{position:'left',grid:{display:false},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN ($)',color:'#10b981'},offset:true},yZ:{position:'right',grid:{display:false},ticks:{color:'#94a3b8',callback:v=>v.toFixed(1)+'σ'},title:{display:true,text:'Volume (z-score)',color:'#94a3b8'}}}}});
 }
 
 // ──────────────────────────────────────────────
