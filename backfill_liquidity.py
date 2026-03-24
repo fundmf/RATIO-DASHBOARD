@@ -23,25 +23,40 @@ FART_OUTPUT = "fartcoin_liquidity_daily.json"
 MIN_DATE = "2025-01-01"  # Earliest date we want to keep
 
 
-def fetch_daily(coin_id):
-    """Fetch up to 365 days of daily price + volume for a coin."""
+def fetch_daily(coin_id, retries=3):
+    """Fetch up to 365 days of daily price + volume for a coin, with retries."""
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
     params = {"vs_currency": "usd", "days": "365"}
-    resp = requests.get(url, params=params, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
 
-    prices = {}
-    for ts, price in data.get("prices", []):
-        key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-        prices[key] = price
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            if resp.status_code == 429:
+                wait = 30 * (attempt + 1)
+                print(f"  Rate limited (429), waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
 
-    volumes = {}
-    for ts, vol in data.get("total_volumes", []):
-        key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-        volumes[key] = vol
+            prices = {}
+            for ts, price in data.get("prices", []):
+                key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                prices[key] = price
 
-    return prices, volumes
+            volumes = {}
+            for ts, vol in data.get("total_volumes", []):
+                key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                volumes[key] = vol
+
+            return prices, volumes
+        except requests.exceptions.RequestException as e:
+            print(f"  Attempt {attempt+1}/{retries} failed: {e}")
+            if attempt < retries - 1:
+                time.sleep(15)
+
+    print(f"  WARNING: All {retries} attempts failed for {coin_id}, skipping")
+    return {}, {}
 
 
 def load_existing(output_file):
@@ -61,6 +76,11 @@ def build_and_save(coin_id, price_key, output_file):
     """Fetch, merge, and save daily data for a coin."""
     print(f"\nFetching {coin_id} daily price + volume (up to 365 days)...")
     prices, volumes = fetch_daily(coin_id)
+
+    if not prices:
+        print(f"  No new data fetched for {coin_id}, keeping existing file unchanged")
+        return
+
     print(f"  Got {len(prices)} price points, {len(volumes)} volume points")
 
     print(f"Building {output_file}...")
@@ -99,9 +119,9 @@ def main():
     # BTC
     build_and_save("bitcoin", "btc_price", BTC_OUTPUT)
 
-    # Rate limit pause
-    print("\nWaiting 6s for rate limit...")
-    time.sleep(6)
+    # Rate limit pause — longer wait since hourly backfill may have used up quota
+    print("\nWaiting 15s for rate limit...")
+    time.sleep(15)
 
     # FARTCOIN
     build_and_save("fartcoin", "fart_price", FART_OUTPUT)
