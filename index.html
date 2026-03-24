@@ -97,7 +97,7 @@
         .legend-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
-        .event-row { display: grid; grid-template-columns: 130px 1fr 75px 95px 90px 85px 120px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+        .event-row { display: grid; grid-template-columns: 100px 55px 1fr 65px 85px 80px 75px 120px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -286,6 +286,7 @@
     <div class="card">
         <div class="card-title">BTC Price vs Market Volume</div>
         <div class="chart-wrapper"><canvas id="liqChart"></canvas></div>
+        <div class="last-updated" id="liqChartLatest"></div>
     </div>
 
     <div class="card" id="liqStatsCard" style="display:none">
@@ -301,6 +302,7 @@
     <div class="card">
         <div class="card-title">FARTCOIN Price vs Volume</div>
         <div class="chart-wrapper"><canvas id="fartLiqChart"></canvas></div>
+        <div class="last-updated" id="fartLiqChartLatest"></div>
     </div>
 
     <div class="card" id="fartLiqStatsCard" style="display:none">
@@ -321,6 +323,7 @@
             <div style="height:140px;position:relative;margin:0;padding:0;"><canvas id="comboBtcVol"></canvas></div>
             <div style="height:170px;position:relative;margin:0;padding:0;"><canvas id="comboFartVol"></canvas></div>
         </div>
+        <div class="last-updated" id="comboChartLatest"></div>
     </div>
 </div>
 </div>
@@ -367,6 +370,7 @@
     <div class="card">
         <div class="card-title">FARTCOIN vs BTC — Hourly Chart with Divergence &amp; Crash Events</div>
         <div class="fart-chart-wrap"><canvas id="fartChart"></canvas></div>
+        <div class="last-updated" id="fartChartLatest"></div>
     </div>
 
     <div class="card">
@@ -420,6 +424,7 @@
     <div class="card">
         <div class="card-title">SPX6900 vs BTC &amp; FARTCOIN — Divergence Triggers &amp; SPX Crash Events</div>
         <div class="fart-chart-wrap"><canvas id="bfspxChart"></canvas></div>
+        <div class="last-updated" id="bfspxChartLatest"></div>
     </div>
 
     <div class="card">
@@ -473,6 +478,7 @@
     <div class="card">
         <div class="card-title">SPX6900 vs BTC — Hourly Chart with Divergence &amp; Crash Events</div>
         <div class="fart-chart-wrap"><canvas id="spxChart"></canvas></div>
+        <div class="last-updated" id="spxChartLatest"></div>
     </div>
 
     <div class="card">
@@ -526,6 +532,7 @@
     <div class="card">
         <div class="card-title">FARTCOIN vs BTC — Hourly Chart with Inverse Divergence &amp; Pump Events</div>
         <div class="fart-chart-wrap"><canvas id="ifartChart"></canvas></div>
+        <div class="last-updated" id="ifartChartLatest"></div>
     </div>
 
     <div class="card">
@@ -1088,6 +1095,8 @@ function renderLiquidityChart(){
     document.getElementById('liqStatAvgVol').textContent='$'+(avgVol/1e9).toFixed(2)+'B';
     document.getElementById('liqStatMaxVol').textContent='$'+(maxVol/1e9).toFixed(2)+'B';
     document.getElementById('liqStatBtcRange').textContent='$'+fmt(minBtc)+' - $'+fmt(maxBtc);
+    const lastBtc=filtered[filtered.length-1];
+    document.getElementById('liqChartLatest').textContent='Latest data point: '+new Date(lastBtc.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' (daily)';
 }
 
 function renderFartLiqChart(){
@@ -1118,6 +1127,8 @@ function renderFartLiqChart(){
     document.getElementById('fartLiqStatAvgVol').textContent=avgVol>=1e9?'$'+(avgVol/1e9).toFixed(2)+'B':'$'+(avgVol/1e6).toFixed(1)+'M';
     document.getElementById('fartLiqStatMaxVol').textContent=maxVol>=1e9?'$'+(maxVol/1e9).toFixed(2)+'B':'$'+(maxVol/1e6).toFixed(1)+'M';
     document.getElementById('fartLiqStatRange').textContent='$'+minP.toFixed(4)+' - $'+maxP.toFixed(4);
+    const lastF=filtered[filtered.length-1];
+    document.getElementById('fartLiqChartLatest').textContent='Latest data point: '+new Date(lastF.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' (daily)';
 }
 
 // Vertical line plugin — draws crosshair at stored x position
@@ -1261,6 +1272,8 @@ function renderCombinedLiqChart(){
         cvs.addEventListener('mousemove',e=>_comboSync(charts[idx],e));
         cvs.addEventListener('mouseleave',()=>_comboClear());
     });
+    const lastD=dates[dates.length-1];
+    document.getElementById('comboChartLatest').textContent='Latest data point: '+new Date(lastD+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' (daily)';
 }
 
 // ──────────────────────────────────────────────
@@ -1425,17 +1438,20 @@ function renderFartChart(data,events){
         if(e.confirmed)zones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
     });
     fartChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+    const lastPt=data[data.length-1];
+    document.getElementById('fartChartLatest').textContent='Latest data point: '+new Date(lastPt.t).toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (hourly)';
 }
 
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
@@ -1632,17 +1648,20 @@ function renderBfspxChart(data,events){
         if(e.confirmed)zones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
     });
     bfspxChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'SPX6900 ($)',data:data.map(d=>d.spx),borderColor:'#34d399',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yS'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='SPX6900 ($)'?'SPX6900: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yS:{position:'left',grid:{color:'#334155'},ticks:{color:'#34d399'},title:{display:true,text:'SPX6900 ($)',color:'#34d399'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+    const lastPt=data[data.length-1];
+    document.getElementById('bfspxChartLatest').textContent='Latest data point: '+new Date(lastPt.t).toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (hourly)';
 }
 
 function renderBfspxTable(events,data){
     const el=document.getElementById('bfspxEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found. Try lowering the BTC drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FC → SPX at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FC → SPX at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)} → $${fmt(e.spxAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)} → $${fmt(e.spxAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
@@ -1789,17 +1808,20 @@ function renderSpxChart(data,events){
         if(e.confirmed)zones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
     });
     spxChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'SPX6900 ($)',data:data.map(d=>d.spx),borderColor:'#34d399',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yS'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='SPX6900 ($)'?'SPX6900: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yS:{position:'left',grid:{color:'#334155'},ticks:{color:'#34d399'},title:{display:true,text:'SPX6900 ($)',color:'#34d399'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+    const lastPt=data[data.length-1];
+    document.getElementById('spxChartLatest').textContent='Latest data point: '+new Date(lastPt.t).toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (hourly)';
 }
 
 function renderSpxTable(events,data){
     const el=document.getElementById('spxEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → SPX6900 at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → SPX6900 at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.spxAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.spxAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
@@ -1913,17 +1935,20 @@ function renderInverseFartChart(data,events){
         if(e.confirmed)zones.push({start:e.de,end:e.peakIdx,color:'rgba(59,130,246,0.12)'});
     });
     ifartChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
+    const lastPt=data[data.length-1];
+    document.getElementById('ifartChartLatest').textContent='Latest data point: '+new Date(lastPt.t).toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (hourly)';
 }
 
 function renderInverseFartTable(events,data){
     const el=document.getElementById('ifartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No inverse divergence events found. Try lowering the FARTCOIN drop threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Pump</span><span>Result</span></div>`;
+    const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Pump</span><span>Result</span></div>`;
     const rows=events.map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span style="color:#10b981;font-weight:600;">✓ ${e.pumpPct.toFixed(1)}% pump</span>`:`<span class="crash-none">No pump (${e.pumpPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.riseFromStart.toFixed(1)}%</span>`:'—';
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.pumpPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
+        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.pumpPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
