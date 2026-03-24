@@ -164,6 +164,7 @@
             <div class="date-control"><label>To:</label><input type="date" id="chart1End" value=""></div>
         </div>
         <div class="chart-wrapper"><canvas id="chart1"></canvas></div>
+        <div class="last-updated" id="ratioChartLatest"></div>
     </div>
 
     <div class="card">
@@ -1483,6 +1484,9 @@ async function init(){
         });
         ['chart1Start','chart1End','chart2Start','chart2End'].forEach(id=>{document.getElementById(id).addEventListener('change',updateCharts);});
         updateCharts();
+        const lastPt=rawData[rawData.length-1];
+        const isLive=lastPt.isLive?'live':'static';
+        document.getElementById('ratioChartLatest').textContent='Latest data point: '+new Date(lastPt.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' (daily, '+isLive+') — updates once per day via GitHub Actions';
     }catch(err){showError('⚠ Failed to load: '+err.message);console.error(err);}
     finally{overlay.classList.add('hidden');}
 }
