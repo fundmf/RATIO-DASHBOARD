@@ -210,7 +210,7 @@
                 <div class="market-status" id="oil-status"></div>
             </div>
             <div>
-                <div class="asset-label">📈 Nasdaq 100 (QQQ)</div>
+                <div class="asset-label">📈 Nasdaq 100</div>
                 <div id="qqq-alert" class="alert-banner loading">⏳ Loading...</div>
                 <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
                     <span class="price-stat" id="qqq-price">—</span>
@@ -820,7 +820,7 @@ function renderChart(canvasId,data,showRefLine,isChart1){
 // ──────────────────────────────────────────────
 async function initGeopolitics(){
     fetchMarketAlert('CL%3DF','oil','WTI Crude Oil',3,3,'oilChart');
-    fetchMarketAlert('QQQ','qqq','Nasdaq 100',2,2,'qqqChart');
+    fetchMarketAlert('%5ENDX','qqq','Nasdaq 100',2,2,'qqqChart');
     fetchRateOdds();
     fetchFearAndGreed();
     fetchVIX();
