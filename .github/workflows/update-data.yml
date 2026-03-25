@@ -42,9 +42,9 @@ jobs:
           git diff --staged --quiet || git commit -m "Auto-update: $(date -u '+%Y-%m-%dT%H:%M') data refresh"
           git push
 
-      - name: Detect divergence events and alert Teams
+      - name: Detect divergence events and alert Slack
         env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python detect_events.py
 
       - name: Commit event state

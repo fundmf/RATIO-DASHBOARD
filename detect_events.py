@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 detect_events.py — Runs divergence detection on hourly data (same logic as the dashboard)
-and sends Microsoft Teams alerts for any NEW events detected.
+and sends Slack alerts for any NEW events detected.
 
 Reads:
   - fartcoin_hourly.json  (BTC + FARTCOIN hourly data)
@@ -12,7 +12,7 @@ Writes:
   - last_events.json      (updated with newly detected events)
 
 Env vars:
-  - TEAMS_WEBHOOK_URL     (Power Automate webhook URL)
+  - SLACK_WEBHOOK_URL     (Slack Incoming Webhook URL)
 """
 
 import json
@@ -25,7 +25,7 @@ FARTCOIN_FILE = "fartcoin_hourly.json"
 SPX6900_FILE = "spx6900_hourly.json"
 LAST_EVENTS_FILE = "last_events.json"
 
-TEAMS_WEBHOOK_URL = os.environ.get("TEAMS_WEBHOOK_URL", "")
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 # Default thresholds (same as dashboard defaults)
 BTC_DROP_THR = 1.5 / 100      # 1.5% BTC drop over 24hrs
@@ -306,15 +306,15 @@ def detect_bfspx_events(fart_data, spx_data):
     return events
 
 
-def format_teams_message(new_events):
-    """Format a Teams-compatible adaptive card payload."""
+def format_slack_message(new_events):
+    """Format a Slack message payload with blocks."""
     lines = []
     for e in new_events:
         etype = {
             "fartcoin": "FARTCOIN Analysis",
             "inverse_fartcoin": "Inverse FARTCOIN",
             "spx": "SPX6900 Analysis",
-            "bfspx": "BTC/FC → SPX",
+            "bfspx": "BTC/FC -> SPX",
         }.get(e["type"], e["type"])
 
         time_str = datetime.fromisoformat(e["time"].replace("Z", "+00:00")).strftime("%d %b %Y %H:%M UTC")
@@ -324,67 +324,40 @@ def format_teams_message(new_events):
         else:
             result = f"Crash: {e.get('crash_pct', 0)}%" if e.get("confirmed") else f"Pending ({e.get('crash_pct', 0)}%)"
 
-        status = "CONFIRMED" if e.get("confirmed") else "DETECTED"
-        lines.append(f"**[{status}] {etype}** — {time_str}\n- BTC: ${e.get('btc_price', 0):,.0f} | Result: {result}")
+        status = ":rotating_light: CONFIRMED" if e.get("confirmed") else ":warning: DETECTED"
+        lines.append(f"*[{status}] {etype}* — {time_str}\n>BTC: ${e.get('btc_price', 0):,.0f} | Result: {result}")
 
     body = "\n\n".join(lines)
+    detected_at = datetime.now(tz=timezone.utc).strftime("%d %b %Y %H:%M UTC")
 
-    # Power Automate webhook expects this format
     payload = {
-        "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "contentUrl": None,
-                "content": {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.4",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": "🚨 RATIO Dashboard Alert",
-                            "weight": "Bolder",
-                            "size": "Medium",
-                            "color": "Attention",
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": body,
-                            "wrap": True,
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": f"Detected at {datetime.now(tz=timezone.utc).strftime('%d %b %Y %H:%M UTC')}",
-                            "size": "Small",
-                            "isSubtle": True,
-                        },
-                    ],
-                },
-            }
-        ],
+        "blocks": [
+            {"type": "header", "text": {"type": "plain_text", "text": ":chart_with_upwards_trend: RATIO Dashboard Alert", "emoji": True}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": body}},
+            {"type": "context", "elements": [{"type": "mrkdwn", "text": f"Detected at {detected_at}"}]},
+        ]
     }
     return payload
 
 
-def send_teams_alert(new_events):
-    """Send alert to Microsoft Teams via Power Automate webhook."""
-    if not TEAMS_WEBHOOK_URL:
-        print("  TEAMS_WEBHOOK_URL not set — skipping Teams alert")
+def send_slack_alert(new_events):
+    """Send alert to Slack via Incoming Webhook."""
+    if not SLACK_WEBHOOK_URL:
+        print("  SLACK_WEBHOOK_URL not set — skipping Slack alert")
         return False
 
-    payload = format_teams_message(new_events)
+    payload = format_slack_message(new_events)
 
     try:
-        resp = requests.post(TEAMS_WEBHOOK_URL, json=payload, timeout=15)
-        if resp.status_code in (200, 202):
-            print(f"  Teams alert sent successfully ({len(new_events)} events)")
+        resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=15)
+        if resp.status_code == 200:
+            print(f"  Slack alert sent successfully ({len(new_events)} events)")
             return True
         else:
-            print(f"  Teams alert failed: {resp.status_code} — {resp.text[:200]}")
+            print(f"  Slack alert failed: {resp.status_code} — {resp.text[:200]}")
             return False
     except Exception as e:
-        print(f"  Teams alert error: {e}")
+        print(f"  Slack alert error: {e}")
         return False
 
 
@@ -446,9 +419,9 @@ def main():
         for e in new_events:
             print(f"  [{e['type']}] {e['time']} — {'CONFIRMED' if e['confirmed'] else 'DETECTED'}")
 
-        # Send Teams alert
-        print("\nSending Teams alert...")
-        send_teams_alert(new_events)
+        # Send Slack alert
+        print("\nSending Slack alert...")
+        send_slack_alert(new_events)
     else:
         print("\nNo new events — no alert needed")
 
