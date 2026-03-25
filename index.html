@@ -179,10 +179,10 @@
     <div class="card">
         <div class="card-title">BTC/MSTR Spread Divergence</div>
         <div style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:12px;">
-            This chart measures whether BTC HIGH and MSTR HIGH ratios are moving apart faster or slower than BTC LOW and MSTR LOW ratios, first normalised for spread volatility, then normalised against BTC price to remove price-level bias.
-            <strong style="color:#e2e8f0;">Above 0</strong> = highs diverging more than lows (bullish tension).
-            <strong style="color:#e2e8f0;">Below 0</strong> = lows diverging more (bearish pressure).
-            <strong style="color:#e2e8f0;">Spikes beyond ±2σ</strong> = unusual divergence worth watching.
+            This chart plots: (BTC HIGH ratio − MSTR HIGH ratio) ÷ (BTC LOW ratio − MSTR LOW ratio).
+            <strong style="color:#e2e8f0;">Above 1.0</strong> = the highs are spreading apart faster than the lows.
+            <strong style="color:#e2e8f0;">Below 1.0</strong> = the lows are spreading apart faster than the highs.
+            <strong style="color:#e2e8f0;">At 1.0</strong> = both moving in lockstep.
         </div>
         <div class="chart-wrapper"><canvas id="spreadChart"></canvas></div>
         <div class="last-updated" id="spreadChartLatest"></div>
@@ -724,19 +724,14 @@ function renderSpreadChart(inp){
     const highDist=filtered.map(d=>(inp.btcHigh/d.btc)-(inp.mstrHigh/d.mstr));
     const lowDist=filtered.map(d=>(inp.btcLow/d.btc)-(inp.mstrLow/d.mstr));
 
-    // Raw spread: high distance minus low distance
-    const rawSpread=highDist.map((h,i)=>h-lowDist[i]);
-
-    // Step 1: Z-score normalise against spread volatility
-    const mean=rawSpread.reduce((s,v)=>s+v,0)/rawSpread.length;
-    const std=Math.sqrt(rawSpread.reduce((s,v)=>s+(v-mean)**2,0)/rawSpread.length)||1;
-    const volNorm=rawSpread.map(v=>(v-mean)/std);
-
-    // Step 2: Normalise against BTC price (divide by price, then rescale)
-    const priceNorm=volNorm.map((v,i)=>v/filtered[i].btc);
-    const pMean=priceNorm.reduce((s,v)=>s+v,0)/priceNorm.length;
-    const pStd=Math.sqrt(priceNorm.reduce((s,v)=>s+(v-pMean)**2,0)/priceNorm.length)||1;
-    const final=priceNorm.map(v=>Math.round((v-pMean)/pStd*100)/100);
+    // Ratio: high distance / low distance, clamped to ±10 to avoid near-zero divisor spikes
+    const ratio=highDist.map((h,i)=>{
+        const l=lowDist[i];
+        if(Math.abs(l)<0.001)return null;
+        const r=h/l;
+        if(r>10||r<-10)return null; // skip extreme outliers
+        return Math.round(r*1000)/1000;
+    });
 
     const step=Math.max(1,Math.floor(filtered.length/30));
     const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
@@ -745,12 +740,13 @@ function renderSpreadChart(inp){
     if(spreadChartInst?.destroy)spreadChartInst.destroy();
 
     spreadChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
-        {label:'Spread Divergence',data:final,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,tension:0.3,fill:true},
-        {label:'Zero',data:final.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='Zero'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';return filtered[ctx[0].dataIndex].date;},label:ctx=>ctx.dataset.label==='Zero'?null:'Spread: '+ctx.parsed.y.toFixed(2)+'σ'}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v.toFixed(1)+'σ'},title:{display:true,text:'Normalised Spread',color:'#64748b'}}}}});
+        {label:'High/Low Spread Ratio',data:ratio,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,tension:0.3,fill:true,spanGaps:true},
+        {label:'1.0',data:ratio.map(()=>1),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='1.0'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';return filtered[ctx[0].dataIndex].date;},label:ctx=>ctx.dataset.label==='1.0'?null:'Ratio: '+ctx.parsed.y.toFixed(3)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'High Dist / Low Dist',color:'#64748b'}}}}});
 
     const lastD=filtered[filtered.length-1];
-    document.getElementById('spreadChartLatest').textContent='Latest: '+new Date(lastD.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' | spread: '+final[final.length-1].toFixed(2)+'σ';
+    const lastVal=ratio[ratio.length-1];
+    document.getElementById('spreadChartLatest').textContent='Latest: '+new Date(lastD.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' | ratio: '+(lastVal!=null?lastVal.toFixed(3):'N/A');
 }
 
 function prepareData(data,inputs,s,e,type){
@@ -1133,10 +1129,10 @@ function renderLiquidityChart(){
     const step=Math.max(1,Math.floor(filtered.length/30));
     const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
 
-    liqChartInst=new Chart(ctx,{data:{labels,datasets:[
-        {type:'bar',label:'Volume ($)',data:filtered.map(d=>d.volume),backgroundColor:'rgba(59,130,246,0.25)',borderColor:'rgba(59,130,246,0.5)',borderWidth:1,yAxisID:'yVol',order:2},
-        {type:'line',label:'BTC Price ($)',data:filtered.map(d=>d.btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc',order:1}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'BTC: $'+fmt(ctx.parsed.y);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC Price ($)',color:'#f59e0b'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#3b82f6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#3b82f6'}}}}});
+    liqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
+        {label:'BTC Price ($)',data:filtered.map(d=>d.btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
+        {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'BTC: $'+fmt(ctx.parsed.y);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC Price ($)',color:'#f59e0b'}},yVol:{position:'right',grid:{display:false},max:Math.max(...filtered.map(d=>d.volume))*3,ticks:{color:'#3b82f6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#3b82f6'}}}}});
 
     // Update stats
     const statsCard=document.getElementById('liqStatsCard');
@@ -1165,10 +1161,10 @@ function renderFartLiqChart(){
     const step=Math.max(1,Math.floor(filtered.length/30));
     const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
 
-    fartLiqChartInst=new Chart(ctx,{data:{labels,datasets:[
-        {type:'bar',label:'Volume ($)',data:filtered.map(d=>d.volume),backgroundColor:'rgba(139,92,246,0.25)',borderColor:'rgba(139,92,246,0.5)',borderWidth:1,yAxisID:'yVol',order:2},
-        {type:'line',label:'FARTCOIN Price ($)',data:filtered.map(d=>d.fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yPrice',order:1}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'FARTCOIN: $'+ctx.parsed.y.toFixed(4);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yPrice:{position:'left',grid:{color:'#334155'},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN Price ($)',color:'#10b981'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#8b5cf6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#8b5cf6'}}}}});
+    fartLiqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
+        {label:'FARTCOIN Price ($)',data:filtered.map(d=>d.fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yPrice'},
+        {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'FARTCOIN: $'+ctx.parsed.y.toFixed(4);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yPrice:{position:'left',grid:{color:'#334155'},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN Price ($)',color:'#10b981'}},yVol:{position:'right',grid:{display:false},max:Math.max(...filtered.map(d=>d.volume))*3,ticks:{color:'#8b5cf6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#8b5cf6'}}}}});
 
     // Update FARTCOIN stats
     const statsCard=document.getElementById('fartLiqStatsCard');
