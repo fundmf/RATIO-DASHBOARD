@@ -306,47 +306,111 @@ def detect_bfspx_events(fart_data, spx_data):
     return events
 
 
-def format_slack_message(new_events):
-    """Format a Slack message payload with blocks."""
-    lines = []
-    for e in new_events:
-        etype = {
-            "fartcoin": "FARTCOIN Analysis",
-            "inverse_fartcoin": "Inverse FARTCOIN",
-            "spx": "SPX6900 Analysis",
-            "bfspx": "BTC/FC -> SPX",
-        }.get(e["type"], e["type"])
-
-        time_str = datetime.fromisoformat(e["time"].replace("Z", "+00:00")).strftime("%d %b %Y %H:%M UTC")
-
-        if e["type"] == "inverse_fartcoin":
-            result = f"Pump: {e.get('pump_pct', 0)}%" if e.get("confirmed") else f"Pending ({e.get('pump_pct', 0)}%)"
-        else:
-            result = f"Crash: {e.get('crash_pct', 0)}%" if e.get("confirmed") else f"Pending ({e.get('crash_pct', 0)}%)"
-
-        status = ":rotating_light: CONFIRMED" if e.get("confirmed") else ":warning: DETECTED"
-        lines.append(f"*[{status}] {etype}* — {time_str}\n>BTC: ${e.get('btc_price', 0):,.0f} | Result: {result}")
-
-    body = "\n\n".join(lines)
+def format_slack_message(new_events, is_test=False):
+    """Format a rich Slack message with blocks for each event."""
     detected_at = datetime.now(tz=timezone.utc).strftime("%d %b %Y %H:%M UTC")
 
-    payload = {
-        "blocks": [
-            {"type": "header", "text": {"type": "plain_text", "text": ":chart_with_upwards_trend: RATIO Dashboard Alert", "emoji": True}},
-            {"type": "section", "text": {"type": "mrkdwn", "text": body}},
-            {"type": "context", "elements": [{"type": "mrkdwn", "text": f"Detected at {detected_at}"}]},
-        ]
+    # AEST time for the team
+    from datetime import timedelta
+    aest_now = datetime.now(tz=timezone.utc) + timedelta(hours=10)
+    aest_str = aest_now.strftime("%d %b %Y %I:%M %p AEST")
+
+    # Map event types to tab names
+    tab_names = {
+        "fartcoin": "FARTCOIN Analysis",
+        "inverse_fartcoin": "Inverse FARTCOIN",
+        "spx": "SPX6900 Analysis",
+        "bfspx": "BTC/FC → SPX",
     }
-    return payload
+
+    # Build header from the tab names of detected events
+    unique_tabs = list(dict.fromkeys(tab_names.get(e["type"], e["type"]) for e in new_events))
+    tabs_str = " | ".join(unique_tabs)
+
+    if is_test:
+        header_text = f"TEST ALERT — {tabs_str}"
+    else:
+        header_text = f"New Divergence — {tabs_str}"
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": header_text, "emoji": True}},
+    ]
+
+    if is_test:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "_This is a test alert to verify the webhook is working. The event below is the most recent real detection._"}})
+
+    for e in new_events:
+        etype = {
+            "fartcoin": ":chart_with_downwards_trend: FARTCOIN Analysis",
+            "inverse_fartcoin": ":chart_with_upwards_trend: Inverse FARTCOIN",
+            "spx": ":chart_with_downwards_trend: SPX6900 Analysis",
+            "bfspx": ":link: BTC/FC → SPX",
+        }.get(e["type"], e["type"])
+
+        # Parse event time into readable formats
+        evt_dt = datetime.fromisoformat(e["time"].replace("Z", "+00:00"))
+        evt_aest = evt_dt + timedelta(hours=10)
+        time_str = evt_aest.strftime("%d %b %Y at %I:%M %p AEST")
+
+        # What was detected
+        desc = {
+            "fartcoin": "BTC dropped while FARTCOIN held positive → watching for FARTCOIN crash",
+            "inverse_fartcoin": "FARTCOIN dropped while BTC held positive → watching for FARTCOIN pump",
+            "spx": "BTC dropped while SPX6900 held positive → watching for SPX6900 crash",
+            "bfspx": "BTC/FARTCOIN divergence triggered → watching for SPX6900 crash",
+        }.get(e["type"], "Divergence detected")
+
+        # Status
+        if e.get("confirmed"):
+            status = ":white_check_mark: *CONFIRMED*"
+        else:
+            status = ":hourglass_flowing_sand: *MONITORING* (within 72hr window)"
+
+        # Build price line
+        price_parts = [f"*BTC:* ${e.get('btc_price', 0):,.0f}"]
+        if e.get("alt_price"):
+            alt_name = {"fartcoin": "FARTCOIN", "inverse_fartcoin": "FARTCOIN", "spx": "SPX6900"}.get(e["type"], "ALT")
+            alt_p = e["alt_price"]
+            price_parts.append(f"*{alt_name}:* ${alt_p:.4f}" if alt_p < 10 else f"*{alt_name}:* ${alt_p:,.2f}")
+        if e.get("fart_price"):
+            price_parts.append(f"*FARTCOIN:* ${e['fart_price']:.4f}")
+        if e.get("spx_price"):
+            price_parts.append(f"*SPX6900:* ${e['spx_price']:.4f}" if e["spx_price"] < 10 else f"*SPX6900:* ${e['spx_price']:,.2f}")
+
+        # Result line
+        if e["type"] == "inverse_fartcoin":
+            pct = e.get("pump_pct", 0)
+            result_str = f":arrow_up: *{pct}% pump*" if e.get("confirmed") else f"{pct}% so far"
+        else:
+            pct = e.get("crash_pct", 0)
+            result_str = f":arrow_down: *{pct}% crash*" if e.get("confirmed") else f"{pct}% so far"
+
+        blocks.append({"type": "divider"})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"{etype}\n{status}"}})
+        blocks.append({"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*When:*\n{time_str}"},
+            {"type": "mrkdwn", "text": f"*Result:*\n{result_str}"},
+        ]})
+        blocks.append({"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*Prices at detection:*\n{' | '.join(price_parts)}"},
+        ]})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"_{desc}_"}})
+
+    blocks.append({"type": "divider"})
+    blocks.append({"type": "context", "elements": [
+        {"type": "mrkdwn", "text": f":clock1: {aest_str} | <https://fundmf.pages.dev|View Dashboard>"},
+    ]})
+
+    return {"blocks": blocks}
 
 
-def send_slack_alert(new_events):
+def send_slack_alert(new_events, is_test=False):
     """Send alert to Slack via Incoming Webhook."""
     if not SLACK_WEBHOOK_URL:
         print("  SLACK_WEBHOOK_URL not set — skipping Slack alert")
         return False
 
-    payload = format_slack_message(new_events)
+    payload = format_slack_message(new_events, is_test=is_test)
 
     try:
         resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=15)
@@ -437,5 +501,40 @@ def main():
     print("Done!")
 
 
+def test_alert():
+    """Send a test alert using the most recent real event."""
+    print("=== TEST ALERT MODE ===\n")
+
+    fart_data = load_json(FARTCOIN_FILE)
+    spx_data = load_json(SPX6900_FILE)
+    print(f"Loaded {len(fart_data)} fartcoin hours, {len(spx_data)} spx hours\n")
+
+    # Gather all events and pick the most recent one
+    all_events = []
+    all_events.extend(detect_fartcoin_events(fart_data))
+    all_events.extend(detect_inverse_fartcoin_events(fart_data))
+    all_events.extend(detect_spx_events(spx_data))
+    all_events.extend(detect_bfspx_events(fart_data, spx_data))
+
+    if not all_events:
+        print("No events found to use as test data")
+        sys.exit(1)
+
+    # Sort by time descending, pick the latest
+    all_events.sort(key=lambda e: e["time"], reverse=True)
+    test_event = all_events[0]
+    print(f"Using most recent event: [{test_event['type']}] {test_event['time']}")
+    print(f"Sending test alert to Slack...\n")
+
+    success = send_slack_alert([test_event], is_test=True)
+    if success:
+        print("Test alert sent! Check your Slack channel.")
+    else:
+        print("Test alert failed — check SLACK_WEBHOOK_URL")
+
+
 if __name__ == "__main__":
-    main()
+    if "--test" in sys.argv:
+        test_alert()
+    else:
+        main()
