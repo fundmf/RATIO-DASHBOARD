@@ -179,10 +179,10 @@
     <div class="card">
         <div class="card-title">BTC/MSTR Spread Divergence</div>
         <div style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:12px;">
-            This chart plots: (BTC HIGH ratio − MSTR HIGH ratio) ÷ (BTC LOW ratio − MSTR LOW ratio).
-            <strong style="color:#e2e8f0;">Above 1.0</strong> = the highs are spreading apart faster than the lows.
-            <strong style="color:#e2e8f0;">Below 1.0</strong> = the lows are spreading apart faster than the highs.
-            <strong style="color:#e2e8f0;">At 1.0</strong> = both moving in lockstep.
+            This chart takes (BTC HIGH dist − MSTR HIGH dist) ÷ (BTC LOW dist − MSTR LOW dist), then divides by its own 20-day rolling volatility. This puts all time periods on equal footing — a move of the same size means the same thing whether markets are calm or chaotic.
+            <strong style="color:#e2e8f0;">Above 0</strong> = highs diverging relative to lows.
+            <strong style="color:#e2e8f0;">Below 0</strong> = lows diverging relative to highs.
+            Magnitude is comparable across all periods.
         </div>
         <div class="chart-wrapper"><canvas id="spreadChart"></canvas></div>
         <div class="last-updated" id="spreadChartLatest"></div>
@@ -724,13 +724,26 @@ function renderSpreadChart(inp){
     const highDist=filtered.map(d=>(inp.btcHigh/d.btc)-(inp.mstrHigh/d.mstr));
     const lowDist=filtered.map(d=>(inp.btcLow/d.btc)-(inp.mstrLow/d.mstr));
 
-    // Ratio: high distance / low distance, clamped to ±10 to avoid near-zero divisor spikes
-    const ratio=highDist.map((h,i)=>{
+    // Ratio: high distance / low distance
+    const rawRatio=highDist.map((h,i)=>{
         const l=lowDist[i];
         if(Math.abs(l)<0.001)return null;
-        const r=h/l;
-        if(r>10||r<-10)return null; // skip extreme outliers
-        return Math.round(r*1000)/1000;
+        return h/l;
+    });
+
+    // Volatility-normalise: divide each value by its 20-day rolling stdev
+    // This flattens regime changes — a move of 1 always means the same thing
+    const W=20;
+    const volAdj=rawRatio.map((v,i)=>{
+        if(v==null)return null;
+        // Collect valid values in the rolling window
+        const win=[];
+        for(let j=Math.max(0,i-W+1);j<=i;j++){if(rawRatio[j]!=null)win.push(rawRatio[j]);}
+        if(win.length<5)return null;
+        const m=win.reduce((s,x)=>s+x,0)/win.length;
+        const sd=Math.sqrt(win.reduce((s,x)=>s+(x-m)**2,0)/win.length);
+        if(sd<0.0001)return null;
+        return Math.round(v/sd*1000)/1000;
     });
 
     const step=Math.max(1,Math.floor(filtered.length/30));
@@ -740,13 +753,13 @@ function renderSpreadChart(inp){
     if(spreadChartInst?.destroy)spreadChartInst.destroy();
 
     spreadChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
-        {label:'High/Low Spread Ratio',data:ratio,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,tension:0.3,fill:true,spanGaps:true},
-        {label:'1.0',data:ratio.map(()=>1),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='1.0'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';return filtered[ctx[0].dataIndex].date;},label:ctx=>ctx.dataset.label==='1.0'?null:'Ratio: '+ctx.parsed.y.toFixed(3)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'High Dist / Low Dist',color:'#64748b'}}}}});
+        {label:'Vol-Adjusted Spread Ratio',data:volAdj,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,tension:0.3,fill:true,spanGaps:true},
+        {label:'zero',data:volAdj.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='zero'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';return filtered[ctx[0].dataIndex].date;},label:ctx=>ctx.dataset.label==='zero'?null:'Spread: '+ctx.parsed.y.toFixed(2)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio / Rolling Vol',color:'#64748b'}}}}});
 
     const lastD=filtered[filtered.length-1];
-    const lastVal=ratio[ratio.length-1];
-    document.getElementById('spreadChartLatest').textContent='Latest: '+new Date(lastD.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' | ratio: '+(lastVal!=null?lastVal.toFixed(3):'N/A');
+    const lastVal=volAdj[volAdj.length-1];
+    document.getElementById('spreadChartLatest').textContent='Latest: '+new Date(lastD.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' | spread: '+(lastVal!=null?lastVal.toFixed(2):'N/A');
 }
 
 function prepareData(data,inputs,s,e,type){
