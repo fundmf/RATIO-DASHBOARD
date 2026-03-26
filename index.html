@@ -1131,16 +1131,14 @@ async function initLiquidity(){
     },3600000);
 }
 
-// Filter out Sundays and major US holidays (dates where volume is artificially low)
-// Uses AEST (UTC+10) for day-of-week check since team is in Australia
+// Filter out US Sundays and major US holidays (dates where volume is artificially low)
+// Uses UTC dates which closely align with US calendar days for this purpose
 function isUSHoliday(dateStr){
-    // Shift UTC date to AEST (+10h) for day-of-week determination
-    const d=new Date(dateStr+'T10:00:00Z'); // UTC+10 = AEST midnight
-    const day=d.getUTCDay(); // 0=Sun in AEST
+    const d=new Date(dateStr+'T00:00:00Z');
+    const day=d.getUTCDay(); // 0=Sun
     if(day===0)return true;
-    // Major US holidays use the original UTC date for fixed-date matching
-    const utc=new Date(dateStr+'T00:00:00Z');
-    const m=utc.getUTCMonth()+1,dd=utc.getUTCDate(),dow=utc.getUTCDay();
+    // Major US holidays (fixed dates + observed rules)
+    const m=d.getUTCMonth()+1,dd=d.getUTCDate(),dow=d.getUTCDay();
     // New Year's Day (Jan 1, or observed)
     if(m===1&&dd===1)return true;
     if(m===1&&dd===2&&dow===1)return true; // observed Mon
