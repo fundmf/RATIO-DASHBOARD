@@ -293,6 +293,7 @@
             <div class="date-control"><label>From:</label><input type="date" id="liqStart" value="2025-03-24"></div>
             <div class="date-control"><label>To:</label><input type="date" id="liqEnd" value=""></div>
             <button onclick="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Charts</button>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#94a3b8;cursor:pointer;margin-left:12px;"><input type="checkbox" id="liqShowHolidays" onchange="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();">Show Sundays &amp; US holidays</label>
         </div>
     </div>
 
@@ -1169,7 +1170,7 @@ function isUSHoliday(dateStr){
 function renderLiquidityChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
-    const filtered=liqData.filter(d=>d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date));
+    const filtered=liqData.filter(d=>d.date>=startDate&&d.date<=endDate&&(document.getElementById('liqShowHolidays').checked||!isUSHoliday(d.date)));
     if(!filtered.length)return;
 
     const ctx=document.getElementById('liqChart').getContext('2d');
@@ -1201,7 +1202,7 @@ function renderLiquidityChart(){
 function renderFartLiqChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
-    const filtered=fartLiqData.filter(d=>d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date));
+    const filtered=fartLiqData.filter(d=>d.date>=startDate&&d.date<=endDate&&(document.getElementById('liqShowHolidays').checked||!isUSHoliday(d.date)));
     if(!filtered.length)return;
 
     const ctx=document.getElementById('fartLiqChart').getContext('2d');
@@ -1289,9 +1290,9 @@ function renderCombinedLiqChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
     const btcMap={};
-    for(const d of liqData)if(d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date))btcMap[d.date]=d;
+    for(const d of liqData)if(d.date>=startDate&&d.date<=endDate&&(document.getElementById('liqShowHolidays').checked||!isUSHoliday(d.date)))btcMap[d.date]=d;
     const fartMap={};
-    for(const d of fartLiqData)if(d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date))fartMap[d.date]=d;
+    for(const d of fartLiqData)if(d.date>=startDate&&d.date<=endDate&&(document.getElementById('liqShowHolidays').checked||!isUSHoliday(d.date)))fartMap[d.date]=d;
     const dates=Object.keys(btcMap).filter(dt=>fartMap[dt]).sort();
     if(dates.length<3)return;
 
