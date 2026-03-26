@@ -155,6 +155,7 @@
 
     <div class="card">
         <label class="checkbox-group"><input type="checkbox" id="showRefLine" onchange="updateCharts()"><span>Show 1.0 reference line (red)</span></label>
+        <label class="checkbox-group" style="margin-left:24px;"><input type="checkbox" id="ratioAEST" onchange="updateCharts();renderSpreadChart();"><span>Show dates in AEST (US close = next morning AEST)</span></label>
     </div>
 
     <div class="card">
@@ -748,7 +749,7 @@ function renderSpreadChart(inp){
     });
 
     const step=Math.max(1,Math.floor(filtered.length/30));
-    const labels=filtered.map((d,i)=>i%step===0?new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
+    const labels=filtered.map((d,i)=>i%step===0?ratioDateLabel(d.date):'');
 
     const ctx=document.getElementById('spreadChart').getContext('2d');
     if(spreadChartInst?.destroy)spreadChartInst.destroy();
@@ -756,11 +757,12 @@ function renderSpreadChart(inp){
     spreadChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
         {label:'Vol-Adjusted Spread Ratio',data:volAdj,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,tension:0.3,fill:true,spanGaps:true},
         {label:'zero',data:volAdj.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='zero'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';return filtered[ctx[0].dataIndex].date;},label:ctx=>ctx.dataset.label==='zero'?null:'Spread: '+ctx.parsed.y.toFixed(2)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio / Rolling Vol',color:'#64748b'}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>item.text!=='zero'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{if(!ctx.length)return'';const d=filtered[ctx[0].dataIndex];const aest=document.getElementById('ratioAEST')?.checked;return ratioDateLabel(d.date,{day:'numeric',month:'short',year:'numeric'})+(aest?' AEST':'');},label:ctx=>ctx.dataset.label==='zero'?null:'Spread: '+ctx.parsed.y.toFixed(2)}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio / Rolling Vol',color:'#64748b'}}}}});
 
     const lastD=filtered[filtered.length-1];
     const lastVal=volAdj[volAdj.length-1];
-    document.getElementById('spreadChartLatest').textContent='Latest: '+new Date(lastD.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' | spread: '+(lastVal!=null?lastVal.toFixed(2):'N/A');
+    const aest=document.getElementById('ratioAEST')?.checked;
+    document.getElementById('spreadChartLatest').textContent='Latest: '+ratioDateLabel(lastD.date,{day:'numeric',month:'short',year:'numeric'})+(aest?' AEST':'')+' | spread: '+(lastVal!=null?lastVal.toFixed(2):'N/A');
 }
 
 function prepareData(data,inputs,s,e,type){
@@ -799,6 +801,14 @@ const labelPlugin={id:'labelPlugin',afterDatasetsDraw(chart,args,options){
 }};
 Chart.register(labelPlugin);
 
+// Format date string, shifting +1 day if AEST mode (US close = next morning AEST)
+function ratioDateLabel(dateStr,fmt){
+    const aest=document.getElementById('ratioAEST')?.checked;
+    const d=new Date(dateStr+'T00:00:00Z');
+    if(aest)d.setUTCDate(d.getUTCDate()+1);
+    return d.toLocaleDateString('en-AU',fmt||{month:'short',day:'numeric'});
+}
+
 function renderChart(canvasId,data,showRefLine,isChart1){
     const ctx=document.getElementById(canvasId).getContext('2d');
     if(window[canvasId]?.destroy)window[canvasId].destroy();
@@ -813,7 +823,7 @@ function renderChart(canvasId,data,showRefLine,isChart1){
     if(isChart1){addLine('BTC HIGH','BTC HIGH','#f59e0b');addLine('BTC LOW','BTC LOW','#f97316');addLine('MSTR HIGH','MSTR HIGH','#3b82f6');addLine('MSTR LOW','MSTR LOW','#06b6d4');}
     else{addLine('ETH HIGH','ETH HIGH','#8b5cf6');addLine('ETH LOW','ETH LOW','#a78bfa');addLine('BMNR HIGH','BMNR HIGH','#10b981');addLine('BMNR LOW','BMNR LOW','#34d399');}
     if(showRefLine)datasets.push({label:'Baseline (1.0)',data:data.map(()=>1),borderColor:'#ef4444',borderWidth:2,borderDash:[5,5],pointRadius:0,fill:false});
-    window[canvasId]=new Chart(ctx,{type:'line',data:{labels:data.map(d=>{const dt=new Date(d.date+'T00:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});}),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>!item.text.includes('MAX')&&!item.text.includes('MIN')}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:12,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return d.date+(d.isLive?' (LIVE)':'');},afterTitle:ctx=>{const d=data[ctx[0].dataIndex];return isChart1?'BTC: $'+fmt(d.btc):'ETH: $'+fmt(d.eth);},label:ctx=>{if(ctx.dataset.label?.includes('MAX')||ctx.dataset.label?.includes('MIN'))return null;return ctx.dataset.label+': '+(ctx.parsed.y?ctx.parsed.y.toFixed(4):'N/A');}}},labelPlugin:{prices:lp}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:12}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio (Target / Market Price)',color:'#64748b'}}}}});
+    window[canvasId]=new Chart(ctx,{type:'line',data:{labels:data.map(d=>ratioDateLabel(d.date)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20,filter:item=>!item.text.includes('MAX')&&!item.text.includes('MIN')}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:12,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];const aest=document.getElementById('ratioAEST')?.checked;return ratioDateLabel(d.date,{day:'numeric',month:'short',year:'numeric'})+(d.isLive?' (LIVE)':'')+(aest?' AEST':'');},afterTitle:ctx=>{const d=data[ctx[0].dataIndex];return isChart1?'BTC: $'+fmt(d.btc):'ETH: $'+fmt(d.eth);},label:ctx=>{if(ctx.dataset.label?.includes('MAX')||ctx.dataset.label?.includes('MIN'))return null;return ctx.dataset.label+': '+(ctx.parsed.y?ctx.parsed.y.toFixed(4):'N/A');}}},labelPlugin:{prices:lp}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:12}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},title:{display:true,text:'Ratio (Target / Market Price)',color:'#64748b'}}}}});
 }
 
 // ──────────────────────────────────────────────
