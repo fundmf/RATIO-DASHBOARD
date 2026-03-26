@@ -294,7 +294,7 @@
             <div class="date-control"><label>From:</label><input type="date" id="liqStart" value="2025-03-24"></div>
             <div class="date-control"><label>To:</label><input type="date" id="liqEnd" value=""></div>
             <button onclick="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Update Charts</button>
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#94a3b8;cursor:pointer;margin-left:12px;"><input type="checkbox" id="liqShowHolidays" onchange="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();">Show Sundays &amp; US holidays</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#94a3b8;cursor:pointer;margin-left:12px;"><input type="checkbox" id="liqShowHolidays" onchange="renderLiquidityChart();renderFartLiqChart();renderCombinedLiqChart();">Show Sundays, Mondays &amp; US holidays</label>
         </div>
     </div>
 
@@ -1141,12 +1141,12 @@ async function initLiquidity(){
     },3600000);
 }
 
-// Filter out US Sundays and major US holidays (dates where volume is artificially low)
+// Filter out US Sundays, Mondays, and major US holidays (dates where volume is artificially low)
 // Uses UTC dates which closely align with US calendar days for this purpose
 function isUSHoliday(dateStr){
     const d=new Date(dateStr+'T00:00:00Z');
-    const day=d.getUTCDay(); // 0=Sun
-    if(day===0)return true;
+    const day=d.getUTCDay(); // 0=Sun, 1=Mon
+    if(day===0||day===1)return true;
     // Major US holidays (fixed dates + observed rules)
     const m=d.getUTCMonth()+1,dd=d.getUTCDate(),dow=d.getUTCDay();
     // New Year's Day (Jan 1, or observed)
