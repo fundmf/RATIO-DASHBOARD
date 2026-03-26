@@ -1130,10 +1130,46 @@ async function initLiquidity(){
     },3600000);
 }
 
+// Filter out Sundays and major US holidays (dates where volume is artificially low)
+function isUSHoliday(dateStr){
+    const d=new Date(dateStr+'T00:00:00Z');
+    const day=d.getUTCDay(); // 0=Sun
+    if(day===0)return true;
+    // Major US holidays (fixed dates + observed rules)
+    const m=d.getUTCMonth()+1,dd=d.getUTCDate(),dow=d.getUTCDay();
+    // New Year's Day (Jan 1, or observed)
+    if(m===1&&dd===1)return true;
+    if(m===1&&dd===2&&dow===1)return true; // observed Mon
+    if(m===12&&dd===31&&dow===5)return true; // observed Fri
+    // MLK Day (3rd Mon Jan)
+    if(m===1&&dow===1&&dd>=15&&dd<=21)return true;
+    // Presidents Day (3rd Mon Feb)
+    if(m===2&&dow===1&&dd>=15&&dd<=21)return true;
+    // Memorial Day (last Mon May)
+    if(m===5&&dow===1&&dd>=25)return true;
+    // Juneteenth (Jun 19)
+    if(m===6&&dd===19)return true;
+    if(m===6&&dd===20&&dow===1)return true;
+    if(m===6&&dd===18&&dow===5)return true;
+    // Independence Day (Jul 4)
+    if(m===7&&dd===4)return true;
+    if(m===7&&dd===5&&dow===1)return true;
+    if(m===7&&dd===3&&dow===5)return true;
+    // Labor Day (1st Mon Sep)
+    if(m===9&&dow===1&&dd<=7)return true;
+    // Thanksgiving (4th Thu Nov)
+    if(m===11&&dow===4&&dd>=22&&dd<=28)return true;
+    // Christmas (Dec 25)
+    if(m===12&&dd===25)return true;
+    if(m===12&&dd===26&&dow===1)return true;
+    if(m===12&&dd===24&&dow===5)return true;
+    return false;
+}
+
 function renderLiquidityChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
-    const filtered=liqData.filter(d=>d.date>=startDate&&d.date<=endDate);
+    const filtered=liqData.filter(d=>d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date));
     if(!filtered.length)return;
 
     const ctx=document.getElementById('liqChart').getContext('2d');
@@ -1145,7 +1181,7 @@ function renderLiquidityChart(){
     liqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
         {label:'BTC Price ($)',data:filtered.map(d=>d.btc_price),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yBtc'},
         {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'BTC: $'+fmt(ctx.parsed.y);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC Price ($)',color:'#f59e0b'}},yVol:{position:'right',grid:{display:false},max:Math.max(...filtered.map(d=>d.volume))*3,ticks:{color:'#3b82f6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#3b82f6'}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'BTC: $'+fmt(ctx.parsed.y);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yBtc:{position:'left',grid:{color:'#334155'},ticks:{color:'#f59e0b',callback:v=>'$'+fmt(v)},title:{display:true,text:'BTC Price ($)',color:'#f59e0b'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#3b82f6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#3b82f6'}}}}});
 
     // Update stats
     const statsCard=document.getElementById('liqStatsCard');
@@ -1165,7 +1201,7 @@ function renderLiquidityChart(){
 function renderFartLiqChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
-    const filtered=fartLiqData.filter(d=>d.date>=startDate&&d.date<=endDate);
+    const filtered=fartLiqData.filter(d=>d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date));
     if(!filtered.length)return;
 
     const ctx=document.getElementById('fartLiqChart').getContext('2d');
@@ -1177,7 +1213,7 @@ function renderFartLiqChart(){
     fartLiqChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[
         {label:'FARTCOIN Price ($)',data:filtered.map(d=>d.fart_price),borderColor:'#10b981',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3,yAxisID:'yPrice'},
         {label:'Volume ($)',data:filtered.map(d=>d.volume),borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:true,yAxisID:'yVol'}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'FARTCOIN: $'+ctx.parsed.y.toFixed(4);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yPrice:{position:'left',grid:{color:'#334155'},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN Price ($)',color:'#10b981'}},yVol:{position:'right',grid:{display:false},max:Math.max(...filtered.map(d=>d.volume))*3,ticks:{color:'#8b5cf6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#8b5cf6'}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=filtered[ctx[0].dataIndex];return new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});},label:ctx=>{if(ctx.dataset.label.includes('Price'))return'FARTCOIN: $'+ctx.parsed.y.toFixed(4);const v=ctx.parsed.y;if(v>=1e9)return'Volume: $'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return'Volume: $'+(v/1e6).toFixed(1)+'M';return'Volume: $'+fmt(v);}}}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:20}},yPrice:{position:'left',grid:{color:'#334155'},ticks:{color:'#10b981',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'FARTCOIN Price ($)',color:'#10b981'}},yVol:{position:'right',grid:{display:false},ticks:{color:'#8b5cf6',callback:v=>{if(v>=1e9)return'$'+(v/1e9).toFixed(0)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v;}},title:{display:true,text:'Volume ($)',color:'#8b5cf6'}}}}});
 
     // Update FARTCOIN stats
     const statsCard=document.getElementById('fartLiqStatsCard');
@@ -1253,9 +1289,9 @@ function renderCombinedLiqChart(){
     const startDate=document.getElementById('liqStart').value;
     const endDate=document.getElementById('liqEnd').value;
     const btcMap={};
-    for(const d of liqData)if(d.date>=startDate&&d.date<=endDate)btcMap[d.date]=d;
+    for(const d of liqData)if(d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date))btcMap[d.date]=d;
     const fartMap={};
-    for(const d of fartLiqData)if(d.date>=startDate&&d.date<=endDate)fartMap[d.date]=d;
+    for(const d of fartLiqData)if(d.date>=startDate&&d.date<=endDate&&!isUSHoliday(d.date))fartMap[d.date]=d;
     const dates=Object.keys(btcMap).filter(dt=>fartMap[dt]).sort();
     if(dates.length<3)return;
 
