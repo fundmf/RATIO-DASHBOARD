@@ -52,3 +52,14 @@ jobs:
           git add last_events.json
           git diff --staged --quiet || git commit -m "Update event detection state"
           git push
+
+      - name: Check Forex Factory calendar alerts
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python forex_calendar_alert.py
+
+      - name: Commit forex alert state
+        run: |
+          git add forex_alert_state.json
+          git diff --staged --quiet || git commit -m "Update forex alert state"
+          git push
