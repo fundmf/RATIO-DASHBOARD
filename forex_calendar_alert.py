@@ -27,9 +27,9 @@ STATE_FILE = "forex_alert_state.json"
 CURRENCY_FILTER = "USD"
 IMPACT_FILTER = "High"
 
-# Alert window: send alert when event is 23-25 hours away (so hourly cron catches it)
-ALERT_WINDOW_MIN_HOURS = 23
-ALERT_WINDOW_MAX_HOURS = 25
+# Alert window: send alert when event is 22-26 hours away (wider window so hourly cron reliably catches it)
+ALERT_WINDOW_MIN_HOURS = 22
+ALERT_WINDOW_MAX_HOURS = 26
 
 
 def fetch_calendar():
@@ -255,14 +255,18 @@ def main():
         if ALERT_WINDOW_MIN_HOURS <= hours_until <= ALERT_WINDOW_MAX_HOURS:
             if eid not in state["alerted"]:
                 events_to_alert.append((ev, dt))
-                state["alerted"].append(eid)
                 print(f"  >> ALERTING: {ev['title']} in {hours_until:.1f}hrs")
 
-    # Send alerts
+    # Send alerts — only mark as alerted if webhook succeeds
     if events_to_alert:
         print(f"\nSending alert for {len(events_to_alert)} event(s)...")
-        send_slack_alert(events_to_alert)
-        save_state(state)
+        success = send_slack_alert(events_to_alert)
+        if success:
+            for ev, dt in events_to_alert:
+                state["alerted"].append(event_id(ev))
+            save_state(state)
+        else:
+            print("  Webhook failed — will retry next run")
     else:
         print("\nNo new events in alert window.")
 
