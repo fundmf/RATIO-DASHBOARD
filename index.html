@@ -312,6 +312,12 @@
             <div class="price-item"><strong>Max Daily Volume:</strong> <span id="liqStatMaxVol">—</span></div>
             <div class="price-item"><strong>BTC Range:</strong> <span id="liqStatBtcRange">—</span></div>
         </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #334155;">
+            <a href="https://hyperdash.com/explore/cohorts/extremely_profitable" target="_blank" rel="noopener" style="color:#3b82f6;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                View BTC Smart Money Positioning on Hyperdash &#8599;
+            </a>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">Notional (long/short) &middot; Traders (long/short) &middot; Unrealised PNL (profit/loss) &middot; Sentiment</div>
+        </div>
     </div>
 
     <div class="card">
@@ -327,6 +333,12 @@
             <div class="price-item"><strong>Avg Daily Volume:</strong> <span id="fartLiqStatAvgVol">—</span></div>
             <div class="price-item"><strong>Max Daily Volume:</strong> <span id="fartLiqStatMaxVol">—</span></div>
             <div class="price-item"><strong>FARTCOIN Range:</strong> <span id="fartLiqStatRange">—</span></div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #334155;">
+            <a href="https://hyperdash.com/explore/cohorts/extremely_profitable" target="_blank" rel="noopener" style="color:#10b981;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                View FARTCOIN Smart Money Positioning on Hyperdash &#8599;
+            </a>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">Notional (long/short) &middot; Traders (long/short) &middot; Unrealised PNL (profit/loss) &middot; Sentiment</div>
         </div>
     </div>
 
@@ -1557,7 +1569,7 @@ function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
     const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Crash</span><span>Result</span></div>`;
-    const rows=events.map(e=>{
+    const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
@@ -1770,7 +1782,7 @@ function renderBfspxTable(events,data){
     const el=document.getElementById('bfspxEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found. Try lowering the BTC drop threshold.</div>';return;}
     const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FC → SPX at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
-    const rows=events.map(e=>{
+    const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
@@ -1930,7 +1942,7 @@ function renderSpxTable(events,data){
     const el=document.getElementById('spxEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the BTC drop threshold.</div>';return;}
     const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → SPX6900 at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>SPX Crash</span><span>Result</span></div>`;
-    const rows=events.map(e=>{
+    const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
@@ -2057,7 +2069,7 @@ function renderInverseFartTable(events,data){
     const el=document.getElementById('ifartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No inverse divergence events found. Try lowering the FARTCOIN drop threshold.</div>';return;}
     const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Pump</span><span>Result</span></div>`;
-    const rows=events.map(e=>{
+    const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span style="color:#10b981;font-weight:600;">✓ ${e.pumpPct.toFixed(1)}% pump</span>`:`<span class="crash-none">No pump (${e.pumpPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.riseFromStart.toFixed(1)}%</span>`:'—';
