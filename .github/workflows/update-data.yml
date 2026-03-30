@@ -63,3 +63,14 @@ jobs:
           git add forex_alert_state.json
           git diff --staged --quiet || git commit -m "Update forex alert state"
           git push
+
+      - name: Check custom team alerts
+        env:
+          SLACK_WEBHOOK_URL_CUSTOM: ${{ secrets.SLACK_WEBHOOK_URL_CUSTOM }}
+        run: python custom_alerts.py
+
+      - name: Commit custom alert state
+        run: |
+          git add custom_alerts.json
+          git diff --staged --quiet || git commit -m "Update custom alert state"
+          git push

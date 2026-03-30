@@ -121,6 +121,93 @@ export async function onRequest(context) {
         }
     }
 
+    // ── Custom Alerts API (reads/writes custom_alerts.json via GitHub API) ──
+    if (url.pathname === '/api/alerts') {
+        const PAT = env.GITHUB_PAT;
+        const REPO = env.GITHUB_REPO; // "owner/repo" format
+        if (!PAT || !REPO) {
+            return new Response(JSON.stringify({ error: 'Server not configured: set GITHUB_PAT and GITHUB_REPO env vars in Cloudflare Pages' }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        const apiUrl = `https://api.github.com/repos/${REPO}/contents/custom_alerts.json`;
+        const ghHeaders = {
+            'Authorization': `Bearer ${PAT}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'RatioDashboard/1.0',
+        };
+
+        // GET — return current alerts
+        if (request.method === 'GET') {
+            try {
+                const resp = await fetch(apiUrl, { headers: ghHeaders });
+                if (!resp.ok) throw new Error('GitHub API: ' + resp.status);
+                const file = await resp.json();
+                const content = atob(file.content.replace(/\n/g, ''));
+                return new Response(content, {
+                    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e.message }), {
+                    status: 502,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
+        // POST — add or delete an alert
+        if (request.method === 'POST') {
+            try {
+                const body = await request.json();
+
+                // Fetch current file (need SHA for update)
+                const getResp = await fetch(apiUrl, { headers: ghHeaders });
+                let alerts = { alerts: [] };
+                let sha = null;
+                if (getResp.ok) {
+                    const file = await getResp.json();
+                    sha = file.sha;
+                    alerts = JSON.parse(atob(file.content.replace(/\n/g, '')));
+                }
+
+                let commitMsg;
+                if (body.action === 'delete') {
+                    alerts.alerts = alerts.alerts.filter(a => a.id !== body.id);
+                    commitMsg = `Custom alert: delete "${body.id}"`;
+                } else {
+                    alerts.alerts.push(body.alert);
+                    commitMsg = `Custom alert: add "${body.alert?.title || 'untitled'}"`;
+                }
+
+                // Write back via GitHub Contents API
+                const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(alerts, null, 2))));
+                const putBody = { message: commitMsg, content: newContent };
+                if (sha) putBody.sha = sha;
+
+                const putResp = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(putBody),
+                });
+                if (!putResp.ok) {
+                    const errText = await putResp.text();
+                    throw new Error(`GitHub PUT ${putResp.status}: ${errText.substring(0, 200)}`);
+                }
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e.message }), {
+                    status: 502,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
+        return new Response('Method not allowed', { status: 405 });
+    }
+
     // ── All other requests: serve normally ──
     return await next();
 }

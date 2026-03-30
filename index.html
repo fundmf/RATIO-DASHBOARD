@@ -104,6 +104,16 @@
         .crash-none { color: #64748b; }
         .run-btn { background: #3b82f6; color: white; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
         .run-btn:hover { background: #2563eb; }
+
+        /* ── Custom Alerts ── */
+        .alert-card-item { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 16px; }
+        .alert-card-item:hover { border-color: #475569; }
+        .alert-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .alert-badge.scheduled { background: rgba(59,130,246,0.15); color: #3b82f6; }
+        .alert-badge.due { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        .alert-badge.sent { background: rgba(16,185,129,0.15); color: #10b981; }
+        .alert-del-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .alert-del-btn:hover { border-color: #ef4444; color: #ef4444; }
     </style>
 </head>
 <body>
@@ -121,6 +131,7 @@
     <button class="tab-btn" data-tab="ifart">Inverse FARTCOIN</button>
     <button class="tab-btn" data-tab="spx">SPX Analysis</button>
     <button class="tab-btn" data-tab="bfspx">BTC/FC → SPX</button>
+    <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
 </nav>
 
 <!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
@@ -571,6 +582,65 @@
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB 8: CUSTOM ALERTS ══════════════════════════ -->
+<div id="tab-alerts" class="tab-content">
+<div class="container">
+    <h1>Custom Alerts</h1>
+    <div class="subtitle">Schedule team reminders via Slack — alerts checked hourly and sent when due</div>
+
+    <div class="card">
+        <div class="card-title">Create New Alert</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="input-group" style="grid-column:1/-1;">
+                <label>Title</label>
+                <input type="text" id="alertTitle" placeholder="e.g. Check BTC position before NFP" style="padding:10px 12px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label>Date &amp; Time</label>
+                <input type="datetime-local" id="alertDatetime" style="padding:10px 12px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label>Timezone</label>
+                <select id="alertTimezone" style="padding:10px 12px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+                    <option value="Australia/Sydney">AEST (Sydney)</option>
+                    <option value="America/New_York">ET (New York)</option>
+                    <option value="America/Chicago">CT (Chicago)</option>
+                    <option value="America/Los_Angeles">PT (Los Angeles)</option>
+                    <option value="Europe/London">GMT (London)</option>
+                    <option value="UTC">UTC</option>
+                    <option value="Asia/Tokyo">JST (Tokyo)</option>
+                    <option value="Asia/Singapore">SGT (Singapore)</option>
+                </select>
+            </div>
+            <div class="input-group" style="grid-column:1/-1;">
+                <label>Description (optional)</label>
+                <textarea id="alertDesc" rows="2" placeholder="Additional details for the reminder..." style="padding:10px 12px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;resize:vertical;font-family:inherit;width:100%;"></textarea>
+            </div>
+        </div>
+        <button onclick="submitAlert()" style="margin-top:16px;padding:10px 24px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;">Schedule Alert</button>
+        <div id="alertStatus" style="margin-top:8px;font-size:13px;display:none;"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Scheduled Alerts</div>
+        <div id="alertsList">
+            <div style="color:#64748b;font-size:13px;">No alerts scheduled yet.</div>
+        </div>
+    </div>
+
+    <div class="card" style="background:transparent;border:1px dashed #334155;">
+        <div style="font-size:13px;color:#64748b;line-height:1.8;">
+            <strong style="color:#94a3b8;">How it works:</strong><br>
+            1. Create an alert with a title, date/time, and timezone<br>
+            2. The alert is saved to the repository via the API<br>
+            3. GitHub Actions checks every hour for due alerts<br>
+            4. When an alert is due, it sends a Slack message showing both the set timezone and AEST<br>
+            5. Sent alerts are automatically cleaned up after 7 days
+        </div>
+    </div>
+</div>
+</div>
+
 <div class="footer">
     <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via alternative.me</p>
 </div>
@@ -622,7 +692,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,fart:false,ifart:false,spx:false,bfspx:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,ifart:false,spx:false,bfspx:false,alerts:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -636,6 +706,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='ifart'&&!tabInit.ifart){tabInit.ifart=true;initInverseFartcoin();}
         if(id==='spx'&&!tabInit.spx){tabInit.spx=true;initSpxAnalysis();}
         if(id==='bfspx'&&!tabInit.bfspx){tabInit.bfspx=true;initBfspxAnalysis();}
+        if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
     });
 });
 
@@ -2077,6 +2148,116 @@ function renderInverseFartTable(events,data){
         return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.pumpPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
+}
+
+
+// ──────────────────────────────────────────────
+// CUSTOM ALERTS
+// ──────────────────────────────────────────────
+const ALERT_TZ_LABELS={'Australia/Sydney':'AEST','America/New_York':'ET','America/Chicago':'CT','America/Los_Angeles':'PT','Europe/London':'GMT','UTC':'UTC','Asia/Tokyo':'JST','Asia/Singapore':'SGT'};
+
+function toUTCISO(localDT,tz){
+    const utcGuess=new Date(localDT+'Z');
+    const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,hourCycle:'h23'});
+    const p=Object.fromEntries(fmt.formatToParts(utcGuess).map(x=>[x.type,x.value]));
+    const tzStr=`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`;
+    const tzParsed=new Date(tzStr);
+    const offsetMs=tzParsed-utcGuess;
+    return new Date(utcGuess.getTime()-offsetMs).toISOString();
+}
+
+function formatAlertTz(utcIso,tz){
+    const d=new Date(utcIso);
+    const label=ALERT_TZ_LABELS[tz]||tz;
+    return d.toLocaleString('en-AU',{timeZone:tz,weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})+' '+label;
+}
+
+function getCustomAlerts(){try{return JSON.parse(localStorage.getItem('customAlerts')||'[]');}catch(e){return[];}}
+function saveCustomAlerts(arr){localStorage.setItem('customAlerts',JSON.stringify(arr));}
+
+async function submitAlert(){
+    const title=document.getElementById('alertTitle').value.trim();
+    const dt=document.getElementById('alertDatetime').value;
+    const tz=document.getElementById('alertTimezone').value;
+    const desc=document.getElementById('alertDesc').value.trim();
+    const status=document.getElementById('alertStatus');
+    if(!title){status.style.display='block';status.style.color='#fca5a5';status.textContent='Please enter a title.';return;}
+    if(!dt){status.style.display='block';status.style.color='#fca5a5';status.textContent='Please select a date and time.';return;}
+
+    const utcIso=toUTCISO(dt,tz);
+    const alert={id:Date.now().toString(),title,description:desc,datetime:dt,timezone:tz,utc_iso:utcIso,sent:false,created:new Date().toISOString()};
+
+    const alerts=getCustomAlerts();
+    alerts.push(alert);
+    saveCustomAlerts(alerts);
+    renderAlerts();
+
+    document.getElementById('alertTitle').value='';
+    document.getElementById('alertDesc').value='';
+    document.getElementById('alertDatetime').value='';
+
+    status.style.display='block';status.style.color='#10b981';status.textContent='Saving to server...';
+    try{
+        const resp=await fetch('/api/alerts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',alert})});
+        const data=await resp.json();
+        if(data.ok){status.textContent='Alert scheduled! Will be sent via Slack when due.';}
+        else{status.textContent='Saved locally. Server sync failed: '+(data.error||'unknown');status.style.color='#f59e0b';}
+    }catch(e){status.textContent='Saved locally. Server unreachable — will sync on next deploy.';status.style.color='#f59e0b';}
+    setTimeout(()=>{status.style.display='none';},5000);
+}
+
+async function deleteAlert(id){
+    let alerts=getCustomAlerts();
+    alerts=alerts.filter(a=>a.id!==id);
+    saveCustomAlerts(alerts);
+    renderAlerts();
+    try{await fetch('/api/alerts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id})});}catch(e){}
+}
+
+function renderAlerts(){
+    const el=document.getElementById('alertsList');
+    if(!el)return;
+    const alerts=getCustomAlerts();
+    const now=new Date();
+    if(!alerts.length){el.innerHTML='<div style="color:#64748b;font-size:13px;">No alerts scheduled yet.</div>';return;}
+    const sorted=[...alerts].sort((a,b)=>{if(a.sent!==b.sent)return a.sent?1:-1;return new Date(a.utc_iso)-new Date(b.utc_iso);});
+    let html='<div style="display:grid;gap:12px;">';
+    for(const a of sorted){
+        const utc=new Date(a.utc_iso);
+        const isPast=utc<=now;
+        const badge=a.sent?'<span class="alert-badge sent">Sent</span>':isPast?'<span class="alert-badge due">Due — pending send</span>':'<span class="alert-badge scheduled">Scheduled</span>';
+        const setTz=formatAlertTz(a.utc_iso,a.timezone);
+        const aestLine=a.timezone==='Australia/Sydney'?'':'<br>'+formatAlertTz(a.utc_iso,'Australia/Sydney');
+        html+=`<div class="alert-card-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <strong style="color:#f1f5f9;font-size:15px;">${a.title}</strong>
+                <div style="display:flex;gap:8px;align-items:center;">${badge}${!a.sent?`<button class="alert-del-btn" onclick="deleteAlert('${a.id}')">Delete</button>`:''}</div>
+            </div>
+            <div style="font-size:13px;color:#94a3b8;">${setTz}${aestLine}</div>
+            ${a.description?`<div style="font-size:13px;color:#64748b;margin-top:4px;">${a.description}</div>`:''}
+        </div>`;
+    }
+    html+='</div>';
+    el.innerHTML=html;
+}
+
+async function initAlerts(){
+    renderAlerts();
+    try{
+        const resp=await fetch('/api/alerts');
+        if(resp.ok){
+            const data=await resp.json();
+            const serverAlerts=data.alerts||[];
+            const local=getCustomAlerts();
+            const localIds=new Set(local.map(a=>a.id));
+            let merged=false;
+            for(const sa of serverAlerts){
+                if(!localIds.has(sa.id)){local.push(sa);merged=true;}
+                else{const la=local.find(x=>x.id===sa.id);if(la&&sa.sent&&!la.sent){la.sent=true;merged=true;}}
+            }
+            if(merged){saveCustomAlerts(local);renderAlerts();}
+        }
+    }catch(e){console.warn('Alerts sync:',e.message);}
 }
 
 
