@@ -9,6 +9,16 @@
       "utc_iso": "2026-04-07T00:00:00.000Z",
       "sent": false,
       "created": "2026-03-30T15:41:31.894Z"
+    },
+    {
+      "id": "1774885374172",
+      "title": "Custom Alert Test",
+      "description": "Test alert",
+      "datetime": "2026-03-31T08:00",
+      "timezone": "Australia/Sydney",
+      "utc_iso": "2026-03-30T21:00:00.000Z",
+      "sent": false,
+      "created": "2026-03-30T15:42:54.172Z"
     }
   ]
 }
