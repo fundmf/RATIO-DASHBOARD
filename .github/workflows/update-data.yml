@@ -64,6 +64,17 @@ jobs:
           git diff --staged --quiet || git commit -m "Update forex alert state"
           git push
 
+      - name: Check Oil and Nasdaq market alerts
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python market_alerts.py
+
+      - name: Commit market alert state
+        run: |
+          git add market_alert_state.json
+          git diff --staged --quiet || git commit -m "Update market alert state"
+          git push
+
       - name: Check custom team alerts
         env:
           SLACK_WEBHOOK_URL_CUSTOM: ${{ secrets.SLACK_WEBHOOK_URL_CUSTOM }}
