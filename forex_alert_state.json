@@ -1,10 +1,10 @@
 {
   "alerted": [
-    "2026-03-30T10:30:00-04:00|Fed Chair Powell Speaks",
     "2026-03-31T10:00:00-04:00|JOLTS Job Openings",
     "2026-04-01T08:15:00-04:00|ADP Non-Farm Employment Change",
     "2026-04-01T08:30:00-04:00|Core Retail Sales m/m",
     "2026-04-01T08:30:00-04:00|Retail Sales m/m",
-    "2026-04-01T10:00:00-04:00|ISM Manufacturing PMI"
+    "2026-04-01T10:00:00-04:00|ISM Manufacturing PMI",
+    "2026-04-02T08:30:00-04:00|Unemployment Claims"
   ]
 }
