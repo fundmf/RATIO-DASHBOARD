@@ -84,7 +84,14 @@ def fetch_yahoo_intraday(ticker):
 
 
 def check_market(market):
-    """Check if a market has triggered its threshold. Returns alert dict or None."""
+    """Check if a market has triggered its threshold.
+
+    Scans ALL rolling windows of size window_hours across the full day's
+    intraday data (5-min bars). This catches spikes that happen and settle
+    between hourly cron runs — no move gets missed.
+
+    Returns alert dict or None.
+    """
     ticker = market["ticker"]
     name = market["name"]
     threshold = market["threshold_pct"]
@@ -102,51 +109,78 @@ def check_market(market):
     lows = data["lows"]
     meta = data["meta"]
 
-    now_ts = datetime.now(timezone.utc).timestamp()
-    window_sec = window_hrs * 3600
+    # Build clean bars: (timestamp, close, high, low)
+    bars = []
+    for i in range(len(ts)):
+        if closes[i] is not None and highs[i] is not None and lows[i] is not None:
+            bars.append((ts[i], closes[i], highs[i], lows[i]))
 
-    # Filter to recent window
-    recent = [
-        (ts[i], closes[i], highs[i], lows[i])
-        for i in range(len(ts))
-        if ts[i] >= now_ts - window_sec and closes[i] is not None
-    ]
-
-    if len(recent) < 2:
-        print(f"    Not enough recent data points ({len(recent)})")
+    if len(bars) < 2:
+        print(f"    Not enough data points ({len(bars)})")
         return None
 
-    current_price = meta.get("regularMarketPrice") or recent[-1][1]
+    window_sec = window_hrs * 3600
+    current_price = meta.get("regularMarketPrice") or bars[-1][1]
     prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
 
-    # Check move within window
-    recent_closes = [r[1] for r in recent if r[1] is not None]
-    recent_highs = [r[2] for r in recent if r[2] is not None]
-    recent_lows = [r[3] for r in recent if r[3] is not None]
+    # Scan every rolling window: for each bar, look back window_hrs and
+    # compute max(high) - min(low) as a % of min(low)
+    best_move = 0
+    best_end_idx = -1
+    best_high = 0
+    best_low = 0
 
-    if not recent_highs or not recent_lows:
-        print(f"    No valid high/low data")
-        return None
+    for end in range(len(bars)):
+        end_ts = bars[end][0]
+        start_ts = end_ts - window_sec
+        # Collect bars within this window
+        win_highs = []
+        win_lows = []
+        for j in range(end, -1, -1):
+            if bars[j][0] < start_ts:
+                break
+            win_highs.append(bars[j][2])
+            win_lows.append(bars[j][3])
 
-    rh = max(recent_highs)
-    rl = min(recent_lows)
-    move_pct = abs(rh - rl) / rl * 100 if rl > 0 else 0
-    direction_up = recent_closes[-1] > recent_closes[0] if len(recent_closes) >= 2 else True
+        if len(win_highs) < 2:
+            continue
+
+        rh = max(win_highs)
+        rl = min(win_lows)
+        if rl <= 0:
+            continue
+        move_pct = (rh - rl) / rl * 100
+
+        if move_pct > best_move:
+            best_move = move_pct
+            best_end_idx = end
+            best_high = rh
+            best_low = rl
+
+    # Determine direction at the peak window
+    if best_end_idx >= 0 and best_end_idx > 0:
+        # Find the start bar of the best window
+        end_ts = bars[best_end_idx][0]
+        start_ts = end_ts - window_sec
+        win_bars = [b for b in bars if b[0] >= start_ts and b[0] <= end_ts]
+        direction_up = win_bars[-1][1] > win_bars[0][1] if len(win_bars) >= 2 else True
+    else:
+        direction_up = True
 
     day_change = None
     if prev_close and prev_close > 0:
         day_change = (current_price - prev_close) / prev_close * 100
 
-    print(f"    Price: ${current_price:.2f} | Window move: {move_pct:.2f}% | Threshold: {threshold}%")
+    print(f"    Price: ${current_price:.2f} | Best rolling window move: {best_move:.2f}% | Threshold: {threshold}%")
 
-    if move_pct >= threshold:
-        print(f"    *** TRIGGERED ***")
+    if best_move >= threshold:
+        print(f"    *** TRIGGERED *** (peak high ${best_high:.2f}, low ${best_low:.2f})")
         return {
             "name": name,
             "ticker": ticker,
             "emoji": market["emoji"],
             "price": current_price,
-            "move_pct": round(move_pct, 2),
+            "move_pct": round(best_move, 2),
             "threshold": threshold,
             "window_hours": window_hrs,
             "direction": "up" if direction_up else "down",
