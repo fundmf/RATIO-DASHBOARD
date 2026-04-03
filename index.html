@@ -114,6 +114,21 @@
         .alert-badge.sent { background: rgba(16,185,129,0.15); color: #10b981; }
         .alert-del-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
         .alert-del-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+        /* ── Documentation ── */
+        .doc-section { margin-bottom: 28px; }
+        .doc-section h2 { font-size: 20px; color: #f1f5f9; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+        .doc-section h3 { font-size: 15px; color: #e2e8f0; margin: 16px 0 8px; }
+        .doc-section p, .doc-section li { font-size: 13px; color: #94a3b8; line-height: 1.7; }
+        .doc-section ul { padding-left: 20px; margin: 6px 0; }
+        .doc-section li { margin-bottom: 4px; }
+        .doc-section code { background: #0f172a; color: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+        .doc-section .formula { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px 14px; font-family: monospace; font-size: 12px; color: #e2e8f0; margin: 8px 0; line-height: 1.6; overflow-x: auto; }
+        .doc-toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 10px; margin: 16px 0; }
+        .doc-toc a { display: block; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px 14px; color: #3b82f6; font-size: 13px; text-decoration: none; transition: border-color 0.15s; }
+        .doc-toc a:hover { border-color: #3b82f6; }
+        .doc-note { background: rgba(59,130,246,0.08); border-left: 3px solid #3b82f6; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 13px; color: #94a3b8; }
+        .doc-warn { background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 13px; color: #94a3b8; }
     </style>
 </head>
 <body>
@@ -132,6 +147,7 @@
     <button class="tab-btn" data-tab="spx">SPX Analysis</button>
     <button class="tab-btn" data-tab="bfspx">BTC/FC → SPX</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
+    <button class="tab-btn" data-tab="docs" style="margin-left:auto;color:#475569;font-size:13px;">Documentation</button>
 </nav>
 
 <!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
@@ -658,6 +674,418 @@
             5. Sent alerts are automatically cleaned up after 7 days
         </div>
     </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB 9: DOCUMENTATION ══════════════════════════ -->
+<div id="tab-docs" class="tab-content">
+<div class="container" style="max-width:960px;">
+    <h1>Documentation</h1>
+    <div class="subtitle">How every tab, chart, and alert system works</div>
+
+    <div class="card">
+        <div class="card-title">Table of Contents</div>
+        <div class="doc-toc">
+            <a href="#doc-ratio">1. Ratio Analysis</a>
+            <a href="#doc-geo">2. Geopolitics</a>
+            <a href="#doc-liq">3. Market Liquidity</a>
+            <a href="#doc-fart">4. FARTCOIN Analysis</a>
+            <a href="#doc-ifart">5. Inverse FARTCOIN</a>
+            <a href="#doc-spx">6. SPX Analysis</a>
+            <a href="#doc-bfspx">7. BTC/FC &rarr; SPX</a>
+            <a href="#doc-alerts">8. Custom Alerts</a>
+            <a href="#doc-slack">9. Slack Alert Systems</a>
+            <a href="#doc-data">10. Data Pipeline &amp; Infrastructure</a>
+            <a href="#doc-assumptions">11. Assumptions &amp; Limitations</a>
+        </div>
+    </div>
+
+    <!-- 1. RATIO ANALYSIS -->
+    <div class="card doc-section" id="doc-ratio">
+        <h2>1. Ratio Analysis</h2>
+        <p>Compares how far the current price of each asset is from user-defined key levels (highs/lows). Tracks two pairs: <strong>BTC &amp; MSTR</strong> and <strong>ETH &amp; BMNR</strong>.</p>
+
+        <h3>Data Sources &amp; Frequency</h3>
+        <ul>
+            <li><strong>Historical:</strong> <code>data.json</code> — daily close prices, updated hourly via GitHub Actions using <code>update_data.py</code></li>
+            <li><strong>Live:</strong> CoinGecko API (BTC, ETH) and Yahoo Finance via Cloudflare proxy (MSTR, BMNR) — fetched on page load</li>
+        </ul>
+
+        <h3>Graph 1 &amp; 2: Ratio Charts</h3>
+        <p>Each chart plots 4 lines representing how far the current price is from each key level, as a ratio:</p>
+        <div class="formula">Ratio = Key Level Price / Current Market Price</div>
+        <ul>
+            <li>A ratio of <strong>1.0</strong> means the price is exactly at the key level</li>
+            <li>A ratio <strong>above 1.0</strong> means the price is below the key level (room to rise)</li>
+            <li>A ratio <strong>below 1.0</strong> means the price has surpassed the key level</li>
+            <li><strong>Red dots</strong> mark the extreme points (max for HIGHs, min for LOWs) with the dollar price at that moment</li>
+        </ul>
+
+        <h3>Key Price Levels</h3>
+        <p>Auto-calculated from the selected date range: BTC HIGH = max high price, BTC LOW = min low price, etc. All 8 inputs are manually editable.</p>
+
+        <h3>High/Low Distance Charts</h3>
+        <p>Plots the gap between the two assets' ratio lines over time:</p>
+        <div class="formula">HIGH Distance = (BTC HIGH / BTC price) &minus; (MSTR HIGH / MSTR price)
+LOW Distance = (BTC LOW / BTC price) &minus; (MSTR LOW / MSTR price)</div>
+        <p>When these lines diverge, the two assets are moving apart at their extremes. Same logic applies for ETH/BMNR.</p>
+
+        <h3>BTC/MSTR Spread Divergence</h3>
+        <p>Combines the HIGH and LOW distances into a single volatility-normalised metric:</p>
+        <div class="formula">Raw Ratio = HIGH Distance / LOW Distance
+Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
+        <ul>
+            <li><strong>Above 0:</strong> Highs diverging faster than lows</li>
+            <li><strong>Below 0:</strong> Lows diverging faster than highs</li>
+            <li>Dividing by rolling volatility (not z-score — no mean subtraction) puts all time periods on equal footing</li>
+            <li>Minimum 5 valid data points required in the 20-day window</li>
+        </ul>
+
+        <h3>Controls</h3>
+        <ul>
+            <li><strong>AEST toggle:</strong> Shifts displayed dates +1 day (US market close = next morning AEST)</li>
+            <li><strong>Reference line:</strong> Toggles a red dashed line at ratio = 1.0</li>
+            <li><strong>Date range:</strong> Independent for Graph 1 and Graph 2</li>
+        </ul>
+    </div>
+
+    <!-- 2. GEOPOLITICS -->
+    <div class="card doc-section" id="doc-geo">
+        <h2>2. Geopolitics</h2>
+        <p>Tracks macro indicators that can drive crypto volatility: commodity prices, equity indices, rate expectations, market sentiment, and implied volatility.</p>
+
+        <h3>Oil &amp; Nasdaq Alert Cards</h3>
+        <ul>
+            <li><strong>WTI Crude Oil (CL=F):</strong> Alerts if price moves <strong>&ge;3% within any 3-hour window</strong></li>
+            <li><strong>Nasdaq 100 (^NDX):</strong> Alerts if price moves <strong>&ge;2% within any 2-hour window</strong></li>
+            <li>Data: Yahoo Finance 5-min intraday bars via Cloudflare proxy</li>
+            <li>Move calculation: <code>(max high &minus; min low) / min low &times; 100</code> across the window</li>
+            <li>Mini-chart shows last 3 hours of trading. Colour: green (up) / red (down) when triggered, blue when normal</li>
+        </ul>
+        <div class="doc-note">These thresholds are also checked hourly by <code>market_alerts.py</code> in GitHub Actions and sent to Slack. See <a href="#doc-slack" style="color:#3b82f6;">Slack Alert Systems</a>.</div>
+
+        <h3>Interest Rate Outlook</h3>
+        <ul>
+            <li><strong>Next-month odds:</strong> Fed Rate Cut and BOJ Rate Hike probabilities from Polymarket API, polled live</li>
+            <li><strong>6-month consensus:</strong> Static table sourced from CME FedWatch, BofA, ING, and Reuters forecasts — manually updated</li>
+            <li>Colour coding: <span style="color:#10b981">&ge;50% green</span>, <span style="color:#f59e0b">&ge;20% amber</span>, <span style="color:#ef4444">&lt;20% red</span></li>
+        </ul>
+
+        <h3>Fear &amp; Greed Index</h3>
+        <ul>
+            <li>Source: alternative.me API — 14-day history</li>
+            <li>Scale: 0 (Extreme Fear) to 100 (Extreme Greed)</li>
+            <li>Colour bands: 0-25 red, 26-45 orange, 46-55 amber, 56-75 lime, 76-100 green</li>
+        </ul>
+
+        <h3>VIX (Volatility Index)</h3>
+        <ul>
+            <li>Source: Yahoo Finance (^VIX) — 14-day daily close</li>
+            <li>Dashed reference line at VIX = 20 (conventional fear threshold)</li>
+            <li>Current value coloured: <span style="color:#10b981">&lt;20 green</span>, <span style="color:#f59e0b">20-30 amber</span>, <span style="color:#ef4444">&gt;30 red</span></li>
+        </ul>
+    </div>
+
+    <!-- 3. MARKET LIQUIDITY -->
+    <div class="card doc-section" id="doc-liq">
+        <h2>3. Market Liquidity</h2>
+        <p>Daily price vs volume charts for BTC and FARTCOIN, plus a standardised volume comparison.</p>
+
+        <h3>Data Sources</h3>
+        <ul>
+            <li><strong>BTC:</strong> <code>liquidity_daily.json</code> — 365 days of daily price + volume from CoinGecko, updated hourly by <code>backfill_liquidity.py</code></li>
+            <li><strong>FARTCOIN:</strong> <code>fartcoin_liquidity_daily.json</code> — same format, same update schedule</li>
+        </ul>
+
+        <h3>BTC Price vs Volume / FARTCOIN Price vs Volume</h3>
+        <ul>
+            <li>Dual-axis line charts: price on left Y-axis, volume on right Y-axis</li>
+            <li>Summary cards show: data points, average daily volume, max daily volume, price range</li>
+            <li>Hyperdash links provided for smart money positioning data (external)</li>
+        </ul>
+
+        <h3>Combined View — Standardised Volume Comparison</h3>
+        <p>Three-panel stacked chart with synchronised hover across all panels:</p>
+        <ul>
+            <li><strong>Top panel:</strong> BTC price (amber) + FARTCOIN price (green) — dual Y-axes</li>
+            <li><strong>Middle panel:</strong> BTC volume as z-score</li>
+            <li><strong>Bottom panel:</strong> FARTCOIN volume as z-score</li>
+        </ul>
+        <div class="formula">Z-Score = (daily volume &minus; mean volume) / standard deviation
+0 = average day, +2 = unusually high, &minus;2 = unusually low</div>
+        <p>All three panels share a fixed Y-axis width (70px left, 60px right) via <code>afterFit</code> callbacks for pixel-perfect alignment. Cross-chart hover sync uses DOM-level <code>mousemove</code> listeners that calculate position as a percentage across chart areas.</p>
+
+        <h3>Holiday &amp; Weekend Filter</h3>
+        <ul>
+            <li>By default, <strong>Sundays, Mondays, and major US holidays</strong> are excluded from all volume charts</li>
+            <li>Holidays: New Year's Day, MLK Day (3rd Mon Jan), Presidents' Day (3rd Mon Feb), Memorial Day (last Mon May), Juneteenth, Independence Day, Labor Day (1st Mon Sep), Thanksgiving (4th Thu Nov), Christmas Day</li>
+            <li>Toggle checkbox to show/hide these days</li>
+        </ul>
+        <div class="doc-warn">Volume data is in UTC. When AEST filtering is needed, the date is shifted +1 day. Holiday detection uses UTC dates, not US Eastern — this can cause a ~1 day offset for holidays near midnight UTC.</div>
+    </div>
+
+    <!-- 4. FARTCOIN ANALYSIS -->
+    <div class="card doc-section" id="doc-fart">
+        <h2>4. FARTCOIN Analysis</h2>
+        <p>Detects divergence events where <strong>BTC drops but FARTCOIN holds positive</strong> over a 24-hour lookback, then tracks whether FARTCOIN crashes within 72 hours.</p>
+
+        <h3>Data Source</h3>
+        <ul>
+            <li><code>fartcoin_hourly.json</code> — hourly BTC + FARTCOIN prices from CoinGecko, updated hourly by <code>backfill_hourly.py</code></li>
+            <li>Live data appended from CoinGecko on page load</li>
+        </ul>
+
+        <h3>Event Detection Logic</h3>
+        <div class="formula">For each hour i (where i &ge; 24):
+  BTC change = (BTC[i] &minus; BTC[i&minus;24]) / BTC[i&minus;24]
+  FART change = (FART[i] &minus; FART[i&minus;24]) / FART[i&minus;24]
+
+  Divergence detected if:
+    BTC change &le; &minus;threshold  AND  FART change &ge; 0</div>
+        <ul>
+            <li><strong>Clustering:</strong> Consecutive divergence hours with gaps &le;3 hours are grouped into a single event</li>
+            <li><strong>Deduplication:</strong> One event per calendar day (AEST)</li>
+            <li><strong>Confirmation window:</strong> 72 hours from the end of the divergence cluster</li>
+            <li><strong>Crash %:</strong> <code>(peak price &minus; min price) / peak price &times; 100</code></li>
+            <li><strong>Confirmed</strong> if crash % &ge; crash threshold</li>
+        </ul>
+
+        <h3>Default Thresholds</h3>
+        <ul>
+            <li>BTC drop: <strong>1.5%</strong> over 24 hours (configurable 0.5-10%)</li>
+            <li>FARTCOIN crash: <strong>5%</strong> within 72 hours (configurable 1-50%)</li>
+        </ul>
+
+        <h3>Chart Overlays</h3>
+        <ul>
+            <li><span style="color:#ef4444;">Red zones:</span> Divergence period (BTC down, FARTCOIN holding) — crash followed</li>
+            <li><span style="color:#10b981;">Green zones:</span> Confirmed crash window (crash &ge; threshold within 72hrs)</li>
+            <li><span style="color:#f59e0b;">Amber zones:</span> Divergence detected but no crash followed</li>
+        </ul>
+
+        <h3>Statistics</h3>
+        <p>Divergence count, confirmed crashes, hit rate (confirmed / total), and average crash % for confirmed events.</p>
+    </div>
+
+    <!-- 5. INVERSE FARTCOIN -->
+    <div class="card doc-section" id="doc-ifart">
+        <h2>5. Inverse FARTCOIN Analysis</h2>
+        <p>The mirror of FARTCOIN Analysis: detects events where <strong>FARTCOIN drops but BTC holds positive</strong>, then tracks whether FARTCOIN pumps within 72 hours.</p>
+
+        <h3>Event Detection Logic</h3>
+        <div class="formula">Divergence detected if:
+  FART change &le; &minus;threshold  AND  BTC change &ge; 0
+
+Pump % = (max price &minus; trough price) / trough price &times; 100
+Confirmed if pump % &ge; pump threshold</div>
+
+        <h3>Default Thresholds</h3>
+        <ul>
+            <li>FARTCOIN drop: <strong>1.5%</strong> over 24 hours</li>
+            <li>FARTCOIN pump: <strong>5%</strong> within 72 hours</li>
+        </ul>
+
+        <h3>Chart Overlays</h3>
+        <ul>
+            <li><span style="color:#10b981;">Green zones:</span> Inverse divergence (FART down, BTC holding)</li>
+            <li><span style="color:#3b82f6;">Blue zones:</span> Confirmed pump window</li>
+            <li><span style="color:#f59e0b;">Amber zones:</span> Divergence with no pump</li>
+        </ul>
+
+        <p>Same data source, clustering, and deduplication rules as FARTCOIN Analysis.</p>
+    </div>
+
+    <!-- 6. SPX ANALYSIS -->
+    <div class="card doc-section" id="doc-spx">
+        <h2>6. SPX6900 Analysis</h2>
+        <p>Detects divergence events where <strong>BTC drops but SPX6900 holds positive</strong>, then tracks whether SPX6900 crashes within 72 hours.</p>
+
+        <h3>Data Source</h3>
+        <ul>
+            <li><code>spx6900_hourly.json</code> — hourly BTC + SPX6900 prices, updated by <code>backfill_hourly.py</code></li>
+        </ul>
+
+        <h3>Detection Logic</h3>
+        <p>Identical to FARTCOIN Analysis but substituting SPX6900 for FARTCOIN. Same clustering, dedup, and confirmation rules apply.</p>
+
+        <h3>Default Thresholds</h3>
+        <ul>
+            <li>BTC drop: <strong>1.5%</strong> over 24 hours</li>
+            <li>SPX6900 crash: <strong>5%</strong> within 72 hours</li>
+        </ul>
+    </div>
+
+    <!-- 7. BTC/FC → SPX -->
+    <div class="card doc-section" id="doc-bfspx">
+        <h2>7. BTC/FC &rarr; SPX Analysis</h2>
+        <p>Three-asset analysis: detects <strong>BTC down + FARTCOIN holding</strong> divergence (same as FARTCOIN tab), then tracks whether <strong>SPX6900</strong> crashes within 72 hours instead of FARTCOIN.</p>
+
+        <h3>How It Differs</h3>
+        <ul>
+            <li>The <strong>trigger condition</strong> is identical to FARTCOIN Analysis (BTC drops, FART holds)</li>
+            <li>The <strong>outcome tracked</strong> is SPX6900's crash behaviour, not FARTCOIN's</li>
+            <li>Tests the hypothesis: if BTC/FART diverge, does SPX6900 follow with a crash?</li>
+        </ul>
+
+        <h3>Default Thresholds</h3>
+        <ul>
+            <li>BTC drop: <strong>1.5%</strong> over 24 hours</li>
+            <li>SPX6900 crash: <strong>5%</strong> within 72 hours</li>
+        </ul>
+    </div>
+
+    <!-- 8. CUSTOM ALERTS -->
+    <div class="card doc-section" id="doc-alerts">
+        <h2>8. Custom Alerts</h2>
+        <p>Schedule team reminders that get sent to Slack at the specified time.</p>
+
+        <h3>How It Works</h3>
+        <ul>
+            <li>Fill in a title, date/time, timezone, and optional description</li>
+            <li>Alert is saved to <code>localStorage</code> (instant display) and to <code>custom_alerts.json</code> in the repo via the <code>/api/alerts</code> Cloudflare Function (uses GitHub Contents API)</li>
+            <li>GitHub Actions runs <code>custom_alerts.py</code> every hour — if an alert's UTC time is within 30 minutes of now, it sends a Slack message via <code>SLACK_WEBHOOK_URL_CUSTOM</code></li>
+            <li>Slack message shows both the original timezone and AEST conversion</li>
+            <li>Sent alerts auto-clean after 7 days</li>
+        </ul>
+
+        <h3>Timezone Handling</h3>
+        <div class="formula">UTC conversion (frontend):
+  1. Interpret datetime as UTC guess
+  2. Format that UTC time in the target timezone via Intl.DateTimeFormat
+  3. Calculate offset = (formatted tz time) &minus; (UTC guess)
+  4. Result UTC = UTC guess &minus; offset</div>
+        <p>Supported timezones: AEST (Sydney), ET (New York), CT (Chicago), PT (Los Angeles), GMT (London), UTC, JST (Tokyo), SGT (Singapore).</p>
+
+        <h3>Multi-User Sync</h3>
+        <p>On tab load, alerts are fetched from the server and merged with localStorage. Server-side "sent" status is synced to local. Alerts created by other team members appear after a page refresh.</p>
+    </div>
+
+    <!-- 9. SLACK ALERT SYSTEMS -->
+    <div class="card doc-section" id="doc-slack">
+        <h2>9. Slack Alert Systems</h2>
+        <p>All automated alerts run hourly via GitHub Actions (cron <code>0 * * * *</code>). Two separate Slack channels are used.</p>
+
+        <h3>Channel 1: <code>SLACK_WEBHOOK_URL</code></h3>
+        <p>Receives three types of alerts:</p>
+
+        <h3 style="margin-top:12px;">a) Divergence Events (<code>detect_events.py</code>)</h3>
+        <ul>
+            <li>Runs all 4 divergence analyses (FARTCOIN, Inverse FARTCOIN, SPX6900, BTC/FC&rarr;SPX) against hourly data</li>
+            <li>Alerts on <strong>new events only</strong> — compares against <code>last_events.json</code></li>
+            <li>Dedup key: <code>event_type:AEST_date</code> (one event per type per day)</li>
+        </ul>
+
+        <h3>b) Market Alerts (<code>market_alerts.py</code>)</h3>
+        <ul>
+            <li>Fetches Oil and Nasdaq 100 intraday data from Yahoo Finance</li>
+            <li>Scans rolling windows (3hr for Oil, 2hr for Nasdaq) ending in the <strong>last 2 hours</strong></li>
+            <li>Only windows ending recently are checked — old spikes age out naturally, preventing duplicate alerts</li>
+            <li>Dedup safety net: tracks peak move % per ticker per day, only re-alerts if move grows by &ge;1% more</li>
+            <li>Thresholds: Oil &ge;3%, Nasdaq &ge;2%</li>
+        </ul>
+
+        <h3>c) Forex Calendar (<code>forex_calendar_alert.py</code>)</h3>
+        <ul>
+            <li>Source: nfs.faireconomy.media (Forex Factory mirror)</li>
+            <li>Filters: <strong>USD currency only</strong>, <strong>High impact only</strong> (red events)</li>
+            <li>Sends a reminder <strong>22-26 hours before</strong> the event</li>
+            <li>Shows event name, AEST time, ET time, forecast, and previous values</li>
+            <li>State tracked in <code>forex_alert_state.json</code> — only saves state after confirmed webhook success</li>
+        </ul>
+
+        <h3>Channel 2: <code>SLACK_WEBHOOK_URL_CUSTOM</code></h3>
+        <ul>
+            <li>Receives custom team alerts from <code>custom_alerts.py</code></li>
+            <li>Alert sent when UTC time is &le;30 minutes away</li>
+        </ul>
+    </div>
+
+    <!-- 10. DATA PIPELINE -->
+    <div class="card doc-section" id="doc-data">
+        <h2>10. Data Pipeline &amp; Infrastructure</h2>
+
+        <h3>GitHub Actions Workflow (<code>update-data.yml</code>)</h3>
+        <p>Runs hourly. Steps execute sequentially:</p>
+        <ul>
+            <li><code>update_data.py</code> — Fetches daily ratio data (BTC, ETH, MSTR, BMNR) &rarr; <code>data.json</code></li>
+            <li><code>backfill_hourly.py</code> — Fetches hourly prices (BTC, FARTCOIN, SPX6900) &rarr; <code>fartcoin_hourly.json</code>, <code>spx6900_hourly.json</code></li>
+            <li><code>backfill_liquidity.py</code> — Fetches daily price + volume (BTC, FARTCOIN) &rarr; <code>liquidity_daily.json</code>, <code>fartcoin_liquidity_daily.json</code>. Has retry logic with 429 rate-limit handling (30s &times; attempt backoff)</li>
+            <li>Commit &amp; push data files</li>
+            <li><code>detect_events.py</code> — Run divergence detection, alert Slack on new events</li>
+            <li><code>forex_calendar_alert.py</code> — Check for upcoming USD high-impact events</li>
+            <li><code>market_alerts.py</code> — Check Oil &amp; Nasdaq for threshold moves</li>
+            <li><code>custom_alerts.py</code> — Check for due custom team alerts</li>
+            <li>Each alert script commits its own state file after running</li>
+        </ul>
+
+        <h3>Cloudflare Pages Functions (<code>functions/_middleware.js</code>)</h3>
+        <p>All requests pass through the middleware, which handles:</p>
+        <ul>
+            <li><strong>Password protection:</strong> Basic Auth via <code>CFP_PASSWORD</code> env var</li>
+            <li><strong><code>/api/yahoo</code>:</strong> Proxies Yahoo Finance requests (bypasses CORS)</li>
+            <li><strong><code>/api/polymarket</code>:</strong> Proxies Polymarket API requests</li>
+            <li><strong><code>/api/deribit</code>:</strong> Proxies Deribit API requests</li>
+            <li><strong><code>/api/alerts</code>:</strong> GET/POST for custom alerts — reads/writes <code>custom_alerts.json</code> via GitHub Contents API using <code>GITHUB_PAT</code> and <code>GITHUB_REPO</code> env vars</li>
+        </ul>
+
+        <h3>Environment Variables</h3>
+        <ul>
+            <li><strong>GitHub Secrets:</strong> <code>SLACK_WEBHOOK_URL</code>, <code>SLACK_WEBHOOK_URL_CUSTOM</code></li>
+            <li><strong>Cloudflare Pages:</strong> <code>CFP_PASSWORD</code>, <code>GITHUB_PAT</code> (fine-grained, Contents: Read+Write), <code>GITHUB_REPO</code> (owner/repo format)</li>
+        </ul>
+    </div>
+
+    <!-- 11. ASSUMPTIONS -->
+    <div class="card doc-section" id="doc-assumptions">
+        <h2>11. Assumptions &amp; Limitations</h2>
+
+        <h3>Timezone</h3>
+        <ul>
+            <li>All stored data is in <strong>UTC</strong>. Dates in <code>data.json</code> are UTC calendar dates (YYYY-MM-DD)</li>
+            <li>Hourly timestamps use ISO 8601 format (e.g. <code>2025-09-15T14:00:00Z</code>)</li>
+            <li>AEST display mode shifts dates +1 day — this is a labelling shift, not a data recomputation. It reflects that a US market close on Monday UTC appears as Tuesday morning AEST</li>
+            <li>The UTC&rarr;AEST conversion for custom alerts may be off by ~1 hour near DST boundaries</li>
+        </ul>
+
+        <h3>Data Gaps &amp; Quality</h3>
+        <ul>
+            <li>Missing hourly data points are plotted as gaps (no interpolation). Charts use <code>spanGaps: true</code> for line continuity across short gaps</li>
+            <li>CoinGecko free tier is rate-limited — <code>backfill_liquidity.py</code> includes 15s pauses between fetches and retry logic for 429 errors</li>
+            <li>If a data fetch fails, the script keeps existing data and continues (graceful fallback)</li>
+            <li>Yahoo Finance prices have a ~15-minute delay for live quotes</li>
+        </ul>
+
+        <h3>Divergence Detection</h3>
+        <ul>
+            <li>The 24-hour lookback is exactly 24 data points (hourly candles), not a sliding time window</li>
+            <li>Clustering treats gaps of &le;3 hours as the same event — two spikes 4 hours apart are separate events</li>
+            <li>One event per calendar day per analysis type (AEST date). If two divergences occur on the same AEST date, only the first is recorded</li>
+            <li>The 72-hour confirmation window starts from the <strong>end</strong> of the divergence cluster, not the start</li>
+            <li>Confirmed status is binary: crash/pump either hit the threshold or didn't. Partial moves below threshold are labelled "no crash/pump"</li>
+        </ul>
+
+        <h3>Market Alerts (Oil/Nasdaq)</h3>
+        <ul>
+            <li>Yahoo Finance <code>range=1d</code> returns data for the <strong>current trading session only</strong>. Outside market hours, data may be stale or unavailable</li>
+            <li>Rolling window scan only checks windows ending in the last 2 hours — spikes from earlier in the day that were already processed won't re-trigger</li>
+            <li>A legitimate second spike of similar magnitude on the same day may not re-alert unless it exceeds the prior alert's move by &ge;1%</li>
+        </ul>
+
+        <h3>Alert Delivery</h3>
+        <ul>
+            <li>All Slack alerts depend on GitHub Actions running on schedule. GitHub does not guarantee exact cron timing — delays of 5-15 minutes are normal, occasionally longer during high load</li>
+            <li>Webhook state is only saved <strong>after confirmed delivery</strong> (HTTP 200). If the webhook fails, the alert will be retried on the next run</li>
+            <li>Custom alerts check for events due within 30 minutes. Combined with hourly runs, an alert may arrive up to ~90 minutes after the set time in worst case</li>
+            <li>Slack free tier has no webhook limits. Webhooks do not expire unless the Slack app is uninstalled</li>
+        </ul>
+
+        <h3>Polymarket Rate Odds</h3>
+        <ul>
+            <li>Event slugs are matched by pattern (e.g. <code>fed-decision-in-april</code>). If Polymarket changes their slug format, odds will fail silently and fall back to the static consensus table</li>
+            <li>The 6-month rate outlook is a static consensus table and must be manually updated as new forecasts are published</li>
+        </ul>
+    </div>
+
 </div>
 </div>
 
