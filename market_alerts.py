@@ -193,9 +193,9 @@ def check_market(market):
 
 
 def make_state_key(alert):
-    """Create a dedup key: ticker + hour (one alert per market per hour max)."""
+    """Create a dedup key: ticker + date (one alert per market per day unless move grows)."""
     now = datetime.now(timezone.utc)
-    return f"{alert['ticker']}:{now.strftime('%Y-%m-%d-%H')}"
+    return f"{alert['ticker']}:{now.strftime('%Y-%m-%d')}"
 
 
 def send_slack_alert(alerts):
@@ -271,35 +271,50 @@ def main():
     print(f"  Time (UTC): {now.strftime('%Y-%m-%d %H:%M')}")
 
     state = load_state()
-    previous_keys = set(state.get("alerts", []))
+    # State format: {"alerted": {"CL=F:2026-04-01": 6.89, ...}}
+    # Maps dedup key -> peak move % already alerted
+    alerted = state.get("alerted", {})
+
+    # Migrate from old list format if needed
+    if "alerts" in state and isinstance(state["alerts"], list):
+        alerted = {}
+        state.pop("alerts", None)
 
     triggered = []
     for market in MARKETS:
         alert = check_market(market)
         if alert:
             key = make_state_key(alert)
-            if key in previous_keys:
-                print(f"    Already alerted this hour — skipping")
-            else:
+            prev_move = alerted.get(key, 0)
+            # Only re-alert if move has grown by at least 1% absolute
+            if alert["move_pct"] > prev_move + 1.0:
                 triggered.append(alert)
-                previous_keys.add(key)
+                alerted[key] = alert["move_pct"]
+            elif prev_move == 0:
+                triggered.append(alert)
+                alerted[key] = alert["move_pct"]
+            else:
+                print(f"    Already alerted at {prev_move}% — current {alert['move_pct']}% not enough increase")
 
     if triggered:
         print(f"\n{len(triggered)} new alert(s) to send")
         success = send_slack_alert(triggered)
-        if success:
-            # Only save state after successful send
-            state["alerts"] = list(previous_keys)
-            # Prune old keys (>48hrs old based on key format)
-            cutoff = (now - timedelta(hours=48)).strftime("%Y-%m-%d-%H")
-            state["alerts"] = [k for k in state["alerts"] if k.split(":")[-1] >= cutoff]
-            save_state(state)
+        if not success:
+            # Revert state changes on failure
+            for alert in triggered:
+                key = make_state_key(alert)
+                if alerted.get(key) == alert["move_pct"]:
+                    del alerted[key]
     else:
         print("\nNo new alerts")
-        # Still save to prune old keys
-        cutoff = (now - timedelta(hours=48)).strftime("%Y-%m-%d-%H")
-        state["alerts"] = [k for k in state.get("alerts", []) if k.split(":")[-1] >= cutoff]
-        save_state(state)
+
+    # Prune old keys (>2 days)
+    today_str = now.strftime("%Y-%m-%d")
+    yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    alerted = {k: v for k, v in alerted.items() if k.split(":")[-1] >= yesterday_str}
+
+    state = {"alerted": alerted}
+    save_state(state)
 
     print("Done!")
 
