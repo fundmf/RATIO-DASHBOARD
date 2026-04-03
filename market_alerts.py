@@ -123,8 +123,13 @@ def check_market(market):
     current_price = meta.get("regularMarketPrice") or bars[-1][1]
     prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
 
-    # Scan every rolling window: for each bar, look back window_hrs and
-    # compute max(high) - min(low) as a % of min(low)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    # Only scan rolling windows whose END falls within the last 2 hours.
+    # This covers the hourly cron gap with buffer, so:
+    #  - Old spikes naturally fall out → no duplicates
+    #  - New spikes are always caught → no misses
+    scan_cutoff = now_ts - 2 * 3600
+
     best_move = 0
     best_end_idx = -1
     best_high = 0
@@ -132,6 +137,9 @@ def check_market(market):
 
     for end in range(len(bars)):
         end_ts = bars[end][0]
+        # Skip windows that ended before the scan cutoff
+        if end_ts < scan_cutoff:
+            continue
         start_ts = end_ts - window_sec
         # Collect bars within this window
         win_highs = []
@@ -159,7 +167,6 @@ def check_market(market):
 
     # Determine direction at the peak window
     if best_end_idx >= 0 and best_end_idx > 0:
-        # Find the start bar of the best window
         end_ts = bars[best_end_idx][0]
         start_ts = end_ts - window_sec
         win_bars = [b for b in bars if b[0] >= start_ts and b[0] <= end_ts]
