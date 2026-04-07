@@ -28,7 +28,8 @@ LAST_EVENTS_FILE = "last_events.json"
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 # Default thresholds (same as dashboard defaults)
-BTC_DROP_THR = 1.5 / 100      # 1.5% BTC drop over 24hrs
+BTC_DROP_THR = 1.5 / 100      # legacy — used by SPX detector
+GAP_THR = 1.5 / 100           # min gap (FART% - BTC%) over 24hrs for FARTCOIN divergence
 FART_CRASH_THR = 5.0 / 100    # 5% FARTCOIN crash threshold
 SPX_CRASH_THR = 5.0 / 100     # 5% SPX6900 crash threshold
 FART_DROP_THR = 1.5 / 100     # 1.5% FARTCOIN drop (inverse)
@@ -91,14 +92,16 @@ def cluster_hours(div_hours):
 
 
 def detect_fartcoin_events(data):
-    """FARTCOIN Analysis: BTC drops, FARTCOIN holds positive -> track FARTCOIN crash."""
+    """FARTCOIN Analysis: BTC down, FARTCOIN up, gap (FART% - BTC%) >= GAP_THR over 24hrs."""
     div_hours = []
     for i in range(LB, len(data)):
         bn, bp = data[i].get("btc"), data[i - LB].get("btc")
         fn, fp = data[i].get("fart"), data[i - LB].get("fart")
         if not all([bn, bp, fn, fp]):
             continue
-        if (bn - bp) / bp <= -BTC_DROP_THR and (fn - fp) / fp >= 0:
+        btc_chg = (bn - bp) / bp
+        fart_chg = (fn - fp) / fp
+        if btc_chg < 0 and fart_chg > 0 and (fart_chg - btc_chg) >= GAP_THR:
             div_hours.append(i)
 
     clusters = cluster_hours(div_hours)
