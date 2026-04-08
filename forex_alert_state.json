@@ -1,6 +1,7 @@
 {
   "alerted": [
-    "2026-04-06T10:00:00-04:00|ISM Services PMI",
-    "2026-04-08T14:00:00-04:00|FOMC Meeting Minutes"
+    "2026-04-08T14:00:00-04:00|FOMC Meeting Minutes",
+    "2026-04-09T08:30:00-04:00|Core PCE Price Index m/m",
+    "2026-04-09T08:30:00-04:00|Final GDP q/q"
   ]
 }
