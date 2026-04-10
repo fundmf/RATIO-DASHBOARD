@@ -12,6 +12,7 @@ Run via GitHub Actions: automated nightly at 8am AEST (Mon–Fri)
 """
 
 import json
+import math
 import sys
 import time
 from datetime import datetime, timedelta, date
@@ -113,10 +114,13 @@ def fetch_yahoo_ohlc(ticker, start_str, end_str):
                 c, h, l = c.item(), h.item(), l.item()
             elif hasattr(c, '__iter__') and not isinstance(c, str):
                 c, h, l = float(list(c)[0]), float(list(h)[0]), float(list(l)[0])
+            c_f, h_f, l_f = float(c), float(h), float(l)
+            if any(math.isnan(v) or math.isinf(v) for v in [c_f, h_f, l_f]):
+                continue
             result[d] = {
-                "close": round(float(c), 4),
-                "high":  round(float(h), 4),
-                "low":   round(float(l), 4),
+                "close": round(c_f, 4),
+                "high":  round(h_f, 4),
+                "low":   round(l_f, 4),
             }
     except Exception as e:
         print(f"  Yahoo Finance error for {ticker}: {e}")

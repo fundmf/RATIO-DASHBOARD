@@ -486,9 +486,13 @@ def main():
         for e in new_events:
             print(f"  [{e['type']}] {e['time']} — {'CONFIRMED' if e['confirmed'] else 'DETECTED'}")
 
-        # Send Slack alert
-        print("\nSending Slack alert...")
-        send_slack_alert(new_events)
+        # Only alert for FARTCOIN — inverse_fartcoin, spx, bfspx alerts disabled
+        alertable = [e for e in new_events if e["type"] == "fartcoin"]
+        if alertable:
+            print("\nSending Slack alert (fartcoin only)...")
+            send_slack_alert(alertable)
+        else:
+            print("\nNo alertable fartcoin events — skipping Slack")
     else:
         print("\nNo new events — no alert needed")
 
