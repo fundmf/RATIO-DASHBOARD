@@ -29,6 +29,16 @@
       "utc_iso": "2026-04-24T08:00:00.000Z",
       "sent": false,
       "created": "2026-04-09T05:02:15.981Z"
+    },
+    {
+      "id": "1775936201004",
+      "title": "Clarity Act Senate committee mark up vote",
+      "description": "",
+      "datetime": "2026-04-30T18:30",
+      "timezone": "America/New_York",
+      "utc_iso": "2026-04-30T22:30:00.000Z",
+      "sent": false,
+      "created": "2026-04-11T19:36:41.004Z"
     }
   ]
 }
