@@ -2056,12 +2056,17 @@ const FART_PRE_CRASH_DD={
   "2026-04-08T23:00:00Z":{maxDD:16.95,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4}
 };
 
+// Secondary day-keyed index (AEST) as fallback for any timestamp drift
+function _aestDay(isoStr){const d=new Date(isoStr);return new Date(d.getTime()+10*3600*1000).toISOString().slice(0,10);}
+const FART_DD_BY_DAY=(()=>{const m={};for(const[k,v]of Object.entries(FART_PRE_CRASH_DD))m[_aestDay(k)]=v;return m;})();
+function lookupDD(dsTime){return FART_PRE_CRASH_DD[dsTime]??FART_DD_BY_DAY[_aestDay(dsTime)]??null;}
+
 let fartDDChartInst=null;
 
 function renderFartPreCrashSection(events){
   // Gather DD data for events that have a match in FART_PRE_CRASH_DD
   const rows=events.map(e=>{
-    const dd=FART_PRE_CRASH_DD[e.dsTime];
+    const dd=lookupDD(e.dsTime);
     return{label:new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'}),
       maxDD:dd?dd.maxDD:null, crash:e.crashPct, confirmed:e.confirmed, mins:dd?dd.mins:null};
   }).filter(r=>r.maxDD!==null);
@@ -2396,7 +2401,7 @@ function renderFartTable(events,data){
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
         const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
-        const ddData=FART_PRE_CRASH_DD[e.dsTime];
+        const ddData=lookupDD(e.dsTime);
         const ddCell=ddData!=null
             ?`<span style="color:${ddData.maxDD>10?'#fb923c':ddData.maxDD>5?'#fbbf24':'#94a3b8'}" title="${ddData.mins<60?ddData.mins+'min window':Math.round(ddData.mins/60)+'hr window'}">${ddData.maxDD.toFixed(1)}%</span>`
             :'<span style="color:#334155">—</span>';
