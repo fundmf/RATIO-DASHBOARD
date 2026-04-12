@@ -473,7 +473,7 @@
             <div style="position:relative;height:300px;"><canvas id="fartDDHistChart"></canvas></div>
             <div style="position:relative;height:300px;"><canvas id="fartDDCdfChart"></canvas></div>
         </div>
-        <div style="font-size:12px;color:#64748b;margin-top:10px;text-align:center;">Left: frequency histogram (2% bins). Right: cumulative distribution — probability that pre-crash DD is ≤ X%.</div>
+        <div style="font-size:12px;color:#64748b;margin-top:10px;text-align:center;">Left: KDE probability density curve (Gaussian kernel, Silverman bandwidth) with frequency bars as reference. Right: cumulative distribution — probability that pre-crash DD is ≤ X%.</div>
     </div>
 </div>
 </div>
@@ -2134,53 +2134,73 @@ let fartDDHistInst=null, fartDDCdfInst=null;
 
 function renderFartDDDistribution(events){
   const vals=events
-    .map(e=>FART_PRE_CRASH_DD[e.dsTime])
+    .map(e=>lookupDD(e.dsTime))
     .filter(d=>d!=null)
     .map(d=>d.maxDD);
   if(!vals.length)return;
 
-  // ── Histogram (2% bins from 0 to ceil of max) ──
-  const BIN=2;
-  const maxVal=Math.ceil(Math.max(...vals)/BIN)*BIN;
-  const binCount=maxVal/BIN;
-  const bins=Array.from({length:binCount},(_,i)=>i*BIN);
-  const freq=bins.map(b=>vals.filter(v=>v>=b&&v<b+BIN).length);
-  const pct=freq.map(f=>parseFloat((f/vals.length*100).toFixed(1)));
-  const binLabels=bins.map(b=>`${b}–${b+BIN}%`);
+  // ── KDE probability distribution (Gaussian kernel, Silverman bandwidth) ──
+  const n=vals.length;
+  const mean=vals.reduce((a,b)=>a+b,0)/n;
+  const std=Math.sqrt(vals.reduce((s,v)=>s+(v-mean)**2,0)/Math.max(n-1,1));
+  const bw=Math.max(1.06*std*Math.pow(n,-0.2), 0.5); // Silverman's rule, min 0.5
 
-  // colour: shade by frequency
-  const maxFreq=Math.max(...pct);
-  const histColors=pct.map(p=>{
-    const intensity=0.3+0.55*(p/maxFreq);
-    return`rgba(251,146,60,${intensity.toFixed(2)})`;
+  const KDE_STEPS=300;
+  const xPad=bw*2;
+  const xMax=Math.max(...vals)+xPad;
+  const xStep=xMax/KDE_STEPS;
+  const kdePoints=Array.from({length:KDE_STEPS+1},(_,i)=>{
+    const x=i*xStep;
+    const density=vals.reduce((s,xi)=>{
+      const u=(x-xi)/bw;
+      return s+Math.exp(-0.5*u*u)/Math.sqrt(2*Math.PI);
+    },0)/(n*bw);
+    return{x:parseFloat(x.toFixed(3)),y:parseFloat((density*100).toFixed(4))};
   });
+
+  // Ghost histogram bars (2% bins) for raw frequency reference
+  const BIN=2;
+  const binMax=Math.ceil(Math.max(...vals)/BIN)*BIN;
+  const bins=Array.from({length:binMax/BIN},(_,i)=>i*BIN);
+  const freq=bins.map(b=>vals.filter(v=>v>=b&&v<b+BIN).length);
+  // Convert to density scale so bars align with KDE curve: freq/(n*BIN)
+  const barDens=freq.map(f=>parseFloat((f/(n*BIN)*100).toFixed(4)));
+  const barPoints=bins.map((b,i)=>({x:b+BIN/2,y:barDens[i]}));
 
   const ctxH=document.getElementById('fartDDHistChart').getContext('2d');
   if(fartDDHistInst?.destroy)fartDDHistInst.destroy();
   fartDDHistInst=new Chart(ctxH,{
-    type:'bar',
-    data:{labels:binLabels,datasets:[{
-      label:'% of events',data:pct,
-      backgroundColor:histColors,
-      borderColor:'rgba(251,146,60,0.9)',borderWidth:1
-    }]},
+    type:'line',
+    data:{datasets:[
+      // Ghost bars (bar dataset on linear axis)
+      {type:'bar',label:'Frequency',data:barPoints,
+        backgroundColor:'rgba(251,146,60,0.15)',borderColor:'rgba(251,146,60,0.35)',
+        borderWidth:1,barThickness:'flex',categoryPercentage:1,barPercentage:1,order:2},
+      // KDE smooth curve
+      {type:'line',label:'Probability density',data:kdePoints,
+        borderColor:'rgba(251,146,60,1)',backgroundColor:'rgba(251,146,60,0.12)',
+        borderWidth:2.5,pointRadius:0,tension:0.4,fill:true,order:1}
+    ]},
     options:{
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:false},
-        tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+        tooltip:{
+          backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
           borderColor:'#334155',borderWidth:1,padding:10,
+          filter:item=>item.datasetIndex===1, // only KDE tooltip
           callbacks:{
-            title:ctx=>ctx[0].label+' drawdown',
-            label:ctx=>`${ctx.parsed.y}% of events (${freq[ctx.dataIndex]} / ${vals.length})`
+            title:ctx=>`DD ≈ ${ctx[0].parsed.x.toFixed(1)}%`,
+            label:ctx=>`Density: ${ctx[0].parsed.y.toFixed(3)}`
           }
         }
       },
       scales:{
-        x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',font:{size:11}},
-          title:{display:true,text:'Pre-crash Max DD Range',color:'#64748b'}},
-        y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},
-          title:{display:true,text:'% of Events',color:'#64748b'},min:0}
+        x:{type:'linear',min:0,max:parseFloat(xMax.toFixed(1)),
+          grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},
+          title:{display:true,text:'Pre-crash Max Drawdown (%)',color:'#64748b'}},
+        y:{min:0,grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v.toFixed(1)},
+          title:{display:true,text:'Probability Density',color:'#64748b'}}
       }
     }
   });
