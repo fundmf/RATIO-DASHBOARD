@@ -98,6 +98,7 @@
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
         .event-row { display: grid; grid-template-columns: 100px 55px 1fr 65px 85px 80px 75px 120px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+        .fart-row { grid-template-columns: 100px 55px 1fr 65px 85px 80px 90px 75px 120px; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -452,6 +453,27 @@
         <div id="fartEventsList" style="overflow-x:auto;">
             <div style="color:#64748b;font-size:13px;">Run analysis to see events.</div>
         </div>
+    </div>
+
+    <div class="card" id="fartPreCrashCard">
+        <div class="card-title">Pre-Crash Minute Analysis <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px;">Max drawdown from divergence signal → 1 min before FARTCOIN peak · KuCoin 1m data</span></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;" id="fartDDStats">
+            <div class="stat-card"><div class="stat-value" id="ddStatAvg">—</div><div class="stat-label">Avg Pre-crash DD</div></div>
+            <div class="stat-card"><div class="stat-value" id="ddStatMax">—</div><div class="stat-label">Max Pre-crash DD</div></div>
+            <div class="stat-card"><div class="stat-value" id="ddStatMedian">—</div><div class="stat-label">Median Pre-crash DD</div></div>
+            <div class="stat-card"><div class="stat-value" id="ddStatOver5">—</div><div class="stat-label">Events DD &gt; 5%</div></div>
+        </div>
+        <div style="position:relative;height:340px;"><canvas id="fartDDChart"></canvas></div>
+        <div style="font-size:12px;color:#64748b;margin-top:10px;text-align:center;">Each bar = one divergence event. Orange = pre-crash max drawdown (left axis). Purple = confirmed crash size (right axis).</div>
+    </div>
+
+    <div class="card" id="fartDDDistCard">
+        <div class="card-title">Pre-Crash Drawdown — Probability Distribution <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px;">How often does each DD range occur across all events?</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div style="position:relative;height:300px;"><canvas id="fartDDHistChart"></canvas></div>
+            <div style="position:relative;height:300px;"><canvas id="fartDDCdfChart"></canvas></div>
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-top:10px;text-align:center;">Left: frequency histogram (2% bins). Right: cumulative distribution — probability that pre-crash DD is ≤ X%.</div>
     </div>
 </div>
 </div>
@@ -1982,6 +2004,238 @@ const zonePlugin={id:'zonePlugin',beforeDraw(chart,args,options){
 }};
 Chart.register(zonePlugin);
 
+// Pre-computed per-event pre-crash max drawdowns from KuCoin 1m data
+// Key = signal_time (hourly timestamp from fartcoin_hourly.json)
+// maxDD = rolling peak-to-trough drawdown % in the window from signal → 1min before FART peak
+const FART_PRE_CRASH_DD={
+  "2025-09-09T19:00:00Z":{maxDD:6.01,mins:3230,peakTime:"2025-09-12T00:50:00Z",peakPrice:0.9275,crash:8.8},
+  "2025-09-13T17:00:00Z":{maxDD:1.99,mins:386,peakTime:"2025-09-13T23:26:00Z",peakPrice:0.9576,crash:15.7},
+  "2025-09-17T20:00:00Z":{maxDD:4.75,mins:1283,peakTime:"2025-09-18T17:23:00Z",peakPrice:0.9546,crash:20.3},
+  "2025-09-19T05:00:00Z":{maxDD:0.0,mins:0,peakTime:"2025-09-19T05:00:00Z",peakPrice:0.9214,crash:53.6},
+  "2025-10-14T01:00:00Z":{maxDD:1.52,mins:19,peakTime:"2025-10-14T01:19:00Z",peakPrice:0.4693,crash:19.7},
+  "2025-10-24T17:00:00Z":{maxDD:3.69,mins:3183,peakTime:"2025-10-26T22:03:00Z",peakPrice:0.4272,crash:43.7},
+  "2025-11-18T04:00:00Z":{maxDD:11.76,mins:3511,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:25.1},
+  "2025-11-19T22:00:00Z":{maxDD:4.58,mins:991,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:40.8},
+  "2025-11-20T15:00:00Z":{maxDD:0.0,mins:0,peakTime:"2025-11-20T15:00:00Z",peakPrice:0.3058,crash:40.8},
+  "2025-11-24T10:00:00Z":{maxDD:12.81,mins:3584,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:27.4},
+  "2025-11-25T17:00:00Z":{maxDD:11.73,mins:1724,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:23.4},
+  "2025-11-28T22:00:00Z":{maxDD:3.2,mins:72,peakTime:"2025-11-28T23:12:00Z",peakPrice:0.3491,crash:24.9},
+  "2025-12-02T00:00:00Z":{maxDD:20.46,mins:4128,peakTime:"2025-12-04T20:48:00Z",peakPrice:0.4069,crash:22.9},
+  "2025-12-04T06:00:00Z":{maxDD:17.68,mins:3407,peakTime:"2025-12-06T14:47:00Z",peakPrice:0.4101,crash:16.2},
+  "2025-12-05T08:00:00Z":{maxDD:12.76,mins:2806,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:16.2},
+  "2025-12-06T03:00:00Z":{maxDD:11.18,mins:1666,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-06T20:00:00Z":{maxDD:6.44,mins:646,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-10T21:00:00Z":{maxDD:9.52,mins:2221,peakTime:"2025-12-12T10:01:00Z",peakPrice:0.3933,crash:13.0},
+  "2025-12-12T19:00:00Z":{maxDD:2.75,mins:244,peakTime:"2025-12-12T23:04:00Z",peakPrice:0.3752,crash:23.0},
+  "2025-12-24T15:00:00Z":{maxDD:6.14,mins:3853,peakTime:"2025-12-27T07:13:00Z",peakPrice:0.3125,crash:10.0},
+  "2025-12-26T15:00:00Z":{maxDD:3.61,mins:2407,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2025-12-27T21:00:00Z":{maxDD:2.71,mins:607,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2026-02-01T18:00:00Z":{maxDD:9.4,mins:3069,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:8.5},
+  "2026-02-03T21:00:00Z":{maxDD:0.99,mins:9,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:21.1},
+  "2026-02-04T20:00:00Z":{maxDD:1.06,mins:22,peakTime:"2026-02-04T20:22:00Z",peakPrice:0.2258,crash:18.9},
+  "2026-02-07T21:00:00Z":{maxDD:4.3,mins:1071,peakTime:"2026-02-08T14:51:00Z",peakPrice:0.2026,crash:10.7},
+  "2026-02-12T17:00:00Z":{maxDD:3.76,mins:3218,peakTime:"2026-02-14T22:38:00Z",peakPrice:0.224,crash:18.7},
+  "2026-02-15T12:00:00Z":{maxDD:0.0,mins:0,peakTime:"2026-02-15T12:00:00Z",peakPrice:0.2125,crash:10.4},
+  "2026-02-16T22:00:00Z":{maxDD:1.43,mins:169,peakTime:"2026-02-17T00:49:00Z",peakPrice:0.2031,crash:12.5},
+  "2026-02-18T11:00:00Z":{maxDD:3.54,mins:281,peakTime:"2026-02-18T15:41:00Z",peakPrice:0.1979,crash:10.1},
+  "2026-02-21T10:00:00Z":{maxDD:1.64,mins:262,peakTime:"2026-02-21T14:22:00Z",peakPrice:0.1907,crash:26.2},
+  "2026-02-24T23:00:00Z":{maxDD:10.11,mins:3278,peakTime:"2026-02-27T05:38:00Z",peakPrice:0.1845,crash:8.0},
+  "2026-03-11T03:00:00Z":{maxDD:6.93,mins:3525,peakTime:"2026-03-13T13:45:00Z",peakPrice:0.1728,crash:12.8},
+  "2026-03-17T06:00:00Z":{maxDD:7.95,mins:1401,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-17T23:00:00Z":{maxDD:3.74,mins:381,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-18T17:00:00Z":{maxDD:8.01,mins:294,peakTime:"2026-03-18T21:54:00Z",peakPrice:0.2211,crash:13.8},
+  "2026-03-20T05:00:00Z":{maxDD:3.22,mins:192,peakTime:"2026-03-20T08:12:00Z",peakPrice:0.2123,crash:11.3},
+  "2026-03-20T14:00:00Z":{maxDD:6.07,mins:485,peakTime:"2026-03-20T22:05:00Z",peakPrice:0.2048,crash:10.0},
+  "2026-03-23T01:00:00Z":{maxDD:12.42,mins:3606,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:11.1},
+  "2026-03-24T17:00:00Z":{maxDD:3.49,mins:1206,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:14.2},
+  "2026-03-28T11:00:00Z":{maxDD:1.42,mins:161,peakTime:"2026-03-28T13:41:00Z",peakPrice:0.1759,crash:6.5},
+  "2026-04-03T06:00:00Z":{maxDD:6.23,mins:4205,peakTime:"2026-04-06T04:05:00Z",peakPrice:0.1754,crash:7.6},
+  "2026-04-03T17:00:00Z":{maxDD:6.23,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
+  "2026-04-05T10:00:00Z":{maxDD:7.6,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
+  "2026-04-07T18:00:00Z":{maxDD:5.68,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
+  "2026-04-08T23:00:00Z":{maxDD:16.95,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4}
+};
+
+let fartDDChartInst=null;
+
+function renderFartPreCrashSection(events){
+  // Gather DD data for events that have a match in FART_PRE_CRASH_DD
+  const rows=events.map(e=>{
+    const dd=FART_PRE_CRASH_DD[e.dsTime];
+    return{label:new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'}),
+      maxDD:dd?dd.maxDD:null, crash:e.crashPct, confirmed:e.confirmed, mins:dd?dd.mins:null};
+  }).filter(r=>r.maxDD!==null);
+
+  if(!rows.length)return;
+
+  // Stats
+  const vals=rows.map(r=>r.maxDD);
+  const avg=vals.reduce((s,v)=>s+v,0)/vals.length;
+  const sorted=[...vals].sort((a,b)=>a-b);
+  const median=sorted[Math.floor(sorted.length/2)];
+  const max=Math.max(...vals);
+  const over5=vals.filter(v=>v>5).length;
+
+  document.getElementById('ddStatAvg').textContent=avg.toFixed(1)+'%';
+  document.getElementById('ddStatMax').textContent=max.toFixed(1)+'%';
+  document.getElementById('ddStatMedian').textContent=median.toFixed(1)+'%';
+  document.getElementById('ddStatOver5').textContent=over5+' / '+rows.length;
+
+  // Chart
+  const ctx=document.getElementById('fartDDChart').getContext('2d');
+  if(fartDDChartInst?.destroy)fartDDChartInst.destroy();
+  fartDDChartInst=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:rows.map(r=>r.label),
+      datasets:[
+        {label:'Pre-crash Max DD (%)',data:rows.map(r=>r.maxDD),
+          backgroundColor:rows.map(r=>r.maxDD>10?'rgba(251,146,60,0.85)':'rgba(251,146,60,0.55)'),
+          borderColor:'rgba(251,146,60,0.9)',borderWidth:1,yAxisID:'yDD',order:1},
+        {label:'Crash Size (%)',data:rows.map(r=>r.confirmed?r.crash:null),
+          type:'line',borderColor:'rgba(167,139,250,0.8)',backgroundColor:'transparent',
+          pointRadius:4,pointBackgroundColor:'rgba(167,139,250,0.9)',
+          borderWidth:1.5,tension:0.2,yAxisID:'yCrash',order:0}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#e2e8f0',padding:16}},
+        tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+          borderColor:'#334155',borderWidth:1,padding:10,
+          callbacks:{
+            afterBody:ctx=>{
+              const i=ctx[0].dataIndex;
+              const r=rows[i];
+              return r.mins!=null?['Pre-peak window: '+(r.mins<60?r.mins+'min':(r.mins/60).toFixed(1)+'hr')]:'';
+            }
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',maxRotation:45,font:{size:11}}},
+        yDD:{position:'left',grid:{color:'#334155'},ticks:{color:'rgba(251,146,60,0.9)',callback:v=>v+'%'},
+          title:{display:true,text:'Pre-crash Max DD (%)',color:'rgba(251,146,60,0.9)'}},
+        yCrash:{position:'right',grid:{display:false},ticks:{color:'rgba(167,139,250,0.8)',callback:v=>v+'%'},
+          title:{display:true,text:'Crash Size (%)',color:'rgba(167,139,250,0.8)'}}
+      }
+    }
+  });
+}
+
+let fartDDHistInst=null, fartDDCdfInst=null;
+
+function renderFartDDDistribution(events){
+  const vals=events
+    .map(e=>FART_PRE_CRASH_DD[e.dsTime])
+    .filter(d=>d!=null)
+    .map(d=>d.maxDD);
+  if(!vals.length)return;
+
+  // ── Histogram (2% bins from 0 to ceil of max) ──
+  const BIN=2;
+  const maxVal=Math.ceil(Math.max(...vals)/BIN)*BIN;
+  const binCount=maxVal/BIN;
+  const bins=Array.from({length:binCount},(_,i)=>i*BIN);
+  const freq=bins.map(b=>vals.filter(v=>v>=b&&v<b+BIN).length);
+  const pct=freq.map(f=>parseFloat((f/vals.length*100).toFixed(1)));
+  const binLabels=bins.map(b=>`${b}–${b+BIN}%`);
+
+  // colour: shade by frequency
+  const maxFreq=Math.max(...pct);
+  const histColors=pct.map(p=>{
+    const intensity=0.3+0.55*(p/maxFreq);
+    return`rgba(251,146,60,${intensity.toFixed(2)})`;
+  });
+
+  const ctxH=document.getElementById('fartDDHistChart').getContext('2d');
+  if(fartDDHistInst?.destroy)fartDDHistInst.destroy();
+  fartDDHistInst=new Chart(ctxH,{
+    type:'bar',
+    data:{labels:binLabels,datasets:[{
+      label:'% of events',data:pct,
+      backgroundColor:histColors,
+      borderColor:'rgba(251,146,60,0.9)',borderWidth:1
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+          borderColor:'#334155',borderWidth:1,padding:10,
+          callbacks:{
+            title:ctx=>ctx[0].label+' drawdown',
+            label:ctx=>`${ctx.parsed.y}% of events (${freq[ctx.dataIndex]} / ${vals.length})`
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',font:{size:11}},
+          title:{display:true,text:'Pre-crash Max DD Range',color:'#64748b'}},
+        y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},
+          title:{display:true,text:'% of Events',color:'#64748b'},min:0}
+      }
+    }
+  });
+
+  // ── CDF ──
+  const sorted=[...vals].sort((a,b)=>a-b);
+  // Sample CDF at each unique value + at 0
+  const cdfPoints=sorted.map((v,i)=>({x:parseFloat(v.toFixed(2)),y:parseFloat(((i+1)/sorted.length*100).toFixed(1))}));
+  // Prepend origin
+  cdfPoints.unshift({x:0,y:0});
+
+  const ctxC=document.getElementById('fartDDCdfChart').getContext('2d');
+  if(fartDDCdfInst?.destroy)fartDDCdfInst.destroy();
+  const p50=sorted[Math.floor(sorted.length*0.50)];
+  const p75=sorted[Math.floor(sorted.length*0.75)];
+  const p90=sorted[Math.floor(sorted.length*0.90)];
+  function vLine(x,color,label){
+    return{label,data:[{x,y:0},{x,y:100}],borderColor:color,backgroundColor:'transparent',
+      borderWidth:1,borderDash:[4,4],pointRadius:0,tension:0};
+  }
+
+  fartDDCdfInst=new Chart(ctxC,{
+    type:'line',
+    data:{datasets:[{
+      label:'Cumulative probability',
+      data:cdfPoints,
+      borderColor:'rgba(99,179,237,0.9)',
+      backgroundColor:'rgba(99,179,237,0.08)',
+      fill:true,
+      pointRadius:cdfPoints.map(p=>p.x===0?0:3),
+      pointBackgroundColor:'rgba(99,179,237,0.9)',
+      borderWidth:2,tension:0.1,
+      stepped:false
+    },
+    vLine(p50,'rgba(148,163,184,0.5)',`P50: ${p50.toFixed(1)}%`),
+    vLine(p75,'rgba(251,146,60,0.5)',`P75: ${p75.toFixed(1)}%`),
+    vLine(p90,'rgba(239,68,68,0.5)',`P90: ${p90.toFixed(1)}%`)
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+          borderColor:'#334155',borderWidth:1,padding:10,
+          callbacks:{
+            title:ctx=>`DD ≤ ${ctx[0].parsed.x}%`,
+            label:ctx=>`${ctx[0].parsed.y}% of events`
+          }
+        },
+      },
+      scales:{
+        x:{type:'linear',grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},
+          title:{display:true,text:'Pre-crash Max DD (%)',color:'#64748b'},min:0},
+        y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>v+'%'},
+          title:{display:true,text:'Cumulative Probability',color:'#64748b'},min:0,max:100}
+      }
+    }
+  });
+}
+
 async function initFartcoin(){
     document.getElementById('fartStart').value='2025-09-01';
     document.getElementById('fartEnd').value=todayStr();
@@ -2114,6 +2368,8 @@ async function runFartAnalysis(){
     document.getElementById('statAvgCrash').textContent=avgC.toFixed(1)+'%';
     renderFartChart(filtered,events);
     renderFartTable(events,filtered);
+    renderFartPreCrashSection(events);
+    renderFartDDDistribution(events);
 }
 
 function renderFartChart(data,events){
@@ -2134,13 +2390,17 @@ function renderFartChart(data,events){
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the gap threshold.</div>';return;}
-    const header=`<div class="event-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row fart-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>Pre-crash DD</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
         const rise=e.timeToPeak>0?`<span style="color:#10b981">+${e.risePct.toFixed(1)}%</span>`:'—';
         const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
-        return`<div class="event-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span><span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const ddData=FART_PRE_CRASH_DD[e.dsTime];
+        const ddCell=ddData!=null
+            ?`<span style="color:${ddData.maxDD>10?'#fb923c':ddData.maxDD>5?'#fbbf24':'#94a3b8'}" title="${ddData.mins<60?ddData.mins+'min window':Math.round(ddData.mins/60)+'hr window'}">${ddData.maxDD.toFixed(1)}%</span>`
+            :'<span style="color:#334155">—</span>';
+        return`<div class="event-row fart-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span>${ddCell}<span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
