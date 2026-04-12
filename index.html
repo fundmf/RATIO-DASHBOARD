@@ -1149,10 +1149,8 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
         const url=`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${Math.floor(from/1000)}&to=${Math.floor(to/1000)}`;
         try{
             const resp=await safeFetch(url,20000);
-            for(const[ts,price]of(resp.prices||[])){
-                const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');
-                prices[key]=price;
-            }
+            const snapHour=ts=>new Date(Math.round(ts/3600000)*3600000).toISOString().slice(0,13)+':00:00Z';
+            for(const[ts,price]of(resp.prices||[])){prices[snapHour(ts)]=price;}
         }catch(e){console.warn(`fetchCoinHourlyRange ${coinId} chunk failed:`,e.message);}
         if(from+chunkMs<endMs) await new Promise(r=>setTimeout(r,2500));
     }
@@ -2016,60 +2014,61 @@ Chart.register(zonePlugin);
 // Pre-computed per-event pre-crash max drawdowns from KuCoin 1m data
 // Key = signal_time (hourly timestamp from fartcoin_hourly.json)
 // maxDD = rolling peak-to-trough drawdown % in the window from signal → 1min before FART peak
+// Keyed by AEST calendar day (UTC+10) — immune to live-data timestamp drift
+// DD = rolling max-close-to-candle-wick-low drawdown within the pre-peak window (1m KuCoin data)
 const FART_PRE_CRASH_DD={
-  "2025-09-09T19:00:00Z":{maxDD:6.01,mins:3230,peakTime:"2025-09-12T00:50:00Z",peakPrice:0.9275,crash:8.8},
-  "2025-09-13T17:00:00Z":{maxDD:1.99,mins:386,peakTime:"2025-09-13T23:26:00Z",peakPrice:0.9576,crash:15.7},
-  "2025-09-17T20:00:00Z":{maxDD:4.75,mins:1283,peakTime:"2025-09-18T17:23:00Z",peakPrice:0.9546,crash:20.3},
-  "2025-09-19T05:00:00Z":{maxDD:0.0,mins:0,peakTime:"2025-09-19T05:00:00Z",peakPrice:0.9214,crash:53.6},
-  "2025-10-14T01:00:00Z":{maxDD:1.52,mins:19,peakTime:"2025-10-14T01:19:00Z",peakPrice:0.4693,crash:19.7},
-  "2025-10-24T17:00:00Z":{maxDD:3.69,mins:3183,peakTime:"2025-10-26T22:03:00Z",peakPrice:0.4272,crash:43.7},
-  "2025-11-18T04:00:00Z":{maxDD:11.76,mins:3511,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:25.1},
-  "2025-11-19T22:00:00Z":{maxDD:4.58,mins:991,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:40.8},
-  "2025-11-20T15:00:00Z":{maxDD:0.0,mins:0,peakTime:"2025-11-20T15:00:00Z",peakPrice:0.3058,crash:40.8},
-  "2025-11-24T10:00:00Z":{maxDD:12.81,mins:3584,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:27.4},
-  "2025-11-25T17:00:00Z":{maxDD:11.73,mins:1724,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:23.4},
-  "2025-11-28T22:00:00Z":{maxDD:3.2,mins:72,peakTime:"2025-11-28T23:12:00Z",peakPrice:0.3491,crash:24.9},
-  "2025-12-02T00:00:00Z":{maxDD:20.46,mins:4128,peakTime:"2025-12-04T20:48:00Z",peakPrice:0.4069,crash:22.9},
-  "2025-12-04T06:00:00Z":{maxDD:17.68,mins:3407,peakTime:"2025-12-06T14:47:00Z",peakPrice:0.4101,crash:16.2},
-  "2025-12-05T08:00:00Z":{maxDD:12.76,mins:2806,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:16.2},
-  "2025-12-06T03:00:00Z":{maxDD:11.18,mins:1666,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
-  "2025-12-06T20:00:00Z":{maxDD:6.44,mins:646,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
-  "2025-12-10T21:00:00Z":{maxDD:9.52,mins:2221,peakTime:"2025-12-12T10:01:00Z",peakPrice:0.3933,crash:13.0},
-  "2025-12-12T19:00:00Z":{maxDD:2.75,mins:244,peakTime:"2025-12-12T23:04:00Z",peakPrice:0.3752,crash:23.0},
-  "2025-12-24T15:00:00Z":{maxDD:6.14,mins:3853,peakTime:"2025-12-27T07:13:00Z",peakPrice:0.3125,crash:10.0},
-  "2025-12-26T15:00:00Z":{maxDD:3.61,mins:2407,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
-  "2025-12-27T21:00:00Z":{maxDD:2.71,mins:607,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
-  "2026-02-01T18:00:00Z":{maxDD:9.4,mins:3069,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:8.5},
-  "2026-02-03T21:00:00Z":{maxDD:0.99,mins:9,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:21.1},
-  "2026-02-04T20:00:00Z":{maxDD:1.06,mins:22,peakTime:"2026-02-04T20:22:00Z",peakPrice:0.2258,crash:18.9},
-  "2026-02-07T21:00:00Z":{maxDD:4.3,mins:1071,peakTime:"2026-02-08T14:51:00Z",peakPrice:0.2026,crash:10.7},
-  "2026-02-12T17:00:00Z":{maxDD:3.76,mins:3218,peakTime:"2026-02-14T22:38:00Z",peakPrice:0.224,crash:18.7},
-  "2026-02-15T12:00:00Z":{maxDD:0.0,mins:0,peakTime:"2026-02-15T12:00:00Z",peakPrice:0.2125,crash:10.4},
-  "2026-02-16T22:00:00Z":{maxDD:1.43,mins:169,peakTime:"2026-02-17T00:49:00Z",peakPrice:0.2031,crash:12.5},
-  "2026-02-18T11:00:00Z":{maxDD:3.54,mins:281,peakTime:"2026-02-18T15:41:00Z",peakPrice:0.1979,crash:10.1},
-  "2026-02-21T10:00:00Z":{maxDD:1.64,mins:262,peakTime:"2026-02-21T14:22:00Z",peakPrice:0.1907,crash:26.2},
-  "2026-02-24T23:00:00Z":{maxDD:10.11,mins:3278,peakTime:"2026-02-27T05:38:00Z",peakPrice:0.1845,crash:8.0},
-  "2026-03-11T03:00:00Z":{maxDD:6.93,mins:3525,peakTime:"2026-03-13T13:45:00Z",peakPrice:0.1728,crash:12.8},
-  "2026-03-17T06:00:00Z":{maxDD:7.95,mins:1401,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
-  "2026-03-17T23:00:00Z":{maxDD:3.74,mins:381,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
-  "2026-03-18T17:00:00Z":{maxDD:8.01,mins:294,peakTime:"2026-03-18T21:54:00Z",peakPrice:0.2211,crash:13.8},
-  "2026-03-20T05:00:00Z":{maxDD:3.22,mins:192,peakTime:"2026-03-20T08:12:00Z",peakPrice:0.2123,crash:11.3},
-  "2026-03-20T14:00:00Z":{maxDD:6.07,mins:485,peakTime:"2026-03-20T22:05:00Z",peakPrice:0.2048,crash:10.0},
-  "2026-03-23T01:00:00Z":{maxDD:12.42,mins:3606,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:11.1},
-  "2026-03-24T17:00:00Z":{maxDD:3.49,mins:1206,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:14.2},
-  "2026-03-28T11:00:00Z":{maxDD:1.42,mins:161,peakTime:"2026-03-28T13:41:00Z",peakPrice:0.1759,crash:6.5},
-  "2026-04-03T06:00:00Z":{maxDD:6.23,mins:4205,peakTime:"2026-04-06T04:05:00Z",peakPrice:0.1754,crash:7.6},
-  "2026-04-03T17:00:00Z":{maxDD:6.23,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
-  "2026-04-05T10:00:00Z":{maxDD:7.6,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
-  "2026-04-07T18:00:00Z":{maxDD:5.68,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
-  "2026-04-08T23:00:00Z":{maxDD:16.95,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4},
-  "2026-04-11T15:00:00Z":{maxDD:3.39,mins:295,peakTime:"2026-04-11T19:55:00Z",peakPrice:0.2091,crash:7.9}
+  "2025-09-10":{maxDD:4.93,mins:3230,peakTime:"2025-09-12T00:50:00Z",peakPrice:0.9275,crash:8.8},
+  "2025-09-14":{maxDD:1.13,mins:386,peakTime:"2025-09-13T23:26:00Z",peakPrice:0.9576,crash:15.7},
+  "2025-09-18":{maxDD:4.22,mins:1283,peakTime:"2025-09-18T17:23:00Z",peakPrice:0.9546,crash:20.3},
+  "2025-09-19":{maxDD:26.38,mins:4319,peakTime:"2025-09-22T04:59:00Z",peakPrice:0.6832,crash:53.6},
+  "2025-10-14":{maxDD:0.77,mins:19,peakTime:"2025-10-14T01:19:00Z",peakPrice:0.4693,crash:19.7},
+  "2025-10-25":{maxDD:3.42,mins:3183,peakTime:"2025-10-26T22:03:00Z",peakPrice:0.4272,crash:43.7},
+  "2025-11-18":{maxDD:11.14,mins:3511,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:25.1},
+  "2025-11-20":{maxDD:2.89,mins:991,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:40.8},
+  "2025-11-21":{maxDD:40.92,mins:4319,peakTime:"2025-11-23T14:59:00Z",peakPrice:0.2239,crash:40.8},
+  "2025-11-24":{maxDD:11.97,mins:3584,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:27.4},
+  "2025-11-26":{maxDD:10.9,mins:1724,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:23.4},
+  "2025-11-29":{maxDD:1.98,mins:72,peakTime:"2025-11-28T23:12:00Z",peakPrice:0.3491,crash:24.9},
+  "2025-12-02":{maxDD:17.65,mins:4128,peakTime:"2025-12-04T20:48:00Z",peakPrice:0.4069,crash:22.9},
+  "2025-12-04":{maxDD:15.99,mins:3407,peakTime:"2025-12-06T14:47:00Z",peakPrice:0.4101,crash:16.2},
+  "2025-12-05":{maxDD:11.5,mins:2806,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:16.2},
+  "2025-12-06":{maxDD:9.54,mins:1666,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-07":{maxDD:4.96,mins:646,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-11":{maxDD:8.36,mins:2221,peakTime:"2025-12-12T10:01:00Z",peakPrice:0.3933,crash:13.0},
+  "2025-12-13":{maxDD:2.17,mins:244,peakTime:"2025-12-12T23:04:00Z",peakPrice:0.3752,crash:23.0},
+  "2025-12-25":{maxDD:5.61,mins:3853,peakTime:"2025-12-27T07:13:00Z",peakPrice:0.3125,crash:10.0},
+  "2025-12-27":{maxDD:3.35,mins:2407,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2025-12-28":{maxDD:2.07,mins:607,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2026-02-02":{maxDD:8.76,mins:3069,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:8.5},
+  "2026-02-04":{maxDD:0.0,mins:9,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:21.1},
+  "2026-02-05":{maxDD:0.71,mins:22,peakTime:"2026-02-04T20:22:00Z",peakPrice:0.2258,crash:18.9},
+  "2026-02-08":{maxDD:4.0,mins:1071,peakTime:"2026-02-08T14:51:00Z",peakPrice:0.2026,crash:10.7},
+  "2026-02-13":{maxDD:3.59,mins:3218,peakTime:"2026-02-14T22:38:00Z",peakPrice:0.224,crash:18.7},
+  "2026-02-15":{maxDD:11.02,mins:4319,peakTime:"2026-02-18T11:59:00Z",peakPrice:0.1942,crash:10.4},
+  "2026-02-17":{maxDD:1.13,mins:169,peakTime:"2026-02-17T00:49:00Z",peakPrice:0.2031,crash:12.5},
+  "2026-02-18":{maxDD:3.29,mins:281,peakTime:"2026-02-18T15:41:00Z",peakPrice:0.1979,crash:10.1},
+  "2026-02-21":{maxDD:1.48,mins:262,peakTime:"2026-02-21T14:22:00Z",peakPrice:0.1907,crash:26.2},
+  "2026-02-25":{maxDD:8.82,mins:3278,peakTime:"2026-02-27T05:38:00Z",peakPrice:0.1845,crash:8.0},
+  "2026-03-11":{maxDD:6.57,mins:3525,peakTime:"2026-03-13T13:45:00Z",peakPrice:0.1728,crash:12.8},
+  "2026-03-17":{maxDD:7.28,mins:1401,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-18":{maxDD:3.55,mins:381,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-19":{maxDD:7.16,mins:294,peakTime:"2026-03-18T21:54:00Z",peakPrice:0.2211,crash:13.8},
+  "2026-03-20":{maxDD:2.59,mins:192,peakTime:"2026-03-20T08:12:00Z",peakPrice:0.2123,crash:11.3},
+  "2026-03-21":{maxDD:5.77,mins:485,peakTime:"2026-03-20T22:05:00Z",peakPrice:0.2048,crash:10.0},
+  "2026-03-23":{maxDD:11.07,mins:3606,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:11.1},
+  "2026-03-25":{maxDD:2.97,mins:1206,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:14.2},
+  "2026-03-28":{maxDD:1.1,mins:161,peakTime:"2026-03-28T13:41:00Z",peakPrice:0.1759,crash:6.5},
+  "2026-04-03":{maxDD:5.63,mins:4205,peakTime:"2026-04-06T04:05:00Z",peakPrice:0.1754,crash:7.6},
+  "2026-04-04":{maxDD:5.63,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
+  "2026-04-05":{maxDD:7.55,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
+  "2026-04-08":{maxDD:5.09,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
+  "2026-04-09":{maxDD:0.0,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4},
+  "2026-04-12":{maxDD:3.39,mins:295,peakTime:"2026-04-11T19:55:00Z",peakPrice:0.2091,crash:7.9}
 };
 
-// Secondary day-keyed index (AEST) as fallback for any timestamp drift
+// Lookup by AEST calendar day — handles any live-data timestamp drift
 function _aestDay(isoStr){const d=new Date(isoStr);return new Date(d.getTime()+10*3600*1000).toISOString().slice(0,10);}
-const FART_DD_BY_DAY=(()=>{const m={};for(const[k,v]of Object.entries(FART_PRE_CRASH_DD))m[_aestDay(k)]=v;return m;})();
-function lookupDD(dsTime){return FART_PRE_CRASH_DD[dsTime]??FART_DD_BY_DAY[_aestDay(dsTime)]??null;}
+function lookupDD(dsTime){return FART_PRE_CRASH_DD[_aestDay(dsTime)]??null;}
 
 let fartDDChartInst=null;
 
@@ -2299,12 +2298,14 @@ async function fetchFartcoinChunk(days){
     const notice=document.getElementById('fartNotice');
     try{
         const btcResp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days='+days+'&interval=hourly');
+        // Round each CoinGecko timestamp to the nearest hour to avoid non-integer minute keys
+        const snapHour=ts=>new Date(Math.round(ts/3600000)*3600000).toISOString().slice(0,13)+':00:00Z';
         const btcPrices={};
-        for(const[ts,price]of(btcResp.prices||[])){const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');btcPrices[key]=price;}
+        for(const[ts,price]of(btcResp.prices||[])){btcPrices[snapHour(ts)]=price;}
         await new Promise(r=>setTimeout(r,2500));
         const fartResp=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days='+days+'&interval=hourly');
         const fartPrices={};
-        for(const[ts,price]of(fartResp.prices||[])){const key=new Date(ts).toISOString().replace(/:\d{2}\.\d{3}Z/,':00Z');fartPrices[key]=price;}
+        for(const[ts,price]of(fartResp.prices||[])){fartPrices[snapHour(ts)]=price;}
         const liveTs=Object.keys(btcPrices).filter(t=>t in fartPrices).sort();
         const liveData=liveTs.map(t=>({t,btc:Math.round(btcPrices[t]*100)/100,fart:Math.round(fartPrices[t]*1000000)/1000000}));
         const merged={};
