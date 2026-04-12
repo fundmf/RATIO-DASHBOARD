@@ -1367,8 +1367,17 @@ function renderDistChart2(inp){
 function prepareData(data,inputs,s,e,type){
     return data.filter(d=>d.date>=s&&d.date<=e).map(d=>{
         const r={date:d.date,btc:d.btc,btc_high_price:d.btc_high_price,btc_low_price:d.btc_low_price,eth:d.eth,eth_high_price:d.eth_high_price,eth_low_price:d.eth_low_price,mstr:d.mstr,mstr_high_price:d.mstr_high_price,mstr_low_price:d.mstr_low_price,bmnr:d.bmnr,bmnr_high_price:d.bmnr_high_price,bmnr_low_price:d.bmnr_low_price,isLive:d.isLive||false};
-        if(type==='chart1'){if(d.btc){r['BTC HIGH']=inputs.btcHigh/d.btc;r['BTC LOW']=inputs.btcLow/d.btc;}if(d.mstr){r['MSTR HIGH']=inputs.mstrHigh/d.mstr;r['MSTR LOW']=inputs.mstrLow/d.mstr;}}
-        else{if(d.eth){r['ETH HIGH']=inputs.ethHigh/d.eth;r['ETH LOW']=inputs.ethLow/d.eth;}if(d.bmnr){r['BMNR HIGH']=inputs.bmnrHigh/d.bmnr;r['BMNR LOW']=inputs.bmnrLow/d.bmnr;}}
+        if(type==='chart1'){
+            r['BTC HIGH']=d.btc?inputs.btcHigh/d.btc:null;
+            r['BTC LOW']=d.btc?inputs.btcLow/d.btc:null;
+            r['MSTR HIGH']=d.mstr?inputs.mstrHigh/d.mstr:null;
+            r['MSTR LOW']=d.mstr?inputs.mstrLow/d.mstr:null;
+        }else{
+            r['ETH HIGH']=d.eth?inputs.ethHigh/d.eth:null;
+            r['ETH LOW']=d.eth?inputs.ethLow/d.eth:null;
+            r['BMNR HIGH']=d.bmnr?inputs.bmnrHigh/d.bmnr:null;
+            r['BMNR LOW']=d.bmnr?inputs.bmnrLow/d.bmnr:null;
+        }
         return r;
     });
 }
@@ -2053,7 +2062,8 @@ const FART_PRE_CRASH_DD={
   "2026-04-03T17:00:00Z":{maxDD:6.23,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
   "2026-04-05T10:00:00Z":{maxDD:7.6,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
   "2026-04-07T18:00:00Z":{maxDD:5.68,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
-  "2026-04-08T23:00:00Z":{maxDD:16.95,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4}
+  "2026-04-08T23:00:00Z":{maxDD:16.95,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4},
+  "2026-04-11T15:00:00Z":{maxDD:3.39,mins:295,peakTime:"2026-04-11T19:55:00Z",peakPrice:0.2091,crash:7.9}
 };
 
 // Secondary day-keyed index (AEST) as fallback for any timestamp drift

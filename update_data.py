@@ -130,6 +130,41 @@ def is_weekday(date_str):
     d = datetime.strptime(date_str, "%Y-%m-%d").date()
     return d.weekday() < 5  # Mon=0 ... Fri=4
 
+# US stock market holidays where yfinance returns no data
+# Add new years as needed
+US_MARKET_HOLIDAYS = {
+    # 2025
+    "2025-01-01","2025-01-20","2025-02-17","2025-04-18","2025-05-26",
+    "2025-06-19","2025-07-04","2025-09-01","2025-11-27","2025-12-25",
+    # 2026
+    "2026-01-01","2026-01-19","2026-02-16","2026-04-03","2026-05-25",
+    "2026-06-19","2026-07-03","2026-09-07","2026-11-26","2026-12-25",
+}
+
+def is_trading_day(date_str):
+    """True if US stock market is expected to be open."""
+    return is_weekday(date_str) and date_str not in US_MARKET_HOLIDAYS
+
+def carry_forward_stock(data, fields):
+    """
+    For any weekday trading-day record missing stock fields,
+    carry the most recent prior value forward (handles holidays and fetch failures).
+    """
+    last = {f: None for f in fields}
+    patched = 0
+    for rec in data:
+        # Update last-known values from records that have them
+        for f in fields:
+            if f in rec and rec[f] is not None:
+                last[f] = rec[f]
+        # Fill gaps on trading days only
+        if is_trading_day(rec["date"]):
+            for f in fields:
+                if f not in rec and last[f] is not None:
+                    rec[f] = last[f]
+                    patched += 1
+    return patched
+
 def main():
     print(f"=== Dashboard data updater — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} ===")
 
@@ -243,6 +278,14 @@ def main():
     if patched:
         save_data(data)
         print(f"✓ Backfilled {patched} missing stock entries.")
+
+    # Carry-forward last known MSTR/BMNR into holidays / fetch-failure weekdays
+    stock_fields = ["mstr", "mstr_high_price", "mstr_low_price",
+                    "bmnr", "bmnr_high_price", "bmnr_low_price"]
+    cf_patched = carry_forward_stock(data, stock_fields)
+    if cf_patched:
+        save_data(data)
+        print(f"✓ Carry-forwarded {cf_patched} stock field(s) into gap days.")
 
 if __name__ == "__main__":
     main()
