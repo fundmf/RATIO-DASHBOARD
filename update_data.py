@@ -200,12 +200,15 @@ def main():
     eth_data = fetch_coingecko_ohlc("ethereum", fetch_start, fetch_end)
     print(f"  Got {len(eth_data)} ETH days")
 
-    print(f"Fetching Yahoo Finance MSTR data...")
-    mstr_data = fetch_yahoo_ohlc("MSTR", fetch_start, fetch_end)
+    # yfinance: look back 14 days to auto-correct any stale carry-forwards.
+    # One download() call per ticker regardless of window size — no rate limit impact.
+    stock_fetch_start = str(date.today() - timedelta(days=14))
+    print(f"Fetching Yahoo Finance MSTR data (from {stock_fetch_start})...")
+    mstr_data = fetch_yahoo_ohlc("MSTR", stock_fetch_start, fetch_end)
     print(f"  Got {len(mstr_data)} MSTR days")
 
-    print(f"Fetching Yahoo Finance BMNR data...")
-    bmnr_data = fetch_yahoo_ohlc("BMNR", fetch_start, fetch_end)
+    print(f"Fetching Yahoo Finance BMNR data (from {stock_fetch_start})...")
+    bmnr_data = fetch_yahoo_ohlc("BMNR", stock_fetch_start, fetch_end)
     print(f"  Got {len(bmnr_data)} BMNR days")
 
     # Merge new data into records
@@ -257,27 +260,35 @@ def main():
     else:
         print("\n No new records to add.")
 
-    # Backfill missing MSTR/BMNR for existing weekday records
+    # Backfill/overwrite MSTR/BMNR for existing records whenever yfinance has real data.
+    # Always overwrite — this corrects any prior carry-forward values that were placeholders
+    # from a day when yfinance was temporarily failing but real market data existed.
     patched = 0
     for rec in data:
         d_str = rec["date"]
         if not is_weekday(d_str):
             continue
-        needs_mstr = "mstr" not in rec and d_str in mstr_data
-        needs_bmnr = "bmnr" not in rec and d_str in bmnr_data
-        if needs_mstr:
-            rec["mstr"]           = round(mstr_data[d_str]["close"], 2)
-            rec["mstr_high_price"] = round(mstr_data[d_str]["high"],  2)
-            rec["mstr_low_price"]  = round(mstr_data[d_str]["low"],   2)
-            patched += 1
-        if needs_bmnr:
-            rec["bmnr"]           = round(bmnr_data[d_str]["close"], 2)
-            rec["bmnr_high_price"] = round(bmnr_data[d_str]["high"],  2)
-            rec["bmnr_low_price"]  = round(bmnr_data[d_str]["low"],   2)
-            patched += 1
+        if d_str in mstr_data:
+            new_mstr  = round(mstr_data[d_str]["close"], 2)
+            new_mstrH = round(mstr_data[d_str]["high"],  2)
+            new_mstrL = round(mstr_data[d_str]["low"],   2)
+            if rec.get("mstr") != new_mstr or rec.get("mstr_high_price") != new_mstrH:
+                rec["mstr"]            = new_mstr
+                rec["mstr_high_price"] = new_mstrH
+                rec["mstr_low_price"]  = new_mstrL
+                patched += 1
+        if d_str in bmnr_data:
+            new_bmnr  = round(bmnr_data[d_str]["close"], 2)
+            new_bmnrH = round(bmnr_data[d_str]["high"],  2)
+            new_bmnrL = round(bmnr_data[d_str]["low"],   2)
+            if rec.get("bmnr") != new_bmnr or rec.get("bmnr_high_price") != new_bmnrH:
+                rec["bmnr"]            = new_bmnr
+                rec["bmnr_high_price"] = new_bmnrH
+                rec["bmnr_low_price"]  = new_bmnrL
+                patched += 1
     if patched:
         save_data(data)
-        print(f"✓ Backfilled {patched} missing stock entries.")
+        print(f"✓ Backfilled/corrected {patched} stock entries (overwrites stale carry-forwards).")
 
     # Carry-forward last known MSTR/BMNR into holidays / fetch-failure weekdays
     stock_fields = ["mstr", "mstr_high_price", "mstr_low_price",
