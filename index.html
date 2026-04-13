@@ -98,7 +98,7 @@
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
         .event-row { display: grid; grid-template-columns: 100px 55px 1fr 65px 85px 80px 75px 120px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
-        .fart-row { grid-template-columns: 100px 55px 1fr 65px 85px 80px 90px 75px 120px; }
+        .fart-row { grid-template-columns: 100px 55px 1fr 65px 85px 80px 90px 90px 75px 120px; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -2015,55 +2015,56 @@ Chart.register(zonePlugin);
 // Key = signal_time (hourly timestamp from fartcoin_hourly.json)
 // maxDD = rolling peak-to-trough drawdown % in the window from signal → 1min before FART peak
 // Keyed by AEST calendar day (UTC+10) — immune to live-data timestamp drift
-// DD = rolling max-close-to-candle-wick-low drawdown within the pre-peak window (1m KuCoin data)
+// maxDD = largest single 1-min candle drop (prev_close→curr_low) in pre-peak window
+// belowSig = deepest % the price dipped below the divergence signal price before peak (null = never dipped)
 const FART_PRE_CRASH_DD={
-  "2025-09-10":{maxDD:4.93,mins:3230,peakTime:"2025-09-12T00:50:00Z",peakPrice:0.9275,crash:8.8},
-  "2025-09-14":{maxDD:1.13,mins:386,peakTime:"2025-09-13T23:26:00Z",peakPrice:0.9576,crash:15.7},
-  "2025-09-18":{maxDD:4.22,mins:1283,peakTime:"2025-09-18T17:23:00Z",peakPrice:0.9546,crash:20.3},
-  "2025-09-19":{maxDD:26.38,mins:4319,peakTime:"2025-09-22T04:59:00Z",peakPrice:0.6832,crash:53.6},
-  "2025-10-14":{maxDD:0.77,mins:19,peakTime:"2025-10-14T01:19:00Z",peakPrice:0.4693,crash:19.7},
-  "2025-10-25":{maxDD:3.42,mins:3183,peakTime:"2025-10-26T22:03:00Z",peakPrice:0.4272,crash:43.7},
-  "2025-11-18":{maxDD:11.14,mins:3511,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:25.1},
-  "2025-11-20":{maxDD:2.89,mins:991,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:40.8},
-  "2025-11-21":{maxDD:40.92,mins:4319,peakTime:"2025-11-23T14:59:00Z",peakPrice:0.2239,crash:40.8},
-  "2025-11-24":{maxDD:11.97,mins:3584,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:27.4},
-  "2025-11-26":{maxDD:10.9,mins:1724,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:23.4},
-  "2025-11-29":{maxDD:1.98,mins:72,peakTime:"2025-11-28T23:12:00Z",peakPrice:0.3491,crash:24.9},
-  "2025-12-02":{maxDD:17.65,mins:4128,peakTime:"2025-12-04T20:48:00Z",peakPrice:0.4069,crash:22.9},
-  "2025-12-04":{maxDD:15.99,mins:3407,peakTime:"2025-12-06T14:47:00Z",peakPrice:0.4101,crash:16.2},
-  "2025-12-05":{maxDD:11.5,mins:2806,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:16.2},
-  "2025-12-06":{maxDD:9.54,mins:1666,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
-  "2025-12-07":{maxDD:4.96,mins:646,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
-  "2025-12-11":{maxDD:8.36,mins:2221,peakTime:"2025-12-12T10:01:00Z",peakPrice:0.3933,crash:13.0},
-  "2025-12-13":{maxDD:2.17,mins:244,peakTime:"2025-12-12T23:04:00Z",peakPrice:0.3752,crash:23.0},
-  "2025-12-25":{maxDD:5.61,mins:3853,peakTime:"2025-12-27T07:13:00Z",peakPrice:0.3125,crash:10.0},
-  "2025-12-27":{maxDD:3.35,mins:2407,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
-  "2025-12-28":{maxDD:2.07,mins:607,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
-  "2026-02-02":{maxDD:8.76,mins:3069,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:8.5},
-  "2026-02-04":{maxDD:0.0,mins:9,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:21.1},
-  "2026-02-05":{maxDD:0.71,mins:22,peakTime:"2026-02-04T20:22:00Z",peakPrice:0.2258,crash:18.9},
-  "2026-02-08":{maxDD:4.0,mins:1071,peakTime:"2026-02-08T14:51:00Z",peakPrice:0.2026,crash:10.7},
-  "2026-02-13":{maxDD:3.59,mins:3218,peakTime:"2026-02-14T22:38:00Z",peakPrice:0.224,crash:18.7},
-  "2026-02-15":{maxDD:11.02,mins:4319,peakTime:"2026-02-18T11:59:00Z",peakPrice:0.1942,crash:10.4},
-  "2026-02-17":{maxDD:1.13,mins:169,peakTime:"2026-02-17T00:49:00Z",peakPrice:0.2031,crash:12.5},
-  "2026-02-18":{maxDD:3.29,mins:281,peakTime:"2026-02-18T15:41:00Z",peakPrice:0.1979,crash:10.1},
-  "2026-02-21":{maxDD:1.48,mins:262,peakTime:"2026-02-21T14:22:00Z",peakPrice:0.1907,crash:26.2},
-  "2026-02-25":{maxDD:8.82,mins:3278,peakTime:"2026-02-27T05:38:00Z",peakPrice:0.1845,crash:8.0},
-  "2026-03-11":{maxDD:6.57,mins:3525,peakTime:"2026-03-13T13:45:00Z",peakPrice:0.1728,crash:12.8},
-  "2026-03-17":{maxDD:7.28,mins:1401,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
-  "2026-03-18":{maxDD:3.55,mins:381,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
-  "2026-03-19":{maxDD:7.16,mins:294,peakTime:"2026-03-18T21:54:00Z",peakPrice:0.2211,crash:13.8},
-  "2026-03-20":{maxDD:2.59,mins:192,peakTime:"2026-03-20T08:12:00Z",peakPrice:0.2123,crash:11.3},
-  "2026-03-21":{maxDD:5.77,mins:485,peakTime:"2026-03-20T22:05:00Z",peakPrice:0.2048,crash:10.0},
-  "2026-03-23":{maxDD:11.07,mins:3606,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:11.1},
-  "2026-03-25":{maxDD:2.97,mins:1206,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:14.2},
-  "2026-03-28":{maxDD:1.1,mins:161,peakTime:"2026-03-28T13:41:00Z",peakPrice:0.1759,crash:6.5},
-  "2026-04-03":{maxDD:5.63,mins:4205,peakTime:"2026-04-06T04:05:00Z",peakPrice:0.1754,crash:7.6},
-  "2026-04-04":{maxDD:5.63,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
-  "2026-04-05":{maxDD:7.55,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
-  "2026-04-08":{maxDD:5.09,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
-  "2026-04-09":{maxDD:0.0,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4},
-  "2026-04-12":{maxDD:3.39,mins:295,peakTime:"2026-04-11T19:55:00Z",peakPrice:0.2091,crash:7.9}
+  "2025-09-10":{maxDD:0.17,belowSig:0.78,mins:3230,peakTime:"2025-09-12T00:50:00Z",peakPrice:0.9275,crash:8.8},
+  "2025-09-14":{maxDD:0.09,belowSig:0.76,mins:386,peakTime:"2025-09-13T23:26:00Z",peakPrice:0.9576,crash:15.7},
+  "2025-09-18":{maxDD:0.13,belowSig:1.0,mins:1283,peakTime:"2025-09-18T17:23:00Z",peakPrice:0.9546,crash:20.3},
+  "2025-09-19":{maxDD:0.0,belowSig:0.05,mins:0,peakTime:"2025-09-19T05:00:00Z",peakPrice:0.9214,crash:53.6},
+  "2025-10-14":{maxDD:0.0,belowSig:0.43,mins:19,peakTime:"2025-10-14T01:19:00Z",peakPrice:0.4693,crash:19.7},
+  "2025-10-25":{maxDD:0.26,belowSig:null,mins:3183,peakTime:"2025-10-26T22:03:00Z",peakPrice:0.4272,crash:43.7},
+  "2025-11-18":{maxDD:0.62,belowSig:4.98,mins:3511,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:25.1},
+  "2025-11-20":{maxDD:0.62,belowSig:0.9,mins:991,peakTime:"2025-11-20T14:31:00Z",peakPrice:0.3099,crash:40.8},
+  "2025-11-21":{maxDD:0.0,belowSig:null,mins:0,peakTime:"2025-11-20T15:00:00Z",peakPrice:0.3058,crash:40.8},
+  "2025-11-24":{maxDD:0.43,belowSig:0.25,mins:3584,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:27.4},
+  "2025-11-26":{maxDD:0.43,belowSig:8.93,mins:1724,peakTime:"2025-11-26T21:44:00Z",peakPrice:0.3766,crash:23.4},
+  "2025-11-29":{maxDD:0.29,belowSig:2.6,mins:72,peakTime:"2025-11-28T23:12:00Z",peakPrice:0.3491,crash:24.9},
+  "2025-12-02":{maxDD:0.29,belowSig:3.91,mins:4128,peakTime:"2025-12-04T20:48:00Z",peakPrice:0.4069,crash:22.9},
+  "2025-12-04":{maxDD:0.32,belowSig:12.52,mins:3407,peakTime:"2025-12-06T14:47:00Z",peakPrice:0.4101,crash:16.2},
+  "2025-12-05":{maxDD:0.32,belowSig:11.54,mins:2806,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:16.2},
+  "2025-12-06":{maxDD:0.26,belowSig:2.5,mins:1666,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-07":{maxDD:0.26,belowSig:4.02,mins:646,peakTime:"2025-12-07T06:46:00Z",peakPrice:0.4146,crash:11.8},
+  "2025-12-11":{maxDD:0.26,belowSig:10.1,mins:2221,peakTime:"2025-12-12T10:01:00Z",peakPrice:0.3933,crash:13.0},
+  "2025-12-13":{maxDD:0.11,belowSig:2.83,mins:244,peakTime:"2025-12-12T23:04:00Z",peakPrice:0.3752,crash:23.0},
+  "2025-12-25":{maxDD:0.5,belowSig:1.26,mins:3853,peakTime:"2025-12-27T07:13:00Z",peakPrice:0.3125,crash:10.0},
+  "2025-12-27":{maxDD:0.29,belowSig:2.14,mins:2407,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2025-12-28":{maxDD:0.29,belowSig:0.78,mins:607,peakTime:"2025-12-28T07:07:00Z",peakPrice:0.3208,crash:13.6},
+  "2026-02-02":{maxDD:0.5,belowSig:4.09,mins:3069,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:8.5},
+  "2026-02-04":{maxDD:0.0,belowSig:null,mins:9,peakTime:"2026-02-03T21:09:00Z",peakPrice:0.2337,crash:21.1},
+  "2026-02-05":{maxDD:0.0,belowSig:null,mins:22,peakTime:"2026-02-04T20:22:00Z",peakPrice:0.2258,crash:18.9},
+  "2026-02-08":{maxDD:0.35,belowSig:3.42,mins:1071,peakTime:"2026-02-08T14:51:00Z",peakPrice:0.2026,crash:10.7},
+  "2026-02-13":{maxDD:0.87,belowSig:null,mins:3218,peakTime:"2026-02-14T22:38:00Z",peakPrice:0.224,crash:18.7},
+  "2026-02-15":{maxDD:0.0,belowSig:null,mins:0,peakTime:"2026-02-15T12:00:00Z",peakPrice:0.2125,crash:10.4},
+  "2026-02-17":{maxDD:0.25,belowSig:0.33,mins:169,peakTime:"2026-02-17T00:49:00Z",peakPrice:0.2031,crash:12.5},
+  "2026-02-18":{maxDD:0.36,belowSig:3.09,mins:281,peakTime:"2026-02-18T15:41:00Z",peakPrice:0.1979,crash:10.1},
+  "2026-02-21":{maxDD:0.16,belowSig:0.76,mins:262,peakTime:"2026-02-21T14:22:00Z",peakPrice:0.1907,crash:26.2},
+  "2026-02-25":{maxDD:0.44,belowSig:0.54,mins:3278,peakTime:"2026-02-27T05:38:00Z",peakPrice:0.1845,crash:8.0},
+  "2026-03-11":{maxDD:1.03,belowSig:4.06,mins:3525,peakTime:"2026-03-13T13:45:00Z",peakPrice:0.1728,crash:12.8},
+  "2026-03-17":{maxDD:0.64,belowSig:2.82,mins:1401,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-18":{maxDD:0.43,belowSig:3.36,mins:381,peakTime:"2026-03-18T05:21:00Z",peakPrice:0.223,crash:13.8},
+  "2026-03-19":{maxDD:0.33,belowSig:3.44,mins:294,peakTime:"2026-03-18T21:54:00Z",peakPrice:0.2211,crash:13.8},
+  "2026-03-20":{maxDD:0.4,belowSig:0.28,mins:192,peakTime:"2026-03-20T08:12:00Z",peakPrice:0.2123,crash:11.3},
+  "2026-03-21":{maxDD:0.62,belowSig:4.06,mins:485,peakTime:"2026-03-20T22:05:00Z",peakPrice:0.2048,crash:10.0},
+  "2026-03-23":{maxDD:0.96,belowSig:6.23,mins:3606,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:11.1},
+  "2026-03-25":{maxDD:0.9,belowSig:1.88,mins:1206,peakTime:"2026-03-25T13:06:00Z",peakPrice:0.1985,crash:14.2},
+  "2026-03-28":{maxDD:0.41,belowSig:0.73,mins:161,peakTime:"2026-03-28T13:41:00Z",peakPrice:0.1759,crash:6.5},
+  "2026-04-03":{maxDD:0.64,belowSig:1.41,mins:4205,peakTime:"2026-04-06T04:05:00Z",peakPrice:0.1754,crash:7.6},
+  "2026-04-04":{maxDD:0.64,belowSig:3.72,mins:4071,peakTime:"2026-04-06T12:51:00Z",peakPrice:0.1789,crash:9.7},
+  "2026-04-05":{maxDD:1.0,belowSig:2.62,mins:4278,peakTime:"2026-04-08T09:18:00Z",peakPrice:0.2059,crash:20.7},
+  "2026-04-08":{maxDD:0.83,belowSig:2.02,mins:1731,peakTime:"2026-04-08T22:51:00Z",peakPrice:0.2508,crash:29.4},
+  "2026-04-09":{maxDD:0.0,belowSig:10.57,mins:1,peakTime:"2026-04-08T23:01:00Z",peakPrice:0.2184,crash:29.4},
+  "2026-04-12":{maxDD:0.55,belowSig:0.68,mins:295,peakTime:"2026-04-11T19:55:00Z",peakPrice:0.2091,crash:7.9}
 };
 
 // Lookup by AEST calendar day — handles any live-data timestamp drift
@@ -2426,7 +2427,7 @@ function renderFartChart(data,events){
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the gap threshold.</div>';return;}
-    const header=`<div class="event-row fart-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>Pre-crash DD</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row fart-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>Pre-crash DD</span><span>Below Signal</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
@@ -2434,9 +2435,14 @@ function renderFartTable(events,data){
         const hour=new Date(e.dsTime).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});
         const ddData=lookupDD(e.dsTime);
         const ddCell=ddData!=null
-            ?`<span style="color:${ddData.maxDD>10?'#fb923c':ddData.maxDD>5?'#fbbf24':'#94a3b8'}" title="${ddData.mins<60?ddData.mins+'min window':Math.round(ddData.mins/60)+'hr window'}">${ddData.maxDD.toFixed(1)}%</span>`
+            ?`<span style="color:#94a3b8" title="Largest single 1-min drop (prev close → candle low)">${ddData.maxDD.toFixed(2)}%</span>`
             :'<span style="color:#334155">—</span>';
-        return`<div class="event-row fart-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span>${ddCell}<span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
+        const bsCell=ddData!=null
+            ?(ddData.belowSig!=null
+                ?`<span style="color:${ddData.belowSig>5?'#fb923c':ddData.belowSig>2?'#fbbf24':'#94a3b8'}" title="Deepest dip below signal price before peak">-${ddData.belowSig.toFixed(2)}%</span>`
+                :'<span style="color:#10b981">Never</span>')
+            :'<span style="color:#334155">—</span>';
+        return`<div class="event-row fart-row"><span style="color:#94a3b8">${new Date(e.dsTime).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'})}</span><span style="color:#64748b">${hour}</span><span>$${fmt(e.btcAtStart)} → $${fmt(e.fartAtStart,4)}</span><span style="color:#94a3b8">${dur}hrs</span><span style="color:#94a3b8">${e.timeToPeak}hrs</span><span>${rise}</span>${ddCell}${bsCell}<span>${e.confirmed?e.crashPct.toFixed(1)+'%':'—'}</span><span>${res}</span></div>`;
     }).join('');
     el.innerHTML=header+rows;
 }
