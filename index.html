@@ -98,7 +98,7 @@
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
         .legend-swatch { width: 16px; height: 10px; border-radius: 2px; }
         .event-row { display: grid; grid-template-columns: 100px 55px 1fr 65px 85px 80px 75px 120px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
-        .fart-row { grid-template-columns: 100px 55px 1fr 65px 85px 80px 90px 90px 75px 120px; }
+        .fart-row { grid-template-columns: 110px 60px 1fr 70px 90px 85px 110px 140px 80px 130px; }
         .event-row.header { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; background: #0f172a; border-radius: 6px 6px 0 0; }
         .event-row:hover { background: rgba(255,255,255,0.02); }
         .crash-confirmed { color: #ef4444; font-weight: 600; }
@@ -2427,7 +2427,7 @@ function renderFartChart(data,events){
 function renderFartTable(events,data){
     const el=document.getElementById('fartEventsList');
     if(!events.length){el.innerHTML='<div style="color:#64748b;font-size:13px;padding:12px 0;">No divergence events found in selected range. Try lowering the gap threshold.</div>';return;}
-    const header=`<div class="event-row fart-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>Pre-crash DD</span><span>Below Signal</span><span>FART Crash</span><span>Result</span></div>`;
+    const header=`<div class="event-row fart-row header"><span>Divergence Start</span><span>Hour</span><span>BTC → FARTCOIN at start</span><span>Duration</span><span>Time to Peak</span><span>Rise to Peak</span><span>1M Pre-crash DD</span><span>Max DD from divergence</span><span>FART Crash</span><span>Result</span></div>`;
     const rows=[...events].reverse().map(e=>{
         const dur=e.de-e.ds;
         const res=e.confirmed?`<span class="crash-confirmed">✓ ${e.crashPct.toFixed(1)}% crash</span>`:`<span class="crash-none">No crash (${e.crashPct.toFixed(1)}%)</span>`;
