@@ -481,7 +481,7 @@
 <div id="tab-fart2" class="tab-content">
 <div class="container">
     <h1>FARTCOIN Analysis V2</h1>
-    <div class="subtitle">Divergence detection — flags when the BTC/FARTCOIN spread ≥ threshold regardless of BTC direction</div>
+    <div class="subtitle">Divergence detection — both BTC &amp; FARTCOIN positive over 24hr, then BTC drops ≥ threshold within a single hour</div>
 
     <div class="data-notice" id="fart2Notice" style="display:none"></div>
 
@@ -491,9 +491,9 @@
             <div class="date-control"><label>From:</label><input type="date" id="fart2Start" value="2025-09-01"></div>
             <div class="date-control"><label>To:</label><input type="date" id="fart2End" value=""></div>
             <div class="date-control">
-                <label>Min spread size:</label>
-                <input type="number" id="fart2GapThreshold" value="1.5" step="0.1" min="0.5" max="20" style="width:75px;">
-                <span style="font-size:13px;color:#94a3b8;">% |FART − BTC| over 24hr (any direction)</span>
+                <label>BTC 1-hr drop threshold:</label>
+                <input type="number" id="fart2GapThreshold" value="1.5" step="0.1" min="0.1" max="20" style="width:75px;">
+                <span style="font-size:13px;color:#94a3b8;">% drop in one hour (while both BTC &amp; FART 24hr positive)</span>
             </div>
             <div class="date-control">
                 <label>FARTCOIN crash threshold:</label>
@@ -503,7 +503,7 @@
             <button class="run-btn" onclick="runFartAnalysisV2()">▶ Run Analysis</button>
         </div>
         <div class="legend-row" style="margin-top:16px;">
-            <div class="legend-item"><div class="legend-swatch" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.6);"></div>Divergence (|FART − BTC| ≥ threshold over 24hr) — crash followed</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.6);"></div>Divergence (BTC &amp; FART both 24hr positive, BTC drops ≥ threshold in 1hr) — crash followed</div>
             <div class="legend-item"><div class="legend-swatch" style="background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.5);"></div>Confirmed crash window (≥ threshold within 72hrs)</div>
             <div class="legend-item"><div class="legend-swatch" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);"></div>Divergence — no crash followed</div>
         </div>
@@ -2358,13 +2358,16 @@ async function runFartAnalysisV2(){
     if(filtered.length<25){document.getElementById('fart2EventsList').innerHTML='<div style="color:#64748b;font-size:13px;">Not enough data in selected range.</div>';return;}
 
     const LB=24,CW=72;
-    // V2: |FART change - BTC change| >= threshold (any direction)
+    // V2: BTC and FART both positive over 24hr, AND BTC drops >= threshold in the current 1-hour candle
     const divHours=[];
     for(let i=LB;i<filtered.length;i++){
         const bn=filtered[i].btc,bp=filtered[i-LB].btc,fn=filtered[i].fart,fp=filtered[i-LB].fart;
-        if(!bn||!bp||!fn||!fp)continue;
-        const btcChg=(bn-bp)/bp,fartChg=(fn-fp)/fp;
-        if(Math.abs(fartChg-btcChg)>=gapThr)divHours.push(i);
+        const bPrev=filtered[i-1]?.btc;
+        if(!bn||!bp||!fn||!fp||!bPrev)continue;
+        const btc24Chg=(bn-bp)/bp;           // BTC 24hr change
+        const fart24Chg=(fn-fp)/fp;          // FART 24hr change
+        const btc1hDrop=(bPrev-bn)/bPrev;    // BTC drop this hour (positive = drop)
+        if(btc24Chg>0&&fart24Chg>0&&btc1hDrop>=gapThr)divHours.push(i);
     }
     // Cluster (gap <= 3hrs)
     const clusters=[];
