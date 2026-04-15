@@ -2333,9 +2333,22 @@ async function initFartcoinV2(){
     document.getElementById('fart2Start').value='2025-09-01';
     document.getElementById('fart2End').value=todayStr();
     const notice=document.getElementById('fart2Notice');
-    if(fartData.length>=25){runFartAnalysisV2();}
     notice.style.display='block';
-    notice.innerHTML='⏳ <strong>Fetching latest FARTCOIN data...</strong>';
+    // Load static JSON if fartData doesn't already have full history (e.g. V1 tab not yet visited)
+    if(fartData.length<500){
+        notice.innerHTML='⏳ <strong>Loading historical data...</strong>';
+        try{
+            const r=await fetch('fartcoin_hourly.json?t='+Date.now());
+            if(r.ok){const j=await r.json();
+                const merged={};
+                for(const d of fartData)merged[d.t]=d;
+                for(const d of(j.hours||[]))merged[d.t]=d;
+                fartData=Object.values(merged).sort((a,b)=>a.t.localeCompare(b.t));
+            }
+        }catch(e){}
+    }
+    if(fartData.length>=25) runFartAnalysisV2();
+    notice.innerHTML='⏳ <strong>Fetching latest data...</strong>';
     fetchFartcoinChunk(30).then(ok=>{
         if(ok){document.getElementById('fart2End').value=todayStr();runFartAnalysisV2();}
         notice.innerHTML=`✅ <strong>Loaded ${fartData.length} hourly data points.</strong>`;
