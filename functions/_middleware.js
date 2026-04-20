@@ -122,25 +122,56 @@ export async function onRequest(context) {
     }
 
     // ── CMC Fear & Greed proxy route ──
+    // Tries CMC internal data API first; falls back to alternative.me if blocked/empty.
     if (url.pathname === '/api/cmc-fng') {
         try {
-            const resp = await fetch(
+            const cmcResp = await fetch(
                 'https://api.coinmarketcap.com/data-api/v3/fear-greed/chart',
                 {
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                        'Accept': 'application/json',
-                        'Referer': 'https://coinmarketcap.com/',
+                        'Accept': 'application/json, text/plain, */*',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Origin': 'https://coinmarketcap.com',
+                        'Referer': 'https://coinmarketcap.com/charts/fear-and-greed-index/',
                     },
                 }
             );
-            const data = await resp.text();
-            return new Response(data, {
-                status: resp.status,
+            if (cmcResp.ok) {
+                const text = await cmcResp.text();
+                // Verify it actually contains data before returning
+                if (text && text.includes('dataList') && text.length > 100) {
+                    return new Response(text, {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            'Cache-Control': 'public, max-age=3600',
+                            'X-Source': 'cmc',
+                        },
+                    });
+                }
+            }
+        } catch (e) { /* fall through to alternative.me */ }
+
+        // Fallback: alternative.me (always reliable, free, no key needed)
+        try {
+            const altResp = await fetch('https://api.alternative.me/fng/?limit=14&format=json');
+            const altText = await altResp.text();
+            // Wrap in CMC-compatible shape so frontend only needs one parser
+            const altJson = JSON.parse(altText);
+            const dataList = (altJson.data || []).reverse().map(e => ({
+                x: parseInt(e.timestamp),
+                y: e.value,
+                yClassification: e.value_classification,
+            }));
+            return new Response(JSON.stringify({ data: { dataList }, _source: 'alternative.me' }), {
+                status: 200,
                 headers: {
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*',
                     'Cache-Control': 'public, max-age=3600',
+                    'X-Source': 'alternative.me',
                 },
             });
         } catch (e) {
