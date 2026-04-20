@@ -121,6 +121,36 @@ export async function onRequest(context) {
         }
     }
 
+    // ── CMC Fear & Greed proxy route ──
+    if (url.pathname === '/api/cmc-fng') {
+        try {
+            const resp = await fetch(
+                'https://api.coinmarketcap.com/data-api/v3/fear-greed/chart',
+                {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        'Accept': 'application/json',
+                        'Referer': 'https://coinmarketcap.com/',
+                    },
+                }
+            );
+            const data = await resp.text();
+            return new Response(data, {
+                status: resp.status,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=3600',
+                },
+            });
+        } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), {
+                status: 502,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+    }
+
     // ── Custom Alerts API (reads/writes custom_alerts.json via GitHub API) ──
     if (url.pathname === '/api/alerts') {
         const PAT = env.GITHUB_PAT;

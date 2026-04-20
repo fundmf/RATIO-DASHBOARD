@@ -705,7 +705,7 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Fear &amp; Greed Index</h3>
         <ul>
-            <li>Source: alternative.me API — 14-day history</li>
+            <li>Source: CoinMarketCap Fear & Greed API — 14-day history</li>
             <li>Scale: 0 (Extreme Fear) to 100 (Extreme Greed)</li>
             <li>Colour bands: 0-25 red, 26-45 orange, 46-55 amber, 56-75 lime, 76-100 green</li>
         </ul>
@@ -957,7 +957,7 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 </div>
 
 <div class="footer">
-    <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via alternative.me</p>
+    <p>Ratio data auto-updates daily via GitHub Actions · Live prices via CoinGecko &amp; Yahoo Finance (15min delay) · Prediction odds via Polymarket public API · Fear &amp; Greed via CoinMarketCap</p>
 </div>
 
 <script>
@@ -1440,20 +1440,25 @@ async function fetchRateOdds(){
 
 async function fetchFearAndGreed(){
     try{
-        const data=await safeFetch('https://api.alternative.me/fng/?limit=14&format=json');
-        const entries=data.data||[];if(!entries.length)throw new Error('empty');
-        const latest=entries[0];
-        const val=parseInt(latest.value),lbl=latest.value_classification;
-        const color=val<=25?'#ef4444':val<=45?'#f97316':val<=55?'#f59e0b':val<=75?'#84cc16':'#10b981';
+        // CMC Fear & Greed — via middleware proxy (CORS)
+        const raw=await safeFetch('/api/cmc-fng');
+        // CMC returns {data:{dataList:[{x:unix_sec, y:"54", yClassification:"Neutral"}, ...]}}
+        // Sorted oldest-first; take last 14 entries
+        const list=(raw?.data?.dataList||[]);
+        if(!list.length)throw new Error('empty CMC response');
+        const entries=list.slice(-14);  // last 14 days, oldest→newest
+        const latest=entries[entries.length-1];
+        const val=parseInt(latest.y),lbl=latest.yClassification||'';
+        const fngColor=val=>val<=25?'#ef4444':val<=45?'#f97316':val<=55?'#f59e0b':val<=75?'#84cc16':'#10b981';
+        const color=fngColor(val);
         document.getElementById('fngValue').textContent=val;
         document.getElementById('fngValue').style.color=color;
         document.getElementById('fngLabel').textContent=lbl;
-        document.getElementById('fngDate').textContent='As of '+new Date(parseInt(latest.timestamp)*1000).toLocaleDateString('en-AU');
+        document.getElementById('fngDate').textContent='As of '+new Date(parseInt(latest.x)*1000).toLocaleDateString('en-AU');
         document.getElementById('fngBar').style.width=val+'%';
         document.getElementById('fngBar').style.background=color;
-        const rev=[...entries].reverse();
         const ctx=document.getElementById('fngChart').getContext('2d');
-        new Chart(ctx,{type:'line',data:{labels:rev.map(e=>new Date(parseInt(e.timestamp)*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets:[{data:rev.map(e=>parseInt(e.value)),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3,pointBackgroundColor:rev.map(e=>{const v=parseInt(e.value);return v<=25?'#ef4444':v<=45?'#f97316':v<=55?'#f59e0b':v<=75?'#84cc16':'#10b981';})}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},min:0,max:70,title:{display:true,text:'Fear & Greed (0=Fear, 70=Greed)',color:'#64748b'}}}}});
+        new Chart(ctx,{type:'line',data:{labels:entries.map(e=>new Date(parseInt(e.x)*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets:[{data:entries.map(e=>parseInt(e.y)),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:3,fill:true,tension:0.3,pointBackgroundColor:entries.map(e=>fngColor(parseInt(e.y)))}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#334155'},ticks:{color:'#94a3b8'},min:0,max:100,title:{display:true,text:'Fear & Greed (0=Extreme Fear, 100=Extreme Greed)',color:'#64748b'}}}}});
     }catch(e){console.warn('F&G:',e.message);document.getElementById('fngLabel').textContent='Could not load';}
 }
 
