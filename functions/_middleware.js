@@ -152,34 +152,12 @@ export async function onRequest(context) {
                     });
                 }
             }
-        } catch (e) { /* fall through to alternative.me */ }
+        } catch (e) { /* fall through */ }
 
-        // Fallback: alternative.me (always reliable, free, no key needed)
-        try {
-            const altResp = await fetch('https://api.alternative.me/fng/?limit=14&format=json');
-            const altText = await altResp.text();
-            // Wrap in CMC-compatible shape so frontend only needs one parser
-            const altJson = JSON.parse(altText);
-            const dataList = (altJson.data || []).reverse().map(e => ({
-                x: parseInt(e.timestamp),
-                y: e.value,
-                yClassification: e.value_classification,
-            }));
-            return new Response(JSON.stringify({ data: { dataList }, _source: 'alternative.me' }), {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Cache-Control': 'public, max-age=3600',
-                    'X-Source': 'alternative.me',
-                },
-            });
-        } catch (e) {
-            return new Response(JSON.stringify({ error: e.message }), {
-                status: 502,
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
+        return new Response(JSON.stringify({ error: 'CMC Fear & Greed unavailable' }), {
+            status: 502,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
     }
 
     // ── Custom Alerts API (reads/writes custom_alerts.json via GitHub API) ──
