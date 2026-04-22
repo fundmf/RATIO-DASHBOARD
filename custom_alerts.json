@@ -17,7 +17,7 @@
       "datetime": "2026-04-23T10:00",
       "timezone": "Australia/Sydney",
       "utc_iso": "2026-04-23T00:00:00.000Z",
-      "sent": false,
+      "sent": true,
       "created": "2026-04-18T23:56:48.772Z"
     },
     {
