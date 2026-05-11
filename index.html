@@ -879,6 +879,25 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
         </ul>
 
         <div class="doc-note">When freshly deployed, the chart shows a single data point (the baseline) and all returns equal 0%. The first non-trivial chart will appear after the next Friday close.</div>
+
+        <h3>Adding or Removing Tickers</h3>
+        <p>Designed to be edited in one place. Open <code>update_ai_watchlist.py</code> and edit the <code>TICKERS</code> dict near the top:</p>
+        <div class="formula">TICKERS = {
+    "GTLB": "GTLB",
+    "CDW":  "CDW",
+    # ... add or remove lines here ...
+    "NVDA": "NVDA",        # add Nvidia
+    "^GSPC": "S&amp;P500",     # add S&amp;P 500 index
+}</div>
+        <ul>
+            <li><strong>Adding:</strong> On the next workflow run the script will <strong>automatically backfill the new ticker's Friday close for every existing week</strong>, so it lines up with the baseline and the chart immediately shows it with full history.</li>
+            <li><strong>Removing:</strong> Delete the line and push. Removed tickers disappear from the chart and snapshot on next save. Historical values stay in <code>ai_watchlist.json</code> in case you want to add them back later.</li>
+            <li><strong>Colors:</strong> Known tickers use a curated color in <code>AI_COLORS</code>. Unknown tickers automatically receive a unique color from <code>AI_PALETTE</code> (10-color rotation). No JS edit required.</li>
+            <li><strong>Display label:</strong> The dict value (e.g. <code>"NASDAQ100"</code>) is the legend label. Yahoo's symbol (e.g. <code>^NDX</code>) stays internal.</li>
+        </ul>
+
+        <h3>Manual Trigger</h3>
+        <p>To pull the latest Friday immediately (or to test after editing TICKERS), go to GitHub → Actions → "Update AI Watchlist (Weekly)" → Run workflow. The script is idempotent so this is always safe.</p>
     </div>
 
     <!-- 8. CUSTOM ALERTS -->
@@ -2762,7 +2781,8 @@ function renderAlerts(){
 // ──────────────────────────────────────────────
 let aiChartInst=null;
 
-// Distinct colors for each ticker
+// Preferred colors for known tickers. Unknown tickers get auto-assigned
+// from AI_PALETTE below, so adding a new ticker requires no frontend change.
 const AI_COLORS={
     'GTLB':'#3b82f6',   // blue
     'CDW':'#10b981',    // green
@@ -2771,6 +2791,12 @@ const AI_COLORS={
     'ADP':'#a855f7',    // purple
     '^NDX':'#94a3b8',   // grey (benchmark)
 };
+// Fallback palette — cycled for any ticker not in AI_COLORS
+const AI_PALETTE=['#06b6d4','#ec4899','#8b5cf6','#84cc16','#f97316','#14b8a6','#eab308','#f43f5e','#0ea5e9','#22c55e'];
+
+function aiColorFor(ticker, idx){
+    return AI_COLORS[ticker] || AI_PALETTE[idx % AI_PALETTE.length];
+}
 
 async function initAiWatchlist(){
     const notice=document.getElementById('aiNotice');
@@ -2821,6 +2847,7 @@ function renderAiWatchlist(data){
     const datasets=[];
     const snapshotRows=[];
 
+    let colorIdx=0;
     for(const ticker of tickers){
         const baseClose=baseline.closes?.[ticker];
         if(!baseClose) continue;
@@ -2830,7 +2857,7 @@ function renderAiWatchlist(data){
             return ((c-baseClose)/baseClose)*100;
         });
         const label=labels[ticker]||ticker;
-        const color=AI_COLORS[ticker]||'#cbd5e1';
+        const color=aiColorFor(ticker,colorIdx++);
         datasets.push({
             label, data:points, borderColor:color, backgroundColor:color+'22',
             borderWidth:ticker==='^NDX'?2.5:2,
