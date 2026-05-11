@@ -580,7 +580,7 @@
             1. Baseline = the Friday close immediately before the watchlist was deployed<br>
             2. Each subsequent Friday at US market close (4pm ET), a new data point is captured<br>
             3. Y-axis shows cumulative % return from baseline for each ticker<br>
-            4. Data is fetched by <code>update_ai_watchlist.py</code> running hourly in GitHub Actions (no-op until Friday close passes)<br>
+            4. Data is fetched by <code>update_ai_watchlist.py</code> running every Saturday 02:00 UTC (with Sun/Mon backups) via GitHub Actions<br>
             5. Stored in <code>ai_watchlist.json</code> in the repo
         </div>
     </div>
@@ -852,10 +852,10 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Data Source &amp; Update Schedule</h3>
         <ul>
-            <li><code>update_ai_watchlist.py</code> runs hourly via GitHub Actions (same workflow as the other data files)</li>
+            <li><code>update_ai_watchlist.py</code> runs in its own workflow (<code>update-ai-watchlist.yml</code>) on a weekly cron — Saturday 02:00 UTC, with Sunday and Monday 02:00 UTC as backup runs</li>
             <li>On each run, it determines the most recent Friday whose 21:00 UTC cutoff has passed (safe across DST — covers both 4pm EST = 21:00 UTC and 4pm EDT = 20:00 UTC)</li>
             <li>If that Friday is not already in <code>ai_watchlist.json</code>, it fetches close prices via <code>yfinance</code> and appends one record</li>
-            <li>Idempotent — script is a no-op once that week's data is recorded</li>
+            <li>Idempotent — once that week's data is recorded, the Sunday/Monday backup runs are no-ops</li>
         </ul>
 
         <h3>JSON Structure (<code>ai_watchlist.json</code>)</h3>
