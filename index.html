@@ -146,6 +146,7 @@
     <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
     <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
     <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
+    <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
     <button class="tab-btn" data-tab="docs" style="margin-left:auto;color:#475569;font-size:13px;">Documentation</button>
 </nav>
@@ -553,6 +554,39 @@
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB: AI AFFECTED STOCK WATCHLIST ══════════════════════════ -->
+<div id="tab-ai" class="tab-content">
+<div class="container">
+    <h1>AI Affected Stock Watchlist</h1>
+    <div class="subtitle">Weekly Friday-close returns for AI-exposed names vs NASDAQ 100 — updates every Friday after US market close</div>
+
+    <div class="card">
+        <div class="card-title">Cumulative Return from Baseline</div>
+        <div id="aiSummary" style="font-size:13px;color:#94a3b8;line-height:1.7;margin-bottom:12px;">Loading…</div>
+        <div style="height:480px;position:relative;">
+            <canvas id="aiChart"></canvas>
+        </div>
+        <div id="aiNotice" style="font-size:12px;color:#64748b;margin-top:10px;display:none;"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Latest Snapshot</div>
+        <div id="aiSnapshot" style="font-size:13px;color:#94a3b8;">Loading…</div>
+    </div>
+
+    <div class="card" style="background:transparent;border:1px dashed #334155;">
+        <div style="font-size:13px;color:#64748b;line-height:1.8;">
+            <strong style="color:#94a3b8;">How it works:</strong><br>
+            1. Baseline = the Friday close immediately before the watchlist was deployed<br>
+            2. Each subsequent Friday at US market close (4pm ET), a new data point is captured<br>
+            3. Y-axis shows cumulative % return from baseline for each ticker<br>
+            4. Data is fetched by <code>update_ai_watchlist.py</code> running hourly in GitHub Actions (no-op until Friday close passes)<br>
+            5. Stored in <code>ai_watchlist.json</code> in the repo
+        </div>
+    </div>
+</div>
+</div>
+
 <!-- ══════════════════════════ TAB 8: CUSTOM ALERTS ══════════════════════════ -->
 <div id="tab-alerts" class="tab-content">
 <div class="container">
@@ -801,6 +835,52 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
     <!-- 5. INVERSE FARTCOIN -->
 
+    <!-- 7. AI AFFECTED STOCK WATCHLIST -->
+    <div class="card doc-section" id="doc-ai">
+        <h2>7. AI Affected Stock Watchlist</h2>
+        <p>Tracks weekly Friday-close returns for a curated list of AI-exposed equities against the NASDAQ 100 benchmark. A new data point is captured every Friday after US market close (4pm ET).</p>
+
+        <h3>Tickers</h3>
+        <ul>
+            <li><strong>GTLB</strong> — GitLab Inc.</li>
+            <li><strong>CDW</strong> — CDW Corporation</li>
+            <li><strong>ADBE</strong> — Adobe Inc.</li>
+            <li><strong>EXLS</strong> — ExlService Holdings</li>
+            <li><strong>ADP</strong> — Automatic Data Processing</li>
+            <li><strong>NASDAQ100</strong> (<code>^NDX</code>) — benchmark, plotted as a dashed grey line</li>
+        </ul>
+
+        <h3>Data Source &amp; Update Schedule</h3>
+        <ul>
+            <li><code>update_ai_watchlist.py</code> runs hourly via GitHub Actions (same workflow as the other data files)</li>
+            <li>On each run, it determines the most recent Friday whose 21:00 UTC cutoff has passed (safe across DST — covers both 4pm EST = 21:00 UTC and 4pm EDT = 20:00 UTC)</li>
+            <li>If that Friday is not already in <code>ai_watchlist.json</code>, it fetches close prices via <code>yfinance</code> and appends one record</li>
+            <li>Idempotent — script is a no-op once that week's data is recorded</li>
+        </ul>
+
+        <h3>JSON Structure (<code>ai_watchlist.json</code>)</h3>
+        <div class="formula">{
+  "last_updated": "ISO timestamp",
+  "tickers": ["GTLB", "CDW", "ADBE", "EXLS", "ADP", "^NDX"],
+  "labels":  {"GTLB":"GTLB", ..., "^NDX":"NASDAQ100"},
+  "baseline_date": "YYYY-MM-DD",   // first Friday captured
+  "weeks": [
+    {"date": "YYYY-MM-DD", "closes": {"GTLB": 45.23, "CDW": 178.5, ...}}
+  ]
+}</div>
+
+        <h3>Chart Logic</h3>
+        <ul>
+            <li>Baseline = the first Friday in <code>weeks</code> (typically the Friday before this tab was deployed)</li>
+            <li>Y-axis: cumulative percentage return from baseline: <code>(close[i] &minus; baseline_close) / baseline_close &times; 100</code></li>
+            <li>X-axis: Friday dates (one per data point)</li>
+            <li>NASDAQ 100 line is dashed to visually distinguish the benchmark from individual names</li>
+            <li>Snapshot card below the chart sorts tickers by current return (best → worst)</li>
+        </ul>
+
+        <div class="doc-note">When freshly deployed, the chart shows a single data point (the baseline) and all returns equal 0%. The first non-trivial chart will appear after the next Friday close.</div>
+    </div>
+
     <!-- 8. CUSTOM ALERTS -->
     <div class="card doc-section" id="doc-alerts">
         <h2>8. Custom Alerts</h2>
@@ -1005,7 +1085,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,alerts:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1018,6 +1098,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
         if(id==='fart2'&&!tabInit.fart2){tabInit.fart2=true;initFartcoinV2();}
         if(id==='fartmin'&&!tabInit.fartmin){tabInit.fartmin=true;initFartMinAnalysis();}
+        if(id==='ai'&&!tabInit.ai){tabInit.ai=true;initAiWatchlist();}
         if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
     });
 });
@@ -2674,6 +2755,153 @@ function renderAlerts(){
     }
     html+='</div>';
     el.innerHTML=html;
+}
+
+// ──────────────────────────────────────────────
+// TAB — AI AFFECTED STOCK WATCHLIST
+// ──────────────────────────────────────────────
+let aiChartInst=null;
+
+// Distinct colors for each ticker
+const AI_COLORS={
+    'GTLB':'#3b82f6',   // blue
+    'CDW':'#10b981',    // green
+    'ADBE':'#ef4444',   // red
+    'EXLS':'#f59e0b',   // amber
+    'ADP':'#a855f7',    // purple
+    '^NDX':'#94a3b8',   // grey (benchmark)
+};
+
+async function initAiWatchlist(){
+    const notice=document.getElementById('aiNotice');
+    try{
+        const r=await fetch('ai_watchlist.json?t='+Date.now());
+        if(!r.ok) throw new Error('Could not load ai_watchlist.json');
+        const data=await r.json();
+        renderAiWatchlist(data);
+    }catch(e){
+        document.getElementById('aiSummary').textContent='Could not load data: '+e.message;
+        notice.style.display='block';
+        notice.textContent=e.message;
+    }
+}
+
+function renderAiWatchlist(data){
+    const weeks=data.weeks||[];
+    const tickers=data.tickers||[];
+    const labels=data.labels||{};
+    const summary=document.getElementById('aiSummary');
+    const snapshot=document.getElementById('aiSnapshot');
+    const notice=document.getElementById('aiNotice');
+
+    if(weeks.length===0){
+        summary.innerHTML='<strong>Waiting for first Friday close</strong> — the script will populate this on the next GitHub Actions run after a Friday US market close.';
+        snapshot.innerHTML='<span style="color:#64748b;">No data yet.</span>';
+        notice.style.display='block';
+        notice.textContent='No data points recorded yet.';
+        return;
+    }
+
+    const baseline=weeks[0];
+    const latest=weeks[weeks.length-1];
+    const baselineDate=new Date(baseline.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+    const latestDate=new Date(latest.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+
+    // Build summary line
+    let summaryHtml=`<strong>Baseline:</strong> Friday ${baselineDate} · `;
+    summaryHtml+=`<strong>Latest:</strong> Friday ${latestDate} · `;
+    summaryHtml+=`<strong>Weeks tracked:</strong> ${weeks.length}`;
+    if(weeks.length===1){
+        summaryHtml+=' — chart shows baseline only (all returns = 0%). New point added each Friday after US market close.';
+    }
+    summary.innerHTML=summaryHtml;
+
+    // Build datasets — one line per ticker, y = cumulative % return from baseline
+    const labelDates=weeks.map(w=>new Date(w.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
+    const datasets=[];
+    const snapshotRows=[];
+
+    for(const ticker of tickers){
+        const baseClose=baseline.closes?.[ticker];
+        if(!baseClose) continue;
+        const points=weeks.map(w=>{
+            const c=w.closes?.[ticker];
+            if(c==null) return null;
+            return ((c-baseClose)/baseClose)*100;
+        });
+        const label=labels[ticker]||ticker;
+        const color=AI_COLORS[ticker]||'#cbd5e1';
+        datasets.push({
+            label, data:points, borderColor:color, backgroundColor:color+'22',
+            borderWidth:ticker==='^NDX'?2.5:2,
+            borderDash:ticker==='^NDX'?[6,4]:[],
+            pointRadius:3, pointHoverRadius:5, fill:false, tension:0.25,
+            spanGaps:true,
+        });
+        // Snapshot row
+        const latestClose=latest.closes?.[ticker];
+        const latestPct=points[points.length-1];
+        if(latestClose!=null&&latestPct!=null){
+            snapshotRows.push({label, ticker, baseClose, latestClose, pct:latestPct, color});
+        }
+    }
+
+    // Render chart
+    const ctx=document.getElementById('aiChart').getContext('2d');
+    if(aiChartInst) aiChartInst.destroy();
+    aiChartInst=new Chart(ctx,{
+        type:'line',
+        data:{labels:labelDates, datasets},
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{labels:{color:'#e2e8f0',usePointStyle:true,padding:14}},
+                tooltip:{
+                    backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+                    borderColor:'#334155',borderWidth:1,padding:10,
+                    callbacks:{
+                        label:ctx=>{
+                            const v=ctx.parsed.y;
+                            return `${ctx.dataset.label}: ${v>=0?'+':''}${v.toFixed(2)}%`;
+                        }
+                    }
+                }
+            },
+            scales:{
+                x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},
+                y:{
+                    grid:{color:'#334155'},
+                    ticks:{color:'#94a3b8',callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
+                    title:{display:true,text:'Return from baseline (%)',color:'#64748b'}
+                }
+            }
+        }
+    });
+
+    // Snapshot card
+    snapshotRows.sort((a,b)=>b.pct-a.pct);
+    let snapHtml='<div style="display:grid;gap:8px;">';
+    for(const row of snapshotRows){
+        const sign=row.pct>=0?'+':'';
+        const pctColor=row.pct>=0?'#10b981':'#ef4444';
+        snapHtml+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;">
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${row.color};margin-right:8px;vertical-align:middle;"></span><strong style="color:#f1f5f9;">${row.label}</strong></div>
+            <div style="font-family:monospace;font-size:13px;color:#cbd5e1;">$${row.baseClose.toFixed(2)} → $${row.latestClose.toFixed(2)}</div>
+            <div style="color:${pctColor};font-weight:600;font-family:monospace;">${sign}${row.pct.toFixed(2)}%</div>
+        </div>`;
+    }
+    snapHtml+='</div>';
+
+    if(snapshotRows.length>1){
+        const best=snapshotRows[0];
+        const worst=snapshotRows[snapshotRows.length-1];
+        snapHtml+=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid #334155;font-size:12px;color:#94a3b8;">
+            <strong style="color:#10b981;">Best:</strong> ${best.label} (${best.pct>=0?'+':''}${best.pct.toFixed(2)}%) ·
+            <strong style="color:#ef4444;">Worst:</strong> ${worst.label} (${worst.pct>=0?'+':''}${worst.pct.toFixed(2)}%)
+        </div>`;
+    }
+    snapshot.innerHTML=snapHtml;
 }
 
 async function initAlerts(){
