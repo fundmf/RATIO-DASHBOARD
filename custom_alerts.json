@@ -1,16 +1,6 @@
 {
   "alerts": [
     {
-      "id": "1777441563806",
-      "title": "Crypto option expiry 7.2B",
-      "description": "",
-      "datetime": "2026-05-29T08:00",
-      "timezone": "America/New_York",
-      "utc_iso": "2026-05-29T12:00:00.000Z",
-      "sent": false,
-      "created": "2026-04-29T05:46:03.806Z"
-    },
-    {
       "id": "1778802974685",
       "title": "Crypto option expiry 8.2B",
       "description": "",
