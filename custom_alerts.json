@@ -1,16 +1,6 @@
 {
   "alerts": [
     {
-      "id": "1776556659538",
-      "title": "Clarity Act Senate full floor vote",
-      "description": "",
-      "datetime": "2026-05-16T10:00",
-      "timezone": "Australia/Sydney",
-      "utc_iso": "2026-05-16T00:00:00.000Z",
-      "sent": false,
-      "created": "2026-04-18T23:57:39.539Z"
-    },
-    {
       "id": "1777441563806",
       "title": "Crypto option expiry 7.2B",
       "description": "",
