@@ -19,6 +19,16 @@
       "utc_iso": "2026-05-29T12:00:00.000Z",
       "sent": false,
       "created": "2026-05-14T23:56:14.685Z"
+    },
+    {
+      "id": "1778803052425",
+      "title": "Clarity Act Senate floor vote",
+      "description": "",
+      "datetime": "2026-06-06T15:00",
+      "timezone": "America/New_York",
+      "utc_iso": "2026-06-06T19:00:00.000Z",
+      "sent": false,
+      "created": "2026-05-14T23:57:32.425Z"
     }
   ]
 }
