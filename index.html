@@ -1952,9 +1952,18 @@ const zonePlugin={id:'zonePlugin',beforeDraw(chart,args,options){
     const zones=options.zones;if(!zones||!zones.length)return;
     const ctx=chart.ctx,xAxis=chart.scales.x,{top,bottom}=chart.chartArea;
     ctx.save();
+    // Pass 1 — translucent fills (broad context)
     zones.forEach(z=>{
         const x1=xAxis.getPixelForValue(z.start),x2=xAxis.getPixelForValue(z.end);
-        ctx.fillStyle=z.color;ctx.fillRect(x1,top,x2-x1,bottom-top);
+        ctx.fillStyle=z.color;ctx.fillRect(x1,top,Math.max(x2-x1,0.5),bottom-top);
+    });
+    // Pass 2 — crisp start-edge marker lines on top of all fills, so every
+    // divergence (red) and crash window (green) stays visible even when the
+    // wide fills overlap and cover each other.
+    zones.forEach(z=>{
+        if(!z.line)return;
+        const x1=xAxis.getPixelForValue(z.start);
+        ctx.fillStyle=z.line;ctx.fillRect(x1,top,1.5,bottom-top);
     });
     ctx.restore();
 }};
@@ -2363,14 +2372,17 @@ function renderFartChart(data,events){
     if(fartChartInst?.destroy)fartChartInst.destroy();
     const step=Math.max(1,Math.floor(data.length/24));
     const labels=data.map((d,i)=>i%step===0?new Date(d.t).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
-    // Build zones: all red/amber divergence bands first, then green crash windows.
-    // Greens are drawn LAST (on top) so a later divergence's red band can't paint
-    // over an earlier event's crash window when their 72h windows overlap.
+    // Build zones. Each zone has a translucent fill plus a crisp start-edge
+    // marker line (drawn on top of all fills by zonePlugin) so divergence bands
+    // and crash windows both stay visible even when their wide fills overlap.
     const zones=[];
     const greenZones=[];
     events.forEach(e=>{
-        zones.push({start:e.ds,end:e.de,color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)'});
-        if(e.confirmed)greenZones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
+        zones.push({start:e.ds,end:e.de,
+            color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)',
+            line: e.confirmed?'rgba(239,68,68,0.85)':'rgba(245,158,11,0.7)'});
+        if(e.confirmed)greenZones.push({start:e.de,end:e.ceIdx,
+            color:'rgba(16,185,129,0.08)',line:'rgba(16,185,129,0.7)'});
     });
     zones.push(...greenZones);
     fartChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
@@ -2540,14 +2552,17 @@ function renderFartChartV2(data,events){
     if(fart2ChartInst?.destroy)fart2ChartInst.destroy();
     const step=Math.max(1,Math.floor(data.length/24));
     const labels=data.map((d,i)=>i%step===0?new Date(d.t).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'');
-    // Build zones: all red/amber divergence bands first, then green crash windows.
-    // Greens are drawn LAST (on top) so a later divergence's red band can't paint
-    // over an earlier event's crash window when their 72h windows overlap.
+    // Build zones. Each zone has a translucent fill plus a crisp start-edge
+    // marker line (drawn on top of all fills by zonePlugin) so divergence bands
+    // and crash windows both stay visible even when their wide fills overlap.
     const zones=[];
     const greenZones=[];
     events.forEach(e=>{
-        zones.push({start:e.ds,end:e.de,color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)'});
-        if(e.confirmed)greenZones.push({start:e.de,end:e.ceIdx,color:'rgba(16,185,129,0.12)'});
+        zones.push({start:e.ds,end:e.de,
+            color:e.confirmed?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.10)',
+            line: e.confirmed?'rgba(239,68,68,0.85)':'rgba(245,158,11,0.7)'});
+        if(e.confirmed)greenZones.push({start:e.de,end:e.ceIdx,
+            color:'rgba(16,185,129,0.08)',line:'rgba(16,185,129,0.7)'});
     });
     zones.push(...greenZones);
     fart2ChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'FARTCOIN ($)',data:data.map(d=>d.fart),borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,yAxisID:'yF'},{label:'BTC ($)',data:data.map(d=>d.btc),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:0.2,yAxisID:'yB',borderDash:[3,3]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e2e8f0',padding:20}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{title:ctx=>{const d=data[ctx[0].dataIndex];return new Date(d.t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});},label:ctx=>ctx.dataset.label==='FARTCOIN ($)'?'FARTCOIN: $'+fmt(ctx.parsed.y,4):'BTC: $'+fmt(ctx.parsed.y)}},zonePlugin:{zones}},scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:16}},yF:{position:'left',grid:{color:'#334155'},ticks:{color:'#a78bfa'},title:{display:true,text:'FARTCOIN ($)',color:'#a78bfa'}},yB:{position:'right',grid:{display:false},ticks:{color:'#f59e0b'},title:{display:true,text:'BTC ($)',color:'#f59e0b'}}}}});
