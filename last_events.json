@@ -61,7 +61,8 @@
     "fartcoin:2026-05-21",
     "fartcoin:2026-05-22",
     "fartcoin:2026-05-23",
-    "fartcoin:2026-06-03"
+    "fartcoin:2026-06-03",
+    "fartcoin:2026-06-04"
   ],
   "inverse_fartcoin": [
     "inverse_fartcoin:2025-09-12",
@@ -160,6 +161,7 @@
     "bfspx:2026-04-12",
     "bfspx:2026-05-07",
     "bfspx:2026-05-08",
-    "bfspx:2026-06-03"
+    "bfspx:2026-06-03",
+    "bfspx:2026-06-04"
   ]
 }
