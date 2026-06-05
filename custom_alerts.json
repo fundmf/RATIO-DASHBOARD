@@ -1,16 +1,6 @@
 {
   "alerts": [
     {
-      "id": "1778802974685",
-      "title": "Crypto option expiry 8.2B",
-      "description": "",
-      "datetime": "2026-05-29T08:00",
-      "timezone": "America/New_York",
-      "utc_iso": "2026-05-29T12:00:00.000Z",
-      "sent": true,
-      "created": "2026-05-14T23:56:14.685Z"
-    },
-    {
       "id": "1778803052425",
       "title": "Clarity Act Senate floor vote",
       "description": "",
