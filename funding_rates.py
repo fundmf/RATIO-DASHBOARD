@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-funding_rates.py — Tracks Hyperliquid hourly funding rates for BTC, SPX, FARTCOIN.
+funding_rates.py — Captures ONE daily snapshot of Hyperliquid funding rates
+for BTC, SPX, FARTCOIN at US market close (21:00 UTC Mon-Fri).
 
 ╔════════════════════════════════════════════════════════════════════════════╗
 ║  HOW IT WORKS                                                              ║
 ║  ────────────                                                              ║
-║  - Hyperliquid charges funding every 1 hour                                ║
-║  - On each run, the script pulls the last ~14 days of hourly funding for   ║
-║    each tracked coin and saves to funding_rates.json (powers the chart)    ║
-║  - At ~21:00 UTC Mon-Fri (US market close, DST-safe), it checks the latest ║
-║    funding rate for each enabled coin and sends a Slack alert if NEGATIVE  ║
-║  - Alerts respect notification_settings.json — disabled coins are skipped  ║
-║  - Idempotent: it won't double-alert within the same UTC hour              ║
+║  - Runs once daily on cron (Mon-Fri 21:00 UTC) via update-funding.yml      ║
+║  - For each tracked coin, fetches the latest hourly funding rate from      ║
+║    Hyperliquid and appends a single snapshot {date, rate} to history       ║
+║  - If that rate is NEGATIVE and the alert is enabled in                    ║
+║    notification_settings.json, sends a Slack notification                  ║
+║  - Idempotent: re-running on the same UTC date is a no-op                  ║
 ║                                                                            ║
 ║  HOW TO ADD A COIN                                                         ║
 ║  ─────────────────                                                         ║
@@ -35,9 +35,10 @@ COINS = ["BTC", "SPX", "FARTCOIN"]
 HL_INFO_URL = "https://api.hyperliquid.xyz/info"
 
 
-def fetch_funding_history(coin, hours_back=14 * 24):
+def fetch_latest_funding(coin):
+    """Fetch the most recent hourly funding payment for `coin`."""
     end_ms   = int(datetime.now(timezone.utc).timestamp() * 1000)
-    start_ms = end_ms - hours_back * 3600 * 1000
+    start_ms = end_ms - 6 * 3600 * 1000  # last 6 hours is plenty
     try:
         resp = requests.post(
             HL_INFO_URL,
@@ -45,10 +46,14 @@ def fetch_funding_history(coin, hours_back=14 * 24):
             timeout=20,
         )
         resp.raise_for_status()
-        return resp.json()
+        history = resp.json()
+        if not history:
+            return None
+        latest = max(history, key=lambda e: e["time"])
+        return {"rate": float(latest["fundingRate"]), "time_ms": int(latest["time"])}
     except Exception as e:
         print(f"  {coin} fetch error: {e}")
-        return []
+        return None
 
 
 def load_settings():
@@ -73,98 +78,91 @@ def send_slack(webhook, text):
         return False
 
 
+def migrate_legacy(coin_data):
+    """One-time migration: drop legacy hourly 'history', initialise snapshots if absent."""
+    if "snapshots" not in coin_data:
+        coin_data["snapshots"] = []
+    if "history" in coin_data:
+        del coin_data["history"]
+    return coin_data
+
+
 def main():
     now = datetime.now(timezone.utc)
-    print(f"=== Funding rates updater — {now.strftime('%Y-%m-%d %H:%M UTC')} ===")
+    today_key = now.strftime("%Y-%m-%d")
+    print(f"=== Funding rates daily snapshot — {now.strftime('%Y-%m-%d %H:%M UTC')} ===")
 
-    # Load existing JSON or initialize
     if DATA_FILE.exists():
         with open(DATA_FILE) as f:
             data = json.load(f)
     else:
         data = {"last_updated": "", "coins": {}, "alert_state": {}}
     data.setdefault("coins", {})
-    data.setdefault("alert_state", {})  # per-coin: last alert hour key
+    data.setdefault("alert_state", {})
 
-    # Pull funding for each coin
-    for coin in COINS:
-        print(f"\nFetching {coin} funding history...")
-        history = fetch_funding_history(coin)
-        if not history:
-            print(f"  {coin}: no data returned")
-            continue
-        entries = [
-            {"t": int(e["time"]), "rate": float(e["fundingRate"])}
-            for e in history
-        ]
-        entries.sort(key=lambda x: x["t"])
-        # Dedup by timestamp
-        seen = {}
-        for e in entries:
-            seen[e["t"]] = e
-        entries = sorted(seen.values(), key=lambda x: x["t"])
-
-        latest = entries[-1] if entries else None
-        data["coins"][coin] = {
-            "label": coin,
-            "history": entries,
-            "current_rate": latest["rate"] if latest else None,
-            "current_time": latest["t"] if latest else None,
-        }
-        if latest:
-            r_pct = latest["rate"] * 100
-            ann   = latest["rate"] * 24 * 365 * 100
-            print(f"  {coin}: {len(entries)} hourly pts · latest {r_pct:+.4f}%/h ({ann:+.2f}% ann)")
-
-    data["last_updated"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, separators=(",", ":"))
-    print(f"\nSaved funding data for {len(data['coins'])} coins.")
-
-    # ── Alert window: US market close, daily Mon-Fri at 21:00 UTC ──
-    # 21:00 UTC = 5pm EDT (DST) / 4pm EST — always at or after the 4pm ET close.
-    if now.hour != 21 or now.weekday() >= 5:
-        print(f"\nSkipping alert check (current {now.strftime('%a %H:%M UTC')} is not Mon-Fri 21:00 UTC).")
-        return
-
-    print("\n>>> US market close window — checking for negative funding...")
     settings = load_settings()
     webhook  = os.environ.get("SLACK_WEBHOOK_URL")
-    if not webhook:
-        print("  No SLACK_WEBHOOK_URL set — skipping alert.")
-        return
 
-    today_key = now.strftime("%Y-%m-%d")
     for coin in COINS:
-        key = f"funding_alert_{coin.lower()}"
-        if not settings.get(key, True):  # default ON
-            print(f"  {coin}: alert disabled in settings — skip.")
-            continue
-        cd = data["coins"].get(coin)
-        if not cd or cd.get("current_rate") is None:
-            print(f"  {coin}: no rate available — skip.")
-            continue
-        rate = cd["current_rate"]
-        # Dedupe per coin per UTC date
-        if data["alert_state"].get(coin) == today_key:
-            print(f"  {coin}: already alerted today ({today_key}) — skip.")
-            continue
-        if rate < 0:
-            r_pct = rate * 100
-            ann   = rate * 24 * 365 * 100
-            msg = (f":rotating_light: *{coin} funding is NEGATIVE on Hyperliquid*\n"
-                   f"Current rate: `{r_pct:+.4f}% per hour` ({ann:+.2f}% annualised)\n"
-                   f"Checked at US market close on {today_key}.")
-            if send_slack(webhook, msg):
-                data["alert_state"][coin] = today_key
-                print(f"  Alert sent for {coin}.")
-        else:
-            print(f"  {coin}: funding positive ({rate*100:+.4f}%/h) — no alert.")
+        print(f"\n{coin}...")
+        coin_data = data["coins"].setdefault(coin, {"label": coin})
+        coin_data["label"] = coin
+        migrate_legacy(coin_data)
 
-    # Persist updated alert_state
+        existing_dates = {s["date"] for s in coin_data["snapshots"]}
+        if today_key in existing_dates:
+            print(f"  Snapshot for {today_key} already exists — no-op.")
+            continue
+
+        latest = fetch_latest_funding(coin)
+        if latest is None:
+            print(f"  No data returned — skip.")
+            continue
+
+        snapshot = {
+            "date": today_key,
+            "rate": latest["rate"],
+            "captured_at":     now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "funding_time_ms": latest["time_ms"],
+        }
+        coin_data["snapshots"].append(snapshot)
+        coin_data["snapshots"].sort(key=lambda s: s["date"])
+        # Keep up to ~120 weekday snapshots (~6 months) — old entries pruned
+        if len(coin_data["snapshots"]) > 120:
+            coin_data["snapshots"] = coin_data["snapshots"][-120:]
+        coin_data["current_rate"] = latest["rate"]
+        coin_data["current_date"] = today_key
+
+        r_pct = latest["rate"] * 100
+        ann   = latest["rate"] * 24 * 365 * 100
+        print(f"  Captured {r_pct:+.4f}%/h  ({ann:+.2f}% annualised)")
+
+        # Slack alert path
+        key = f"funding_alert_{coin.lower()}"
+        if not settings.get(key, True):
+            print(f"  alert disabled in settings — skip Slack.")
+            continue
+        if latest["rate"] >= 0:
+            print(f"  rate positive — no alert needed.")
+            continue
+        if data["alert_state"].get(coin) == today_key:
+            print(f"  already alerted today — skip.")
+            continue
+        if not webhook:
+            print(f"  no SLACK_WEBHOOK_URL set — would have alerted.")
+            continue
+
+        msg = (f":rotating_light: *{coin} funding is NEGATIVE on Hyperliquid*\n"
+               f"Current rate: `{r_pct:+.4f}% per hour` ({ann:+.2f}% annualised)\n"
+               f"Captured at US market close on {today_key}.")
+        if send_slack(webhook, msg):
+            data["alert_state"][coin] = today_key
+            print(f"  Alert sent.")
+
+    data["last_updated"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, separators=(",", ":"))
+    print(f"\nSaved.")
 
 
 if __name__ == "__main__":

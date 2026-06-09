@@ -34,11 +34,6 @@ jobs:
       - name: Update liquidity data (BTC price + volume)
         run: python backfill_liquidity.py
 
-      - name: Update Hyperliquid funding rates (and Slack alert at 21:00 UTC Mon-Fri)
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python funding_rates.py
-
       - name: Update BTC ETF flows (and Slack alert on sign flip + >=$300M diff)
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -56,7 +51,7 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json funding_rates.json etf_flows.json
+          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json etf_flows.json
           git diff --staged --quiet && exit 0
           git commit -m "Auto-update: $(date -u '+%Y-%m-%dT%H:%M') data refresh"
           ok=0

@@ -631,7 +631,7 @@
 <div id="tab-funding" class="tab-content">
 <div class="container">
     <h1>Hyperliquid Funding Rates</h1>
-    <div class="subtitle">Hourly perp funding for BTC, SPX, FARTCOIN — Slack alert at US market close if rate is negative</div>
+    <div class="subtitle">One snapshot per weekday at US market close — Slack alert if any rate is negative</div>
 
     <div class="card">
         <div class="card-title">Current Rates</div>
@@ -642,11 +642,11 @@
     </div>
 
     <div class="card">
-        <div class="card-title">14-Day Hourly Funding History</div>
+        <div class="card-title">Daily Funding at US Market Close</div>
         <div style="height:420px;position:relative;">
             <canvas id="fundingChart"></canvas>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:#64748b;">Dashed line at 0% marks the positive/negative boundary. Annualised rate ≈ hourly × 8760.</div>
+        <div style="margin-top:10px;font-size:12px;color:#64748b;">One snapshot per coin per weekday, captured at 21:00 UTC. Dashed line at 0% marks the positive/negative boundary. Annualised rate ≈ hourly × 8760.</div>
     </div>
 
     <div class="card">
@@ -980,17 +980,18 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Data Source &amp; Cadence</h3>
         <ul>
-            <li>Hyperliquid funding is paid every <strong>1 hour</strong> (unlike Binance/Bybit which use 8h)</li>
-            <li><code>funding_rates.py</code> runs hourly in the main GitHub Actions workflow. It POSTs to <code>https://api.hyperliquid.xyz/info</code> with <code>{"type":"fundingHistory","coin":...}</code> and stores the last 14 days of hourly rates in <code>funding_rates.json</code></li>
-            <li>The current displayed rate is the most recent hourly payment</li>
-            <li>Annualised rate ≈ hourly rate × 24 × 365</li>
+            <li>Hyperliquid funding is paid every 1 hour. We don't track every hour — we capture <strong>one snapshot per coin per weekday</strong> at US market close</li>
+            <li><code>funding_rates.py</code> runs once a day in its own workflow (<code>update-funding.yml</code>) on cron <code>0 21 * * 1-5</code> (21:00 UTC Mon-Fri = 4pm EST / 5pm EDT, DST-safe)</li>
+            <li>Each run POSTs to <code>https://api.hyperliquid.xyz/info</code> with <code>{"type":"fundingHistory","coin":...}</code> (last 6 hours only), takes the most recent hourly payment, and appends one snapshot to <code>funding_rates.json</code></li>
+            <li>Idempotent — re-running the same day is a no-op</li>
+            <li>JSON keeps the last ~120 weekday snapshots (~6 months) and auto-prunes older ones</li>
+            <li>Annualised rate ≈ hourly rate × 8760</li>
         </ul>
 
         <h3>Slack Alert Trigger</h3>
         <ul>
-            <li>Fires once per day at <strong>21:00 UTC</strong> (Mon–Fri only) — that's 4pm EST / 5pm EDT, always at or just after the US market close, DST-safe</li>
-            <li>For each enabled coin, if the latest funding rate is &lt; 0, posts a Slack message with the hourly &amp; annualised rate</li>
-            <li>Dedupes per coin per UTC date — you'll get at most one alert per coin per day</li>
+            <li>Same script, same daily run — if the captured rate is &lt; 0 for any enabled coin, a Slack message is posted with the hourly &amp; annualised rate</li>
+            <li>Dedupes per coin per UTC date — at most one alert per coin per day</li>
             <li>Per-coin toggles live at the bottom of the Funding Rates tab and write to <code>notification_settings.json</code> via <code>/api/settings</code></li>
         </ul>
 
@@ -3154,7 +3155,7 @@ function renderFundingCards(data){
     const coinKeys=Object.keys(coins);
     const row=document.getElementById('fundingCardsRow');
     if(!coinKeys.length){
-        row.innerHTML='<div style="color:#64748b;font-size:13px;">Waiting for first funding data fetch (next hourly workflow run).</div>';
+        row.innerHTML='<div style="color:#64748b;font-size:13px;">No snapshots yet — first daily capture runs at the next weekday 21:00 UTC.</div>';
         return;
     }
     let html='';
@@ -3170,7 +3171,7 @@ function renderFundingCards(data){
         const isNeg=rate<0;
         const color=isNeg?'#ef4444':'#10b981';
         const sign=rate>=0?'+':'';
-        const tsLine=cd.current_time?new Date(cd.current_time).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+        const dLine=cd.current_date?new Date(cd.current_date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
         html+=`<div class="card" style="margin:0;background:#0f172a;border-left:3px solid ${color};">
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div style="font-size:14px;color:#e2e8f0;font-weight:500;">${coin}</div>
@@ -3178,12 +3179,12 @@ function renderFundingCards(data){
             </div>
             <div style="font-size:24px;font-weight:600;color:${color};margin-top:8px;font-family:monospace;">${sign}${pct.toFixed(4)}%<span style="font-size:12px;color:#64748b;font-weight:400;"> /h</span></div>
             <div style="font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace;">${sign}${ann.toFixed(2)}% annualised</div>
-            <div style="font-size:11px;color:#64748b;margin-top:8px;">As of ${tsLine}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:8px;">Captured ${dLine} · US market close</div>
         </div>`;
     }
     row.innerHTML=html;
     if(data.last_updated){
-        document.getElementById('fundingLastUpdated').textContent='Data last refreshed: '+new Date(data.last_updated).toLocaleString('en-AU')+' · Hyperliquid';
+        document.getElementById('fundingLastUpdated').textContent='Last snapshot: '+new Date(data.last_updated).toLocaleString('en-AU')+' · Hyperliquid';
     }
 }
 
@@ -3192,29 +3193,29 @@ function renderFundingChart(data){
     const ctx=document.getElementById('fundingChart').getContext('2d');
     if(fundingChartInst)fundingChartInst.destroy();
 
-    // Build common timestamp axis (union of all coin histories)
-    const tsSet=new Set();
+    // Build common date axis (union of all coin snapshot dates, sorted)
+    const dateSet=new Set();
     for(const coin of Object.keys(coins)){
-        for(const e of (coins[coin].history||[])) tsSet.add(e.t);
+        for(const s of (coins[coin].snapshots||[])) dateSet.add(s.date);
     }
-    const ts=[...tsSet].sort((a,b)=>a-b);
-    if(!ts.length){return;}
-    const labels=ts.map(t=>new Date(t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit'}));
+    const dates=[...dateSet].sort();
+    if(!dates.length){return;}
+    const labels=dates.map(d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
 
     const datasets=[];
     for(const coin of Object.keys(coins)){
-        const map=new Map((coins[coin].history||[]).map(e=>[e.t,e.rate*100]));
-        const pts=ts.map(t=>map.has(t)?map.get(t):null);
+        const map=new Map((coins[coin].snapshots||[]).map(s=>[s.date,s.rate*100]));
+        const pts=dates.map(d=>map.has(d)?map.get(d):null);
         const color=FUNDING_COLORS[coin]||'#cbd5e1';
         datasets.push({
             label:coin,data:pts,borderColor:color,backgroundColor:color+'22',
-            borderWidth:1.8,pointRadius:0,pointHoverRadius:3,tension:0.25,
+            borderWidth:1.8,pointRadius:3,pointHoverRadius:5,tension:0.25,
             fill:false,spanGaps:true,
         });
     }
     // Zero reference dashed line
     datasets.push({
-        label:'Zero',data:ts.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],
+        label:'Zero',data:dates.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],
         pointRadius:0,fill:false,
     });
 

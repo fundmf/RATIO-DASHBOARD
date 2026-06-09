@@ -1,0 +1,51 @@
+name: Update Funding Rates (Daily)
+
+# Runs daily at 21:00 UTC Mon-Fri — that's:
+#   4pm EST (winter) / 5pm EDT (summer)
+# Always at or just after the US equity market close, DST-safe across both timezones.
+#
+# The script is idempotent — re-running the same date is a no-op.
+
+on:
+  schedule:
+    - cron: '0 21 * * 1-5'   # 21:00 UTC, Mon-Fri
+  workflow_dispatch:           # manual trigger from Actions tab
+
+jobs:
+  update-funding:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Capture funding rate snapshot + Slack alert if negative
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python funding_rates.py
+
+      - name: Commit updated data
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add funding_rates.json
+          git diff --staged --quiet && exit 0
+          git commit -m "Funding rates: $(date -u '+%Y-%m-%d') daily snapshot"
+          ok=0
+          for i in 1 2 3 4 5; do
+            if git push origin main; then ok=1; break; fi
+            echo "Push attempt $i failed — rebasing on remote and retrying..."
+            git pull --rebase --autostash origin main || true
+            sleep $((i * 5))
+          done
+          [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
