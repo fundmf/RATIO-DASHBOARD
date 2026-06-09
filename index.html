@@ -147,6 +147,7 @@
     <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
     <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
     <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
+    <button class="tab-btn" data-tab="funding">Funding Rates</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
     <button class="tab-btn" data-tab="docs" style="margin-left:auto;color:#475569;font-size:13px;">Documentation</button>
 </nav>
@@ -400,6 +401,45 @@
         </div>
         <div class="last-updated" id="comboChartLatest"></div>
     </div>
+
+    <!-- BTC ETF Flows (Farside.co.uk) -->
+    <div class="card" id="etfFlowsCard">
+        <div class="card-title">BTC ETF Daily Net Flows
+            <span style="font-size:11px;color:#64748b;font-weight:400;margin-left:8px;">Source: <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk</a></span>
+        </div>
+        <div id="etfFlowsSummary" style="font-size:13px;color:#94a3b8;margin-bottom:12px;">Loading…</div>
+        <div style="height:240px;position:relative;">
+            <canvas id="etfFlowsChart"></canvas>
+        </div>
+        <div style="margin-top:14px;overflow-x:auto;">
+            <table id="etfFlowsTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                    <tr style="border-bottom:1px solid #334155;">
+                        <th style="text-align:left;padding:8px;color:#94a3b8;font-weight:500;">Date</th>
+                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Net Flow ($M)</th>
+                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Δ vs Prior Day</th>
+                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Sign Flip?</th>
+                    </tr>
+                </thead>
+                <tbody id="etfFlowsTbody"></tbody>
+            </table>
+        </div>
+        <!-- ETF settings -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid #334155;">
+            <div style="font-size:13px;color:#94a3b8;margin-bottom:10px;"><strong>Slack Alert:</strong> fires when yesterday and today have opposite signs AND |Δ| ≥ threshold.</div>
+            <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;cursor:pointer;">
+                    <input type="checkbox" id="etfAlertToggle" onchange="saveEtfSettings()">
+                    <span>Enable BTC ETF flow flip alert</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;">
+                    Threshold ($M):
+                    <input type="number" id="etfThresholdInput" min="50" max="5000" step="50" style="width:90px;padding:6px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;" onchange="saveEtfSettings()">
+                </label>
+                <span id="etfSettingsStatus" style="font-size:12px;color:#64748b;"></span>
+            </div>
+        </div>
+    </div>
 </div>
 </div>
 
@@ -583,6 +623,39 @@
             4. Data is fetched by <code>update_ai_watchlist.py</code> running every Saturday 02:00 UTC (with Sun/Mon backups) via GitHub Actions<br>
             5. Stored in <code>ai_watchlist.json</code> in the repo
         </div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB: FUNDING RATES ══════════════════════════ -->
+<div id="tab-funding" class="tab-content">
+<div class="container">
+    <h1>Hyperliquid Funding Rates</h1>
+    <div class="subtitle">Hourly perp funding for BTC, SPX, FARTCOIN — Slack alert at US market close if rate is negative</div>
+
+    <div class="card">
+        <div class="card-title">Current Rates</div>
+        <div id="fundingCardsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+            <div style="color:#64748b;font-size:13px;">Loading…</div>
+        </div>
+        <div id="fundingLastUpdated" style="margin-top:14px;font-size:12px;color:#64748b;"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">14-Day Hourly Funding History</div>
+        <div style="height:420px;position:relative;">
+            <canvas id="fundingChart"></canvas>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#64748b;">Dashed line at 0% marks the positive/negative boundary. Annualised rate ≈ hourly × 8760.</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Slack Alert Settings</div>
+        <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">When enabled, you will receive one Slack alert per coin per day at <strong>21:00 UTC</strong> (US market close, year-round DST-safe) if that coin's current funding rate is <strong>negative</strong>. Toggles save to <code>notification_settings.json</code> and take effect on the next hourly workflow run.</p>
+        <div id="fundingSettings" style="display:grid;gap:10px;">
+            <div style="color:#64748b;font-size:13px;">Loading…</div>
+        </div>
+        <div id="fundingSettingsStatus" style="margin-top:10px;font-size:12px;color:#64748b;"></div>
     </div>
 </div>
 </div>
@@ -900,6 +973,60 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
         <p>To pull the latest Friday immediately (or to test after editing TICKERS), go to GitHub → Actions → "Update AI Watchlist (Weekly)" → Run workflow. The script is idempotent so this is always safe.</p>
     </div>
 
+    <!-- 7b. FUNDING RATES -->
+    <div class="card doc-section" id="doc-funding">
+        <h2>7b. Funding Rates (Hyperliquid)</h2>
+        <p>Tracks hourly perp funding rates for <strong>BTC</strong>, <strong>SPX</strong> (the memecoin SPX6900, not the S&amp;P 500), and <strong>FARTCOIN</strong> on Hyperliquid. Sends a Slack alert at US market close on weekdays if any enabled coin's current funding rate is negative.</p>
+
+        <h3>Data Source &amp; Cadence</h3>
+        <ul>
+            <li>Hyperliquid funding is paid every <strong>1 hour</strong> (unlike Binance/Bybit which use 8h)</li>
+            <li><code>funding_rates.py</code> runs hourly in the main GitHub Actions workflow. It POSTs to <code>https://api.hyperliquid.xyz/info</code> with <code>{"type":"fundingHistory","coin":...}</code> and stores the last 14 days of hourly rates in <code>funding_rates.json</code></li>
+            <li>The current displayed rate is the most recent hourly payment</li>
+            <li>Annualised rate ≈ hourly rate × 24 × 365</li>
+        </ul>
+
+        <h3>Slack Alert Trigger</h3>
+        <ul>
+            <li>Fires once per day at <strong>21:00 UTC</strong> (Mon–Fri only) — that's 4pm EST / 5pm EDT, always at or just after the US market close, DST-safe</li>
+            <li>For each enabled coin, if the latest funding rate is &lt; 0, posts a Slack message with the hourly &amp; annualised rate</li>
+            <li>Dedupes per coin per UTC date — you'll get at most one alert per coin per day</li>
+            <li>Per-coin toggles live at the bottom of the Funding Rates tab and write to <code>notification_settings.json</code> via <code>/api/settings</code></li>
+        </ul>
+
+        <h3>Adding More Coins</h3>
+        <p>Edit the <code>COINS</code> list in <code>funding_rates.py</code> — the frontend reads coin keys from <code>funding_rates.json</code>, so chart and cards update automatically.</p>
+    </div>
+
+    <!-- 7c. ETF FLOWS -->
+    <div class="card doc-section" id="doc-etf">
+        <h2>7c. BTC ETF Flows (Market Liquidity tab)</h2>
+        <p>Scrapes <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk/btc/</a> daily, stores history in <code>etf_flows.json</code>, and sends a Slack alert when consecutive days' net flows flip sign with a magnitude above a configurable threshold.</p>
+
+        <h3>Alert Logic</h3>
+        <p>Alert fires when ALL of these are true:</p>
+        <ul>
+            <li>Yesterday and today have <strong>opposite signs</strong> (one positive, one negative)</li>
+            <li><code>|today − yesterday|</code> ≥ threshold (default <strong>$300M</strong>)</li>
+            <li>Alert is enabled in settings</li>
+            <li>Today's date has not already triggered (dedupe by date)</li>
+        </ul>
+        <div class="formula">Examples (threshold = $300M):
+  Y = −$200M, T = +$200M  → flip, |Δ| = $400M → ALERT (turned positive)
+  Y = +$50M,  T = −$300M  → flip, |Δ| = $350M → ALERT (turned negative)
+  Y = +$50M,  T = +$500M  → no flip            → no alert
+  Y = −$50M,  T = +$200M  → flip, |Δ| = $250M → no alert (below threshold)</div>
+
+        <h3>Cadence</h3>
+        <ul>
+            <li><code>etf_flows.py</code> is invoked by the hourly workflow but the actual scrape only runs during <strong>04:00–06:00 UTC</strong> (just after Farside's daily publish) to stay polite to their server</li>
+            <li>The 04 UTC run captures the prior US trading day's data and may trigger the alert; the 05 and 06 UTC runs are idempotent no-ops</li>
+        </ul>
+
+        <h3>Configuration</h3>
+        <p>The toggle and the dollar threshold are editable inline on the Market Liquidity tab's BTC ETF Flows card. Both save via <code>/api/settings</code> and take effect on the next scrape.</p>
+    </div>
+
     <!-- 8. CUSTOM ALERTS -->
     <div class="card doc-section" id="doc-alerts">
         <h2>8. Custom Alerts</h2>
@@ -1104,7 +1231,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,alerts:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1118,6 +1245,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='fart2'&&!tabInit.fart2){tabInit.fart2=true;initFartcoinV2();}
         if(id==='fartmin'&&!tabInit.fartmin){tabInit.fartmin=true;initFartMinAnalysis();}
         if(id==='ai'&&!tabInit.ai){tabInit.ai=true;initAiWatchlist();}
+        if(id==='funding'&&!tabInit.funding){tabInit.funding=true;initFundingRates();}
         if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
     });
 });
@@ -1594,6 +1722,8 @@ async function initLiquidity(){
     document.getElementById('liqStart').value='2025-03-24';
     document.getElementById('liqEnd').value=todayStr();
     const notice=document.getElementById('liqNotice');
+    // Load ETF flows card (BTC ETF Flows from Farside)
+    initEtfFlows();
     // Load static JSON first
     try{
         const r=await fetch('liquidity_daily.json?t='+Date.now());
@@ -2954,6 +3084,314 @@ function renderAiWatchlist(data){
         </div>`;
     }
     snapshot.innerHTML=snapHtml;
+}
+
+// ──────────────────────────────────────────────
+// SHARED — Notification settings (server-synced)
+// ──────────────────────────────────────────────
+let notifSettings={
+    funding_alert_btc:true,
+    funding_alert_spx:true,
+    funding_alert_fartcoin:true,
+    etf_flow_alert_btc:true,
+    etf_flow_threshold_m_usd:300,
+};
+
+async function loadNotifSettings(){
+    try{
+        const r=await fetch('/api/settings?t='+Date.now());
+        if(r.ok){const s=await r.json();notifSettings={...notifSettings,...s};return true;}
+    }catch(e){console.warn('settings load:',e.message);}
+    // Fallback to static JSON
+    try{
+        const r=await fetch('notification_settings.json?t='+Date.now());
+        if(r.ok){const s=await r.json();notifSettings={...notifSettings,...s};}
+    }catch(e){}
+    return false;
+}
+
+async function saveNotifSettings(partial){
+    try{
+        const r=await fetch('/api/settings',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(partial),
+        });
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const j=await r.json();
+        if(j.settings)notifSettings={...notifSettings,...j.settings};
+        return true;
+    }catch(e){console.warn('settings save:',e.message);return false;}
+}
+
+// ──────────────────────────────────────────────
+// TAB — FUNDING RATES (Hyperliquid)
+// ──────────────────────────────────────────────
+let fundingChartInst=null;
+
+const FUNDING_COLORS={
+    'BTC':'#f59e0b',
+    'SPX':'#10b981',
+    'FARTCOIN':'#a78bfa',
+};
+
+async function initFundingRates(){
+    await loadNotifSettings();
+    try{
+        const r=await fetch('funding_rates.json?t='+Date.now());
+        if(!r.ok)throw new Error('Could not load funding_rates.json');
+        const data=await r.json();
+        renderFundingCards(data);
+        renderFundingChart(data);
+        renderFundingSettingsPanel();
+    }catch(e){
+        document.getElementById('fundingCardsRow').innerHTML='<div style="color:#fbbf24;font-size:13px;">Could not load funding data: '+e.message+'</div>';
+    }
+}
+
+function renderFundingCards(data){
+    const coins=data.coins||{};
+    const coinKeys=Object.keys(coins);
+    const row=document.getElementById('fundingCardsRow');
+    if(!coinKeys.length){
+        row.innerHTML='<div style="color:#64748b;font-size:13px;">Waiting for first funding data fetch (next hourly workflow run).</div>';
+        return;
+    }
+    let html='';
+    for(const coin of coinKeys){
+        const cd=coins[coin];
+        const rate=cd.current_rate;
+        if(rate==null){
+            html+=`<div class="card" style="margin:0;background:#0f172a;"><div style="font-size:13px;color:#94a3b8;">${coin}</div><div style="font-size:22px;color:#64748b;margin-top:6px;">—</div></div>`;
+            continue;
+        }
+        const pct=rate*100;
+        const ann=rate*24*365*100;
+        const isNeg=rate<0;
+        const color=isNeg?'#ef4444':'#10b981';
+        const sign=rate>=0?'+':'';
+        const tsLine=cd.current_time?new Date(cd.current_time).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+        html+=`<div class="card" style="margin:0;background:#0f172a;border-left:3px solid ${color};">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:14px;color:#e2e8f0;font-weight:500;">${coin}</div>
+                <div style="font-size:10px;letter-spacing:.15em;color:${color};text-transform:uppercase;">${isNeg?'Negative':'Positive'}</div>
+            </div>
+            <div style="font-size:24px;font-weight:600;color:${color};margin-top:8px;font-family:monospace;">${sign}${pct.toFixed(4)}%<span style="font-size:12px;color:#64748b;font-weight:400;"> /h</span></div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace;">${sign}${ann.toFixed(2)}% annualised</div>
+            <div style="font-size:11px;color:#64748b;margin-top:8px;">As of ${tsLine}</div>
+        </div>`;
+    }
+    row.innerHTML=html;
+    if(data.last_updated){
+        document.getElementById('fundingLastUpdated').textContent='Data last refreshed: '+new Date(data.last_updated).toLocaleString('en-AU')+' · Hyperliquid';
+    }
+}
+
+function renderFundingChart(data){
+    const coins=data.coins||{};
+    const ctx=document.getElementById('fundingChart').getContext('2d');
+    if(fundingChartInst)fundingChartInst.destroy();
+
+    // Build common timestamp axis (union of all coin histories)
+    const tsSet=new Set();
+    for(const coin of Object.keys(coins)){
+        for(const e of (coins[coin].history||[])) tsSet.add(e.t);
+    }
+    const ts=[...tsSet].sort((a,b)=>a-b);
+    if(!ts.length){return;}
+    const labels=ts.map(t=>new Date(t).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit'}));
+
+    const datasets=[];
+    for(const coin of Object.keys(coins)){
+        const map=new Map((coins[coin].history||[]).map(e=>[e.t,e.rate*100]));
+        const pts=ts.map(t=>map.has(t)?map.get(t):null);
+        const color=FUNDING_COLORS[coin]||'#cbd5e1';
+        datasets.push({
+            label:coin,data:pts,borderColor:color,backgroundColor:color+'22',
+            borderWidth:1.8,pointRadius:0,pointHoverRadius:3,tension:0.25,
+            fill:false,spanGaps:true,
+        });
+    }
+    // Zero reference dashed line
+    datasets.push({
+        label:'Zero',data:ts.map(()=>0),borderColor:'#475569',borderWidth:1,borderDash:[4,4],
+        pointRadius:0,fill:false,
+    });
+
+    fundingChartInst=new Chart(ctx,{
+        type:'line',
+        data:{labels,datasets},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{labels:{color:'#e2e8f0',filter:i=>i.text!=='Zero'}},
+                tooltip:{
+                    backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+                    borderColor:'#334155',borderWidth:1,padding:10,
+                    callbacks:{
+                        label:c=>c.dataset.label==='Zero'?null:`${c.dataset.label}: ${c.parsed.y>=0?'+':''}${c.parsed.y.toFixed(4)}%/h`,
+                    },
+                },
+            },
+            scales:{
+                x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:14}},
+                y:{
+                    grid:{color:'#334155'},
+                    ticks:{color:'#94a3b8',callback:v=>(v>=0?'+':'')+v.toFixed(3)+'%'},
+                    title:{display:true,text:'Funding rate (% per hour)',color:'#64748b'},
+                },
+            },
+        },
+    });
+}
+
+function renderFundingSettingsPanel(){
+    const coins=[
+        {key:'funding_alert_btc',label:'BTC'},
+        {key:'funding_alert_spx',label:'SPX'},
+        {key:'funding_alert_fartcoin',label:'FARTCOIN'},
+    ];
+    const wrap=document.getElementById('fundingSettings');
+    let html='';
+    for(const c of coins){
+        const on=notifSettings[c.key]!==false;
+        html+=`<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0f172a;border:1px solid #334155;border-radius:6px;cursor:pointer;">
+            <input type="checkbox" ${on?'checked':''} onchange="toggleFundingAlert('${c.key}',this.checked)">
+            <span style="color:#e2e8f0;font-size:13px;flex:1;"><strong>${c.label}</strong> — alert at US market close if funding is negative</span>
+        </label>`;
+    }
+    wrap.innerHTML=html;
+}
+
+async function toggleFundingAlert(key,checked){
+    notifSettings[key]=checked;
+    const status=document.getElementById('fundingSettingsStatus');
+    status.textContent='Saving…';
+    const ok=await saveNotifSettings({[key]:checked});
+    status.textContent=ok?'Saved.':'Save failed (alert state still applied locally).';
+    setTimeout(()=>{status.textContent='';},3000);
+}
+
+// ──────────────────────────────────────────────
+// CARD — BTC ETF FLOWS (on Market Liquidity tab)
+// ──────────────────────────────────────────────
+let etfChartInst=null;
+let etfFlowData=null;
+
+async function initEtfFlows(){
+    await loadNotifSettings();
+    try{
+        const r=await fetch('etf_flows.json?t='+Date.now());
+        if(!r.ok){throw new Error('Could not load etf_flows.json');}
+        etfFlowData=await r.json();
+        renderEtfFlows(etfFlowData);
+    }catch(e){
+        document.getElementById('etfFlowsSummary').textContent='Could not load ETF flow data: '+e.message;
+    }
+    // Apply settings to inputs
+    document.getElementById('etfAlertToggle').checked=notifSettings.etf_flow_alert_btc!==false;
+    document.getElementById('etfThresholdInput').value=notifSettings.etf_flow_threshold_m_usd||300;
+}
+
+function renderEtfFlows(data){
+    const days=(data.days||[]).slice(-14);  // last 14 days
+    const sumEl=document.getElementById('etfFlowsSummary');
+    const tbody=document.getElementById('etfFlowsTbody');
+    if(!days.length){
+        sumEl.innerHTML='<em>No data yet — waiting for first Farside scrape (runs 04-06 UTC daily).</em>';
+        tbody.innerHTML='';
+        return;
+    }
+    const latest=days[days.length-1];
+    const prior =days.length>1?days[days.length-2]:null;
+    const latestVal=latest.total_m_usd;
+    const priorVal =prior?prior.total_m_usd:null;
+    const diff=prior?latestVal-priorVal:null;
+    const signFlip=prior&&((latestVal>0&&priorVal<0)||(latestVal<0&&priorVal>0));
+    const thr=parseFloat(notifSettings.etf_flow_threshold_m_usd||300);
+    const wouldAlert=signFlip&&Math.abs(diff||0)>=thr;
+
+    let html=`<strong>Today (${latest.date}):</strong> <span style="color:${latestVal>=0?'#10b981':'#ef4444'};font-family:monospace;">${latestVal>=0?'+':''}$${latestVal.toFixed(1)}M</span>`;
+    if(prior){
+        const arrow=diff>=0?'▲':'▼';
+        html+=` · <strong>Δ vs prior:</strong> <span style="color:${diff>=0?'#10b981':'#ef4444'};font-family:monospace;">${arrow} $${Math.abs(diff).toFixed(1)}M</span>`;
+        if(signFlip)html+=' · <span style="color:#fbbf24;">Sign flip</span>';
+        if(wouldAlert)html+=' · <strong style="color:#ef4444;">ALERT TRIGGERED</strong>';
+    }
+    if(data.last_updated)html+=`<div style="font-size:11px;color:#64748b;margin-top:4px;">Last refreshed: ${new Date(data.last_updated).toLocaleString('en-AU')}</div>`;
+    sumEl.innerHTML=html;
+
+    // Chart: bar chart of last 14 days
+    const ctx=document.getElementById('etfFlowsChart').getContext('2d');
+    if(etfChartInst)etfChartInst.destroy();
+    etfChartInst=new Chart(ctx,{
+        type:'bar',
+        data:{
+            labels:days.map(d=>new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),
+            datasets:[{
+                label:'Net Flow ($M)',
+                data:days.map(d=>d.total_m_usd),
+                backgroundColor:days.map(d=>d.total_m_usd>=0?'rgba(16,185,129,0.6)':'rgba(239,68,68,0.6)'),
+                borderColor:days.map(d=>d.total_m_usd>=0?'#10b981':'#ef4444'),
+                borderWidth:1,
+            }],
+        },
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
+                    borderColor:'#334155',borderWidth:1,padding:10,
+                    callbacks:{label:c=>'Net flow: '+(c.parsed.y>=0?'+':'')+'$'+c.parsed.y.toFixed(1)+'M'},
+                },
+            },
+            scales:{
+                x:{grid:{display:false},ticks:{color:'#94a3b8'}},
+                y:{
+                    grid:{color:'#334155'},
+                    ticks:{color:'#94a3b8',callback:v=>(v>=0?'+':'')+'$'+v+'M'},
+                },
+            },
+        },
+    });
+
+    // Table
+    let trows='';
+    const reversed=[...days].reverse();
+    for(let i=0;i<reversed.length;i++){
+        const d=reversed[i];
+        const prev=i<reversed.length-1?reversed[i+1]:null;
+        const v=d.total_m_usd;
+        const diffD=prev?v-prev.total_m_usd:null;
+        const flipD=prev&&((v>0&&prev.total_m_usd<0)||(v<0&&prev.total_m_usd>0));
+        const flipBig=flipD&&Math.abs(diffD)>=thr;
+        const vCol=v>=0?'#10b981':'#ef4444';
+        const dCol=diffD!=null?(diffD>=0?'#10b981':'#ef4444'):'#64748b';
+        const flipCell=flipD?(flipBig?'<span style="color:#ef4444;">⚠️ Yes ≥ threshold</span>':'<span style="color:#fbbf24;">Yes (below thr)</span>'):'<span style="color:#64748b;">—</span>';
+        trows+=`<tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:8px;color:#e2e8f0;font-family:monospace;">${d.date}</td>
+            <td style="padding:8px;text-align:right;color:${vCol};font-family:monospace;">${v>=0?'+':''}$${v.toFixed(1)}</td>
+            <td style="padding:8px;text-align:right;color:${dCol};font-family:monospace;">${diffD!=null?(diffD>=0?'+':'')+'$'+Math.abs(diffD).toFixed(1):'—'}</td>
+            <td style="padding:8px;text-align:right;font-size:12px;">${flipCell}</td>
+        </tr>`;
+    }
+    tbody.innerHTML=trows;
+}
+
+async function saveEtfSettings(){
+    const checked=document.getElementById('etfAlertToggle').checked;
+    const threshold=parseFloat(document.getElementById('etfThresholdInput').value)||300;
+    notifSettings.etf_flow_alert_btc=checked;
+    notifSettings.etf_flow_threshold_m_usd=threshold;
+    const status=document.getElementById('etfSettingsStatus');
+    status.textContent='Saving…';
+    const ok=await saveNotifSettings({etf_flow_alert_btc:checked,etf_flow_threshold_m_usd:threshold});
+    status.textContent=ok?'Saved.':'Save failed (still applied locally).';
+    // Re-render to update the "would alert" indicator with new threshold
+    if(etfFlowData)renderEtfFlows(etfFlowData);
+    setTimeout(()=>{status.textContent='';},3000);
 }
 
 async function initAlerts(){

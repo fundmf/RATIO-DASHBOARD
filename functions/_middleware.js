@@ -160,6 +160,79 @@ export async function onRequest(context) {
         });
     }
 
+    // ── Notification Settings API (reads/writes notification_settings.json via GitHub) ──
+    if (url.pathname === '/api/settings') {
+        const PAT = env.GITHUB_PAT;
+        const REPO = env.GITHUB_REPO;
+        if (!PAT || !REPO) {
+            return new Response(JSON.stringify({ error: 'Server not configured: set GITHUB_PAT and GITHUB_REPO env vars' }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        const apiUrl = `https://api.github.com/repos/${REPO}/contents/notification_settings.json`;
+        const ghHeaders = {
+            'Authorization': `Bearer ${PAT}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'RatioDashboard/1.0',
+        };
+
+        if (request.method === 'GET') {
+            try {
+                const resp = await fetch(apiUrl, { headers: ghHeaders });
+                if (!resp.ok) throw new Error('GitHub API: ' + resp.status);
+                const file = await resp.json();
+                const content = atob(file.content.replace(/\n/g, ''));
+                return new Response(content, {
+                    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e.message }), {
+                    status: 502,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
+        if (request.method === 'POST') {
+            try {
+                const body = await request.json();
+                const getResp = await fetch(apiUrl, { headers: ghHeaders });
+                let current = {};
+                let sha = null;
+                if (getResp.ok) {
+                    const file = await getResp.json();
+                    sha = file.sha;
+                    try { current = JSON.parse(atob(file.content.replace(/\n/g, ''))); } catch {}
+                }
+                // Merge body into current settings (partial updates allowed)
+                const merged = { ...current, ...body };
+                const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2) + '\n')));
+                const putBody = { message: 'Notification settings update', content: newContent };
+                if (sha) putBody.sha = sha;
+                const putResp = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers: { ...ghHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(putBody),
+                });
+                if (!putResp.ok) {
+                    const errText = await putResp.text();
+                    throw new Error(`GitHub PUT ${putResp.status}: ${errText.substring(0, 200)}`);
+                }
+                return new Response(JSON.stringify({ ok: true, settings: merged }), {
+                    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e.message }), {
+                    status: 502,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
+        return new Response('Method not allowed', { status: 405 });
+    }
+
     // ── Custom Alerts API (reads/writes custom_alerts.json via GitHub API) ──
     if (url.pathname === '/api/alerts') {
         const PAT = env.GITHUB_PAT;

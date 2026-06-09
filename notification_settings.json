@@ -1,0 +1,7 @@
+{
+  "funding_alert_btc": true,
+  "funding_alert_spx": true,
+  "funding_alert_fartcoin": true,
+  "etf_flow_alert_btc": true,
+  "etf_flow_threshold_m_usd": 300
+}

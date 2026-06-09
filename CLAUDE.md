@@ -15,11 +15,16 @@ liquidity_daily.json        ← BTC price+volume daily  {last_updated, days:[{da
 fartcoin_liquidity_daily.json ← FART price+volume daily {last_updated, days:[{date,fart_price,volume}]}
 spx6900_hourly.json         ← hourly SPX6900 data
 ai_watchlist.json           ← weekly Friday closes for GTLB/CDW/ADBE/EXLS/ADP/^NDX
+funding_rates.json          ← hourly Hyperliquid funding for BTC/SPX/FARTCOIN + alert_state
+etf_flows.json              ← daily BTC ETF net flows from Farside + last_alert_date
+notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py + etf_flows.py
 custom_alerts.json          ← server-side alert state
 update_data.py              ← daily OHLC updater (BTC/ETH via CoinGecko, MSTR/BMNR via yfinance)
 backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.json
 backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidity_daily.json
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
+funding_rates.py            ← hourly Hyperliquid funding fetcher + 21:00 UTC Mon-Fri Slack alert if negative
+etf_flows.py                ← daily Farside BTC ETF scrape + sign-flip Slack alert
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
 .github/workflows/update.yml ← runs all scripts hourly Mon–Fri, commits + pushes
@@ -37,13 +42,14 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
 <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
 <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
+<button class="tab-btn" data-tab="funding">Funding Rates</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
 <button class="tab-btn" data-tab="docs" style="margin-left:auto;...">Documentation</button>
 ```
 
 Tab init guard (line ~1008):
 ```javascript
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,alerts:false};
 ```
 
 Tab click wiring (lines ~1016–1021):
