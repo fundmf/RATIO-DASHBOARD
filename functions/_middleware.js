@@ -189,9 +189,7 @@ export async function onRequest(context) {
                         headers: {
                             'Content-Type': 'application/json',
                             'Access-Control-Allow-Origin': '*',
-                            // Short cache during debugging so we can iterate without waiting 1hr.
-                            // Bump back to 3600 once everything is confirmed working.
-                            'Cache-Control': 'public, max-age=60',
+                            'Cache-Control': 'public, max-age=3600',
                             'X-Source': 'cmc-pro',
                         },
                     });
