@@ -64,7 +64,9 @@ def parse_farside_html(html):
     Date format: '04 Jun 2024' style.
     Total is in millions USD. Negative shown as '(123.4)' or '-123.4'.
     """
-    rows = re.findall(r'<tr>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE)
+    # Farside's <tr> tags carry style/class attrs (e.g. <tr style="...">) — must
+    # allow attributes on the opening tag, otherwise zero rows are matched.
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE)
     days = []
     for row in rows:
         cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
