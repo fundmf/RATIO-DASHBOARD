@@ -143,14 +143,33 @@ export async function onRequest(context) {
                 if (proResp.ok) {
                     const proJson = await proResp.json();
                     const entries = proJson?.data || [];
-                    // Pro response shape:
-                    //   {"data":[{"timestamp":"2024-09-02T12:00:00.000Z","value":50,"value_classification":"Neutral"}, ...]}
-                    // Convert to the {data:{dataList:[{x,y,yClassification}]}} shape the frontend reads.
-                    const dataList = entries.map(e => ({
-                        x: Math.floor(new Date(e.timestamp).getTime() / 1000),
-                        y: String(e.value),
-                        yClassification: e.value_classification,
-                    })).sort((a, b) => a.x - b.x);
+                    // CMC Pro returns timestamp in one of several forms:
+                    //   - number of seconds since epoch (e.g. 1725278400)
+                    //   - that same number as a string ("1725278400")
+                    //   - ms-since-epoch (13 digits)
+                    //   - ISO 8601 string ("2024-09-02T12:00:00.000Z")
+                    // Normalise to unix SECONDS for the frontend.
+                    const tsToSec = ts => {
+                        if (ts == null) return NaN;
+                        if (typeof ts === 'number') {
+                            return ts > 1e12 ? Math.floor(ts / 1000) : ts;
+                        }
+                        const s = String(ts).trim();
+                        if (/^\d+$/.test(s)) {
+                            const n = parseInt(s, 10);
+                            return n > 1e12 ? Math.floor(n / 1000) : n;
+                        }
+                        const ms = new Date(s).getTime();
+                        return isNaN(ms) ? NaN : Math.floor(ms / 1000);
+                    };
+                    const dataList = entries
+                        .map(e => ({
+                            x: tsToSec(e.timestamp),
+                            y: String(e.value),
+                            yClassification: e.value_classification,
+                        }))
+                        .filter(e => !isNaN(e.x))
+                        .sort((a, b) => a.x - b.x);
                     return new Response(
                         JSON.stringify({ data: { dataList }, _source: 'cmc-pro' }),
                         {
