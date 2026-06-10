@@ -143,45 +143,58 @@ export async function onRequest(context) {
                 if (proResp.ok) {
                     const proJson = await proResp.json();
                     const entries = proJson?.data || [];
-                    // CMC Pro returns timestamp in one of several forms:
-                    //   - number of seconds since epoch (e.g. 1725278400)
-                    //   - that same number as a string ("1725278400")
-                    //   - ms-since-epoch (13 digits)
-                    //   - ISO 8601 string ("2024-09-02T12:00:00.000Z")
-                    // Normalise to unix SECONDS for the frontend.
+
+                    // Robust timestamp normaliser — returns unix SECONDS or NaN.
+                    // Handles: number-seconds, number-ms, string-seconds, string-ms, ISO 8601.
                     const tsToSec = ts => {
                         if (ts == null) return NaN;
                         if (typeof ts === 'number') {
                             return ts > 1e12 ? Math.floor(ts / 1000) : ts;
                         }
                         const s = String(ts).trim();
-                        if (/^\d+$/.test(s)) {
-                            const n = parseInt(s, 10);
-                            return n > 1e12 ? Math.floor(n / 1000) : n;
+                        if (/^\d+(\.\d+)?$/.test(s)) {
+                            const n = parseFloat(s);
+                            return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
                         }
                         const ms = new Date(s).getTime();
                         return isNaN(ms) ? NaN : Math.floor(ms / 1000);
                     };
+                    // Pull timestamp / value / classification using several known field names.
+                    const tsOf = e => e.timestamp ?? e.time ?? e.ts ?? e.update_time ?? e.t;
+                    const valOf = e => e.value ?? e.score ?? e.y;
+                    const clsOf = e => e.value_classification ?? e.classification ?? e.score_text ?? e.yClassification ?? '';
+
                     const dataList = entries
                         .map(e => ({
-                            x: tsToSec(e.timestamp),
-                            y: String(e.value),
-                            yClassification: e.value_classification,
+                            x: tsToSec(tsOf(e)),
+                            y: String(valOf(e) ?? ''),
+                            yClassification: clsOf(e),
                         }))
-                        .filter(e => !isNaN(e.x))
+                        .filter(e => !isNaN(e.x) && e.y !== '')
                         .sort((a, b) => a.x - b.x);
-                    return new Response(
-                        JSON.stringify({ data: { dataList }, _source: 'cmc-pro' }),
-                        {
-                            status: 200,
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Access-Control-Allow-Origin': '*',
-                                'Cache-Control': 'public, max-age=3600',
-                                'X-Source': 'cmc-pro',
-                            },
-                        }
-                    );
+
+                    // Include a sample of the raw first entry so we can debug field-name mismatches
+                    // without redeploying. Visible only if dataList ends up empty or short.
+                    const body = { data: { dataList }, _source: 'cmc-pro' };
+                    if (!dataList.length || dataList.length < entries.length) {
+                        body._debug = {
+                            entries_received: entries.length,
+                            entries_kept: dataList.length,
+                            raw_sample: entries[0] || null,
+                            raw_keys: entries[0] ? Object.keys(entries[0]) : [],
+                        };
+                    }
+                    return new Response(JSON.stringify(body), {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*',
+                            // Short cache during debugging so we can iterate without waiting 1hr.
+                            // Bump back to 3600 once everything is confirmed working.
+                            'Cache-Control': 'public, max-age=60',
+                            'X-Source': 'cmc-pro',
+                        },
+                    });
                 }
                 // Pro API rejected (key invalid, quota exceeded) — log and fall through to internal endpoint
                 console.warn('CMC Pro API non-OK:', proResp.status);
