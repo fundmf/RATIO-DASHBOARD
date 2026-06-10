@@ -122,8 +122,54 @@ export async function onRequest(context) {
     }
 
     // ── CMC Fear & Greed proxy route ──
-    // Tries CMC internal data API first; falls back to alternative.me if blocked/empty.
+    // Strategy:
+    //   1. If CMC_API_KEY is configured (Cloudflare env var) → use the official
+    //      Pro API and transform the response to the shape the frontend expects.
+    //   2. Otherwise, try CMC's undocumented internal data API as a free fallback.
+    //   3. If neither works, return a clean error and the UI shows "Could not load".
     if (url.pathname === '/api/cmc-fng') {
+        // ── Path 1: official Pro API (preferred when API key is set) ──
+        if (env.CMC_API_KEY) {
+            try {
+                const proResp = await fetch(
+                    'https://pro-api.coinmarketcap.com/v3/fear-and-greed/historical?start=1&limit=30',
+                    {
+                        headers: {
+                            'X-CMC_PRO_API_KEY': env.CMC_API_KEY,
+                            'Accept': 'application/json',
+                        },
+                    }
+                );
+                if (proResp.ok) {
+                    const proJson = await proResp.json();
+                    const entries = proJson?.data || [];
+                    // Pro response shape:
+                    //   {"data":[{"timestamp":"2024-09-02T12:00:00.000Z","value":50,"value_classification":"Neutral"}, ...]}
+                    // Convert to the {data:{dataList:[{x,y,yClassification}]}} shape the frontend reads.
+                    const dataList = entries.map(e => ({
+                        x: Math.floor(new Date(e.timestamp).getTime() / 1000),
+                        y: String(e.value),
+                        yClassification: e.value_classification,
+                    })).sort((a, b) => a.x - b.x);
+                    return new Response(
+                        JSON.stringify({ data: { dataList }, _source: 'cmc-pro' }),
+                        {
+                            status: 200,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Access-Control-Allow-Origin': '*',
+                                'Cache-Control': 'public, max-age=3600',
+                                'X-Source': 'cmc-pro',
+                            },
+                        }
+                    );
+                }
+                // Pro API rejected (key invalid, quota exceeded) — log and fall through to internal endpoint
+                console.warn('CMC Pro API non-OK:', proResp.status);
+            } catch (e) { /* fall through */ }
+        }
+
+        // ── Path 2: undocumented internal data API (free, no key) ──
         try {
             const cmcResp = await fetch(
                 'https://api.coinmarketcap.com/data-api/v3/fear-greed/chart',
@@ -139,7 +185,6 @@ export async function onRequest(context) {
             );
             if (cmcResp.ok) {
                 const text = await cmcResp.text();
-                // Verify it actually contains data before returning
                 if (text && text.includes('dataList') && text.length > 100) {
                     return new Response(text, {
                         status: 200,
@@ -147,14 +192,14 @@ export async function onRequest(context) {
                             'Content-Type': 'application/json',
                             'Access-Control-Allow-Origin': '*',
                             'Cache-Control': 'public, max-age=3600',
-                            'X-Source': 'cmc',
+                            'X-Source': 'cmc-internal',
                         },
                     });
                 }
             }
         } catch (e) { /* fall through */ }
 
-        return new Response(JSON.stringify({ error: 'CMC Fear & Greed unavailable' }), {
+        return new Response(JSON.stringify({ error: 'CMC Fear & Greed unavailable (set CMC_API_KEY env var for reliable access)' }), {
             status: 502,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });
