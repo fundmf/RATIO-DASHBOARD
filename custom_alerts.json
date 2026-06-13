@@ -1,16 +1,6 @@
 {
   "alerts": [
     {
-      "id": "1778803052425",
-      "title": "Clarity Act Senate floor vote",
-      "description": "",
-      "datetime": "2026-06-06T15:00",
-      "timezone": "America/New_York",
-      "utc_iso": "2026-06-06T19:00:00.000Z",
-      "sent": true,
-      "created": "2026-05-14T23:57:32.425Z"
-    },
-    {
       "id": "1780864802777",
       "title": "Crypto option June expiry 9.1 Billion",
       "description": "",
