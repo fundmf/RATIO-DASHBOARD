@@ -1,3 +1,8 @@
 {
-  "alerted": []
+  "alerted": [
+    "2026-06-17T14:00:00-04:00|Federal Funds Rate",
+    "2026-06-17T14:00:00-04:00|FOMC Economic Projections",
+    "2026-06-17T14:00:00-04:00|FOMC Statement",
+    "2026-06-17T14:30:00-04:00|FOMC Press Conference"
+  ]
 }
