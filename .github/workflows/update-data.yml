@@ -34,24 +34,11 @@ jobs:
       - name: Update liquidity data (BTC price + volume)
         run: python backfill_liquidity.py
 
-      - name: Update BTC ETF flows (and Slack alert on sign flip + >=$300M diff)
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        # Farside publishes once daily after US market close. Only hit the page
-        # between 04:00-06:00 UTC (just after publication) to stay polite.
-        run: |
-          HOUR=$(date -u +%H)
-          if [ "$HOUR" -ge "04" ] && [ "$HOUR" -le "06" ]; then
-            python etf_flows.py
-          else
-            echo "Skipping ETF flows scrape (current UTC hour $HOUR is outside 04-06 window)."
-          fi
-
       - name: Commit updated data
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json etf_flows.json
+          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json
           git diff --staged --quiet && exit 0
           git commit -m "Auto-update: $(date -u '+%Y-%m-%dT%H:%M') data refresh"
           ok=0

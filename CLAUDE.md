@@ -24,7 +24,7 @@ backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.js
 backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidity_daily.json
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
 funding_rates.py            ← DAILY Hyperliquid funding snapshot (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if negative
-etf_flows.py                ← daily Farside BTC ETF scrape + sign-flip Slack alert
+etf_flows.py                ← Farside BTC ETF scrape + sign-flip Slack alert (dedicated workflow, 04/06/10 UTC redundant runs)
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
 .github/workflows/update.yml ← runs all scripts hourly Mon–Fri, commits + pushes

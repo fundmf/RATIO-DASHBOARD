@@ -1020,8 +1020,9 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Cadence</h3>
         <ul>
-            <li><code>etf_flows.py</code> is invoked by the hourly workflow but the actual scrape only runs during <strong>04:00–06:00 UTC</strong> (just after Farside's daily publish) to stay polite to their server</li>
-            <li>The 04 UTC run captures the prior US trading day's data and may trigger the alert; the 05 and 06 UTC runs are idempotent no-ops</li>
+            <li><code>etf_flows.py</code> runs in its own dedicated workflow (<code>update-etf-flows.yml</code>) on a daily cron — <strong>04:00 UTC primary, 06:00 UTC backup, 10:00 UTC second backup</strong></li>
+            <li>The triple-cron is for GitHub Actions reliability — their scheduler regularly drops individual scheduled runs, so multiple cron times ensure the daily capture &amp; alert don't get lost</li>
+            <li>The script is idempotent — once the latest day is recorded and the alert is dispatched, subsequent runs that day are no-ops (no double-alerts, no extra Farside requests beyond the dedupe check)</li>
         </ul>
 
         <h3>Configuration</h3>

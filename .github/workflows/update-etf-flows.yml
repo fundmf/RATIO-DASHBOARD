@@ -1,0 +1,54 @@
+name: Update BTC ETF Flows (Daily)
+
+# Farside publishes daily after US market close. We try at 04:00 UTC (primary),
+# 06:00 UTC (backup), and 10:00 UTC (second backup) so a single dropped GHA
+# scheduled run doesn't lose the day's capture or alert.
+#
+# The script is idempotent — once the latest day is recorded and the alert is
+# sent (or determined not to fire), subsequent runs that day are no-ops.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'    # 04:00 UTC primary
+    - cron: '0 6 * * *'    # 06:00 UTC backup
+    - cron: '0 10 * * *'   # 10:00 UTC second backup
+  workflow_dispatch:        # manual trigger from Actions tab
+
+jobs:
+  update-etf:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Scrape Farside + Slack alert if sign flip & threshold met
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python etf_flows.py
+
+      - name: Commit updated data
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add etf_flows.json
+          git diff --staged --quiet && exit 0
+          git commit -m "ETF flows: $(date -u '+%Y-%m-%d') daily snapshot"
+          ok=0
+          for i in 1 2 3 4 5; do
+            if git push origin main; then ok=1; break; fi
+            echo "Push attempt $i failed — rebasing on remote and retrying..."
+            git pull --rebase --autostash origin main || true
+            sleep $((i * 5))
+          done
+          [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
