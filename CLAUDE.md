@@ -15,7 +15,7 @@ liquidity_daily.json        ← BTC price+volume daily  {last_updated, days:[{da
 fartcoin_liquidity_daily.json ← FART price+volume daily {last_updated, days:[{date,fart_price,volume}]}
 spx6900_hourly.json         ← hourly SPX6900 data
 ai_watchlist.json           ← weekly Friday closes for GTLB/CDW/ADBE/EXLS/ADP/^NDX
-funding_rates.json          ← DAILY Hyperliquid funding snapshots {date,rate} per coin + alert_state
+funding_rates.json          ← DAILY MARKET-AGGREGATE funding snapshots per coin (avg across Binance/Bybit/OKX/Bitget/Gate/MEXC/KuCoin/Hyperliquid); per_exchange breakdown in each snapshot + alert_state
 etf_flows.json              ← daily BTC ETF net flows from Farside + last_alert_date
 notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py + etf_flows.py
 custom_alerts.json          ← server-side alert state
@@ -23,7 +23,7 @@ update_data.py              ← daily OHLC updater (BTC/ETH via CoinGecko, MSTR/
 backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.json
 backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidity_daily.json
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
-funding_rates.py            ← DAILY Hyperliquid funding snapshot (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if negative
+funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
 etf_flows.py                ← Farside BTC ETF scrape + sign-flip Slack alert (dedicated workflow, 04/06/10 UTC redundant runs)
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots

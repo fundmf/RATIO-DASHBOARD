@@ -630,8 +630,8 @@
 <!-- ══════════════════════════ TAB: FUNDING RATES ══════════════════════════ -->
 <div id="tab-funding" class="tab-content">
 <div class="container">
-    <h1>Hyperliquid Funding Rates</h1>
-    <div class="subtitle">One snapshot per weekday at US market close — Slack alert if any rate is negative</div>
+    <h1>Funding Rates</h1>
+    <div class="subtitle">Market-aggregate funding rate (avg across major exchanges) captured at US market close — Slack alert if aggregate is negative</div>
 
     <div class="card">
         <div class="card-title">Current Rates</div>
@@ -975,28 +975,45 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
     <!-- 7b. FUNDING RATES -->
     <div class="card doc-section" id="doc-funding">
-        <h2>7b. Funding Rates (Hyperliquid)</h2>
-        <p>Tracks hourly perp funding rates for <strong>BTC</strong>, <strong>SPX</strong> (the memecoin SPX6900, not the S&amp;P 500), and <strong>FARTCOIN</strong> on Hyperliquid. Sends a Slack alert at US market close on weekdays if any enabled coin's current funding rate is negative.</p>
+        <h2>7b. Funding Rates (Market Aggregate)</h2>
+        <p>Tracks daily snapshots of the <strong>market-aggregate</strong> funding rate for <strong>BTC</strong>, <strong>SPX</strong> (memecoin SPX6900, not the S&amp;P 500), and <strong>FARTCOIN</strong>. Sends a Slack alert at US market close on weekdays if the aggregate for any enabled coin is negative.</p>
 
-        <h3>Data Source &amp; Cadence</h3>
+        <h3>Exchanges Polled</h3>
         <ul>
-            <li>Hyperliquid funding is paid every 1 hour. We don't track every hour — we capture <strong>one snapshot per coin per weekday</strong> at US market close</li>
-            <li><code>funding_rates.py</code> runs once a day in its own workflow (<code>update-funding.yml</code>) on cron <code>0 21 * * 1-5</code> (21:00 UTC Mon-Fri = 4pm EST / 5pm EDT, DST-safe)</li>
-            <li>Each run POSTs to <code>https://api.hyperliquid.xyz/info</code> with <code>{"type":"fundingHistory","coin":...}</code> (last 6 hours only), takes the most recent hourly payment, and appends one snapshot to <code>funding_rates.json</code></li>
+            <li><strong>Binance</strong> — <code>fapi.binance.com</code> (8h funding)</li>
+            <li><strong>Bybit</strong> — <code>api.bybit.com</code> (8h)</li>
+            <li><strong>OKX</strong> — <code>www.okx.com/api</code> (8h)</li>
+            <li><strong>Bitget</strong> — <code>api.bitget.com</code> (8h)</li>
+            <li><strong>Gate</strong> — <code>api.gateio.ws</code> (8h)</li>
+            <li><strong>MEXC</strong> — <code>contract.mexc.com</code> (8h)</li>
+            <li><strong>KuCoin</strong> — <code>api-futures.kucoin.com</code> (8h)</li>
+            <li><strong>Hyperliquid</strong> — <code>api.hyperliquid.xyz</code> (1h)</li>
+        </ul>
+        <p>SPX and FARTCOIN are largely Hyperliquid-native — exchanges that don't list them simply fail silently and don't contribute to the average. Each card shows the actual contributor count (e.g. "avg of 8 exchanges" vs "avg of 1 exchange").</p>
+
+        <h3>Aggregation Math</h3>
+        <div class="formula">For each exchange where the coin is listed:
+  annualised = native_rate &times; (24 / funding_period_hours) &times; 365
+Aggregate = mean(annualised across exchanges)
+Display rate (% per hour) = Aggregate / 8760</div>
+        <p>Normalising to annualised first handles the 1h vs 8h period mismatch correctly. The "per hour" display value is the hourly equivalent of the annualised average, so the card layout matches the original single-exchange view.</p>
+
+        <h3>Cadence</h3>
+        <ul>
+            <li><code>funding_rates.py</code> runs once daily on cron <code>0 21 * * 1-5</code> (21:00 UTC Mon-Fri = 4pm EST / 5pm EDT, DST-safe) in its own workflow (<code>update-funding.yml</code>)</li>
             <li>Idempotent — re-running the same day is a no-op</li>
-            <li>JSON keeps the last ~120 weekday snapshots (~6 months) and auto-prunes older ones</li>
-            <li>Annualised rate ≈ hourly rate × 8760</li>
+            <li>JSON keeps the last ~120 weekday snapshots (~6 months); each snapshot includes a <code>per_exchange</code> breakdown for traceability</li>
         </ul>
 
         <h3>Slack Alert Trigger</h3>
         <ul>
-            <li>Same script, same daily run — if the captured rate is &lt; 0 for any enabled coin, a Slack message is posted with the hourly &amp; annualised rate</li>
+            <li>Same script, same daily run — if the aggregate rate is &lt; 0 for any enabled coin, a Slack message is posted naming the contributing exchanges and showing the annualised %</li>
             <li>Dedupes per coin per UTC date — at most one alert per coin per day</li>
             <li>Per-coin toggles live at the bottom of the Funding Rates tab and write to <code>notification_settings.json</code> via <code>/api/settings</code></li>
         </ul>
 
-        <h3>Adding More Coins</h3>
-        <p>Edit the <code>COINS</code> list in <code>funding_rates.py</code> — the frontend reads coin keys from <code>funding_rates.json</code>, so chart and cards update automatically.</p>
+        <h3>Adding More Coins or Exchanges</h3>
+        <p>Edit the <code>COINS</code> list or <code>EXCHANGES</code> registry in <code>funding_rates.py</code>. Each exchange entry needs a fetcher function, a funding-period in hours, and per-coin trading symbols. The frontend reads coin keys from <code>funding_rates.json</code>, so chart and cards update automatically.</p>
     </div>
 
     <!-- 7c. ETF FLOWS -->
@@ -3180,7 +3197,7 @@ function renderFundingCards(data){
             </div>
             <div style="font-size:24px;font-weight:600;color:${color};margin-top:8px;font-family:monospace;">${sign}${pct.toFixed(4)}%<span style="font-size:12px;color:#64748b;font-weight:400;"> /h</span></div>
             <div style="font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace;">${sign}${ann.toFixed(2)}% annualised</div>
-            <div style="font-size:11px;color:#64748b;margin-top:8px;">Captured ${dLine} · US market close</div>
+            <div style="font-size:11px;color:#64748b;margin-top:8px;">Captured ${dLine} · US market close${cd.exchange_count?` · avg of ${cd.exchange_count} exchange${cd.exchange_count===1?'':'s'}`:''}</div>
         </div>`;
     }
     row.innerHTML=html;
