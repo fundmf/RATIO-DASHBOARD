@@ -280,6 +280,7 @@
             </thead>
             <tbody>
                 <tr><td>US Federal Reserve</td><td>Rate Cut</td><td id="fedNextMonth">—</td><td id="fedNextOdds"><span class="rate-odds none">⏳</span></td></tr>
+                <tr><td>US Federal Reserve</td><td>Rate Hike</td><td id="fedHikeNextMonth">—</td><td id="fedHikeNextOdds"><span class="rate-odds none">⏳</span></td></tr>
                 <tr><td>Bank of Japan</td><td>Rate Hike</td><td id="bojNextMonth">—</td><td id="bojNextOdds"><span class="rate-odds none">⏳</span></td></tr>
             </tbody>
         </table>
@@ -290,7 +291,7 @@
         <div class="card-title">6-Month Rate Outlook <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">Market Consensus</span></div>
         <table class="rate-table" id="rateSixMonthTable">
             <thead>
-                <tr><th>Meeting</th><th>US Fed Rate Cut</th><th>BOJ Rate Hike</th></tr>
+                <tr><th>Meeting</th><th>US Fed Rate Cut</th><th>US Fed Rate Hike</th><th>BOJ Rate Hike</th></tr>
             </thead>
             <tbody id="sixMonthBody"></tbody>
         </table>
@@ -805,8 +806,8 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Interest Rate Outlook</h3>
         <ul>
-            <li><strong>Next-month odds:</strong> Fed Rate Cut and BOJ Rate Hike probabilities from Polymarket API, polled live</li>
-            <li><strong>6-month consensus:</strong> Static table sourced from CME FedWatch, BofA, ING, and Reuters forecasts — manually updated</li>
+            <li><strong>Next-month odds:</strong> Fed Rate Cut, Fed Rate Hike, and BOJ Rate Hike probabilities from Polymarket API, polled live. Fed Rate Hike pulls from the same Polymarket event as Rate Cut — it just filters for the "increase/hike/raise" outcomes instead of "decrease/cut/lower"</li>
+            <li><strong>6-month consensus:</strong> Static table with columns for Fed Rate Cut, Fed Rate Hike, and BOJ Rate Hike. Sources: CME FedWatch, BofA, ING, Reuters polls — manually updated. Fed Hike odds are tail-risk estimates (low across the board because the Fed is currently in cutting-cycle territory)</li>
             <li>Colour coding: <span style="color:#10b981">&ge;50% green</span>, <span style="color:#f59e0b">&ge;20% amber</span>, <span style="color:#ef4444">&lt;20% red</span></li>
         </ul>
 
@@ -1639,15 +1640,17 @@ async function fetchEventOdds(slugPrefix,monthObj,filterType){
 
 // ── 6-Month Consensus Outlook (manually updated from credible sources) ──
 // Sources: CME FedWatch, BofA, ING, Reuters polls, CNBC, Morningstar
-// Last updated: 23 March 2026
+// Last updated: 18 June 2026
 // Fed current rate: 3.50–3.75% | BOJ current rate: 0.75%
+// Hike odds are tail-risk estimates — low across the board because the Fed
+// is in cutting-cycle territory. Revise upward if inflation reaccelerates.
 const RATE_OUTLOOK=[
-    {meeting:'May 6–7',   fed:8,    boj:null, bojNote:'No BOJ meeting'},
-    {meeting:'Jun 17–18', fed:11,   boj:55,   bojNote:'BofA base case for hike'},
-    {meeting:'Jul 29–30', fed:20,   boj:65,   bojNote:'Reuters poll median'},
-    {meeting:'Sep 16–17', fed:35,   boj:75,   bojNote:'Cumulative expectation'},
-    {meeting:'Oct 28–29', fed:40,   boj:null, bojNote:'ING base case for BOJ hike'},
-    {meeting:'Dec 16–17', fed:49,   boj:85,   bojNote:'~50% chance of at least 1 Fed cut by Dec'},
+    {meeting:'Jun 17–18', fed:11,   fedHike:1,  boj:55,   bojNote:'BofA base case for hike · happened'},
+    {meeting:'Jul 29–30', fed:20,   fedHike:2,  boj:65,   bojNote:'Reuters poll median'},
+    {meeting:'Sep 16–17', fed:35,   fedHike:2,  boj:75,   bojNote:'Cumulative expectation'},
+    {meeting:'Oct 28–29', fed:40,   fedHike:3,  boj:null, bojNote:'ING base case for BOJ hike'},
+    {meeting:'Dec 16–17', fed:49,   fedHike:3,  boj:85,   bojNote:'~50% chance of at least 1 Fed cut by Dec'},
+    {meeting:'Jan 27–28', fed:58,   fedHike:4,  boj:90,   bojNote:'Cumulative — 2027 outlook'},
 ];
 
 function renderRateOutlook(){
@@ -1656,10 +1659,11 @@ function renderRateOutlook(){
     for(const r of RATE_OUTLOOK){
         const tr=document.createElement('tr');
         const bojCell=r.boj!==null?oddsDisplay(r.boj):`<span class="rate-odds none" title="${r.bojNote||''}">${r.bojNote||'—'}</span>`;
-        tr.innerHTML=`<td>${r.meeting}</td><td>${oddsDisplay(r.fed)}</td><td>${bojCell}</td>`;
+        const fedHikeCell=r.fedHike!=null?oddsDisplay(r.fedHike):'<span class="rate-odds none">—</span>';
+        tr.innerHTML=`<td>${r.meeting}</td><td>${oddsDisplay(r.fed)}</td><td>${fedHikeCell}</td><td>${bojCell}</td>`;
         tbody.appendChild(tr);
     }
-    document.getElementById('sixMonthStatus').textContent='Sources: CME FedWatch, BofA, ING, Reuters · Fed rate: 3.50–3.75% · BOJ rate: 0.75% · Last updated: 23 Mar 2026';
+    document.getElementById('sixMonthStatus').textContent='Sources: CME FedWatch, BofA, ING, Reuters · Fed rate: 3.50–3.75% · BOJ rate: 0.75% · Last updated: 18 Jun 2026';
 }
 
 async function fetchRateOdds(){
@@ -1669,16 +1673,20 @@ async function fetchRateOdds(){
 
     // Table 1: Next month only (live from Polymarket)
     document.getElementById('fedNextMonth').textContent=nextMonth.label;
+    document.getElementById('fedHikeNextMonth').textContent=nextMonth.label;
     document.getElementById('bojNextMonth').textContent=nextMonth.label;
 
     nextMonthStatus.textContent='⏳ Fetching Polymarket data...';
     const fedCutNext=await fetchEventOdds('fed-decision-in',nextMonth,'cut');
     document.getElementById('fedNextOdds').innerHTML=oddsDisplay(fedCutNext);
     await new Promise(r=>setTimeout(r,600));
+    const fedHikeNext=await fetchEventOdds('fed-decision-in',nextMonth,'hike');
+    document.getElementById('fedHikeNextOdds').innerHTML=oddsDisplay(fedHikeNext);
+    await new Promise(r=>setTimeout(r,600));
     const bojHikeNext=await fetchEventOdds('bank-of-japan-decision-in',nextMonth,'hike');
     document.getElementById('bojNextOdds').innerHTML=oddsDisplay(bojHikeNext);
 
-    const nextLoaded=[fedCutNext,bojHikeNext].filter(v=>v!==null).length;
+    const nextLoaded=[fedCutNext,fedHikeNext,bojHikeNext].filter(v=>v!==null).length;
     nextMonthStatus.textContent=nextLoaded?`Updated ${new Date().toLocaleString('en-AU')} · via Polymarket`:'No market data found for '+nextMonth.label;
 
     // Table 2: Static consensus outlook
