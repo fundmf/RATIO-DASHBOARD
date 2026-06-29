@@ -455,29 +455,36 @@
     <!-- ─────────────── CRASH ALERT MONITOR ─────────────── -->
     <div class="card" id="crashAlertCard" style="border-left:3px solid #ef4444;">
         <div class="card-title">⚠ Real-Time Crash Alert
-            <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via ntfy URGENT + Slack · polled every minute</span>
+            <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via ntfy URGENT · polled every minute</span>
         </div>
         <div style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
-            Alert fires when the selected coin drops by <strong id="crashDropDisplay">8%</strong> within <strong id="crashWindowDisplay">10 min</strong>, with a <strong id="crashCooldownDisplay">60 min</strong> cooldown to prevent spam.
-            Each alert sends an <strong>ntfy URGENT push</strong> (loud wake-up sound on phones with the app installed) and a Slack message.
+            Alert fires when the selected coin drops by <strong id="crashDropDisplay">8%</strong> within <strong id="crashWindowDisplay">10 min</strong>, with a <strong id="crashCooldownDisplay">60 min</strong> cooldown to prevent spam. Each alert sends an <strong>ntfy URGENT push</strong> — loud wake-up sound on phones with the ntfy app installed.
         </div>
+
+        <!-- Live status strip -->
+        <div id="crashStatusStrip" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:18px;padding:12px 14px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:13px;">
+            <div><div style="font-size:10px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;">Status</div><div id="crashStatusHealth" style="margin-top:4px;font-weight:500;">—</div></div>
+            <div><div style="font-size:10px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;">Current price</div><div id="crashStatusPrice" style="margin-top:4px;font-family:monospace;color:#cbd5e1;">—</div></div>
+            <div><div style="font-size:10px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;">Drop in window</div><div id="crashStatusDrop" style="margin-top:4px;font-family:monospace;">—</div></div>
+            <div><div style="font-size:10px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;">Last alert</div><div id="crashStatusLastAlert" style="margin-top:4px;color:#cbd5e1;">—</div></div>
+            <div><div style="font-size:10px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;">Last refreshed</div><div id="crashStatusLastRefresh" style="margin-top:4px;color:#cbd5e1;font-size:12px;">—</div></div>
+        </div>
+
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;">
             <div class="input-group">
                 <label style="font-size:12px;color:#94a3b8;">Coin</label>
-                <select id="crashCoinInput" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
-                    <option value="FARTCOIN">FARTCOIN</option>
-                    <option value="BTC">BTC</option>
-                    <option value="SPX">SPX</option>
-                    <option value="ETH">ETH</option>
-                </select>
+                <input type="text" id="crashCoinInput" list="crashCoinSuggestions" placeholder="e.g. FARTCOIN, BTC, DOGE" onchange="saveCrashSettings();refreshCrashStatus()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;text-transform:uppercase;">
+                <datalist id="crashCoinSuggestions">
+                    <option value="FARTCOIN"><option value="BTC"><option value="SPX"><option value="ETH"><option value="SOL"><option value="DOGE"><option value="WIF"><option value="PEPE"><option value="POPCAT"><option value="PNUT">
+                </datalist>
             </div>
             <div class="input-group">
                 <label style="font-size:12px;color:#94a3b8;">Drop threshold (%)</label>
-                <input type="number" id="crashDropInput" min="1" max="50" step="0.5" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+                <input type="number" id="crashDropInput" min="1" max="50" step="0.5" onchange="saveCrashSettings();refreshCrashStatus()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
             </div>
             <div class="input-group">
                 <label style="font-size:12px;color:#94a3b8;">Window (minutes)</label>
-                <input type="number" id="crashWindowInput" min="2" max="60" step="1" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+                <input type="number" id="crashWindowInput" min="2" max="60" step="1" onchange="saveCrashSettings();refreshCrashStatus()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
             </div>
             <div class="input-group">
                 <label style="font-size:12px;color:#94a3b8;">Cooldown (minutes)</label>
@@ -494,20 +501,53 @@
         </div>
         <div style="display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#e2e8f0;cursor:pointer;">
-                <input type="checkbox" id="crashEnabledInput" onchange="saveCrashSettings()" style="width:18px;height:18px;cursor:pointer;">
+                <input type="checkbox" id="crashEnabledInput" onchange="saveCrashSettings();refreshCrashStatus()" style="width:18px;height:18px;cursor:pointer;">
                 <strong>Enable crash monitoring</strong>
             </label>
             <button onclick="sendCrashTestPush()" style="padding:8px 16px;background:#475569;color:#e2e8f0;border:none;border-radius:6px;cursor:pointer;font-size:13px;">📲 Send test push to my ntfy topic</button>
+            <button onclick="refreshCrashStatus()" style="padding:8px 16px;background:transparent;color:#94a3b8;border:1px solid #475569;border-radius:6px;cursor:pointer;font-size:13px;">↻ Refresh status</button>
             <span id="crashSettingsStatus" style="font-size:12px;color:#64748b;"></span>
         </div>
-        <div style="margin-top:14px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
-            <strong style="color:#cbd5e1;">Setup:</strong>
-            (1) Install the <strong>ntfy</strong> app on your phone (iOS/Android, free).
-            (2) Subscribe to your chosen topic name (no account needed — just type the topic).
-            (3) Enable Critical Alerts (iOS) so it bypasses silent mode.
-            (4) Each team member who wants the wake-up does the same.
-            (5) Cloudflare cron must be hitting <code>/api/crash-check?key=&lt;CRON_SECRET&gt;</code> every minute — see Documentation tab for setup.
-        </div>
+
+        <!-- Data rules -->
+        <details style="margin-top:18px;">
+            <summary style="cursor:pointer;font-size:13px;color:#cbd5e1;font-weight:500;padding:6px 0;">📋 How the data is sourced &amp; how the alert is triggered</summary>
+            <div style="margin-top:10px;padding:12px 14px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12.5px;color:#94a3b8;line-height:1.7;">
+                <strong style="color:#cbd5e1;">Data source</strong>
+                <ul style="margin:6px 0 10px 18px;padding:0;">
+                    <li>Primary: <code>https://fapi.binance.com/fapi/v1/klines</code> — Binance USDT-margined perpetual futures, 1-minute candles, public (no API key)</li>
+                    <li>Fallback: <code>https://api.binance.com/api/v3/klines</code> — Binance spot, used automatically if the coin isn't listed on futures</li>
+                    <li>Symbol format: <code>&lt;COIN&gt;USDT</code> (e.g. typing <code>DOGE</code> requests <code>DOGEUSDT</code>)</li>
+                    <li>Request weight: 1 per call; Binance allows 2400/min on a single IP, so 1 call/min uses 0.04% of the budget — no rate-limit risk</li>
+                    <li>8-second request timeout per attempt; failed calls fall through to the spot endpoint</li>
+                </ul>
+                <strong style="color:#cbd5e1;">Trigger logic (run every 1 minute by Cloudflare cron)</strong>
+                <div class="formula" style="margin:6px 0;font-size:12px;">windowHigh   = max(high of last N 1-min candles)
+currentPrice = close of latest candle
+dropPct      = (windowHigh - currentPrice) / windowHigh × 100
+
+FIRE alert if:
+  crash_alert_enabled == true
+  AND dropPct >= drop_threshold
+  AND (floor_price == null OR currentPrice >= floor_price)
+  AND (now - last_alert_time) >= cooldown_min × 60s</div>
+                <strong style="color:#cbd5e1;">Supported coins</strong>
+                <p style="margin:6px 0 0;">Anything listed on Binance perp futures works directly (BTC, ETH, SOL, DOGE, FARTCOIN, SPX, WIF, PEPE, …). If a coin only exists on Binance spot, the spot fallback handles it automatically. If neither futures nor spot has it, the status strip above will show "no data" and you can switch coins.</p>
+            </div>
+        </details>
+
+        <!-- Setup -->
+        <details style="margin-top:10px;">
+            <summary style="cursor:pointer;font-size:13px;color:#cbd5e1;font-weight:500;padding:6px 0;">⚙ One-time setup checklist</summary>
+            <div style="margin-top:10px;padding:12px 14px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12.5px;color:#94a3b8;line-height:1.7;">
+                (1) Install the <strong>ntfy</strong> app on your phone (iOS / Android — both free, no signup).<br>
+                (2) Open the app, subscribe to your chosen topic name. <strong>iOS:</strong> grant Critical Alerts permission so it bypasses silent mode.<br>
+                (3) Each team member who wants the wake-up does the same.<br>
+                (4) On Cloudflare, set <code>CRON_SECRET</code> as a Secret env var, then redeploy.<br>
+                (5) On <a href="https://cron-job.org" target="_blank" rel="noopener" style="color:#3b82f6;">cron-job.org</a>, create a job: URL <code>https://&lt;your-domain&gt;/api/crash-check?key=&lt;CRON_SECRET&gt;</code>, every 1 minute, GET method.<br>
+                (6) Use the <strong>Send test push</strong> button above to verify ntfy works, then tick <strong>Enable crash monitoring</strong>.
+            </div>
+        </details>
     </div>
 
     <div class="card">
@@ -1108,15 +1148,18 @@ Display rate (% per hour) = Aggregate / 8760</div>
     <!-- 7d. CRASH ALERT MONITOR -->
     <div class="card doc-section" id="doc-crash">
         <h2>7d. Real-Time Crash Alert</h2>
-        <p>Polls a coin's 1-minute price candles every minute. If the drop from the highest high in the window exceeds the configured threshold, fires an <strong>ntfy URGENT</strong> push (loud wake-up sound on phones) and a <strong>Slack</strong> message. Cooldown prevents spam during sustained crashes.</p>
+        <p>Polls a coin's 1-minute price candles every minute. If the drop from the highest high in the window exceeds the configured threshold, fires an <strong>ntfy URGENT</strong> push — a loud wake-up sound on phones with the ntfy app installed. Cooldown prevents spam during sustained crashes. <strong>No Slack on this alert</strong> — by design, ntfy is the only channel because it's the one that actually wakes you up.</p>
 
         <h3>Architecture</h3>
         <ul>
             <li><strong>Endpoint:</strong> <code>functions/api/crash-check.js</code> — Cloudflare Pages Function</li>
             <li><strong>Polling:</strong> External cron service (e.g. <code>cron-job.org</code> free tier, 1-minute resolution) hits <code>https://&lt;your-domain&gt;/api/crash-check?key=&lt;CRON_SECRET&gt;</code> every minute</li>
-            <li><strong>Data source:</strong> Binance public klines API (<code>fapi.binance.com</code>) — no key, no rate limit issues at 1 req/min</li>
+            <li><strong>Data source:</strong> Binance public klines — <strong>futures first</strong> (<code>fapi.binance.com/fapi/v1/klines</code>), with <strong>spot fallback</strong> (<code>api.binance.com/api/v3/klines</code>) if the coin isn't on futures. Each call costs 1 weight against Binance's 2400/min limit — at 1 req/min we use 0.04% of the budget</li>
+            <li><strong>Reliability:</strong> 8-second per-request timeout via AbortController; spot fallback handles delisted/spot-only coins; no API key needed so no key rotation risk</li>
+            <li><strong>Coin coverage:</strong> any symbol tradable on Binance as <code>&lt;COIN&gt;USDT</code>. The script tries futures first, then spot — so coins like BTC/ETH/SOL/DOGE/FARTCOIN/SPX all work out of the box. Custom small-cap spot-only listings work too via the fallback.</li>
             <li><strong>Settings:</strong> read from <code>notification_settings.json</code> via GitHub API (same pattern as <code>/api/settings</code>)</li>
-            <li><strong>Cooldown state:</strong> persisted in <code>crash_alert_state.json</code> via GitHub API — only updated when an alert fires</li>
+            <li><strong>Cooldown state:</strong> persisted in <code>crash_alert_state.json</code> via GitHub API — only updated when an alert fires (no per-minute heartbeat writes, so the repo doesn't fill with noise commits)</li>
+            <li><strong>Live dashboard status:</strong> the card on the FARTCOIN Analysis tab fetches Binance directly from the browser every 30s and shows current price, current drop %, status (Monitoring / In cooldown / Threshold breached / Disabled), and last alert time. This is independent of the cron — so the dashboard works for verification even if the cron is down</li>
         </ul>
 
         <h3>Detection Logic</h3>
@@ -1129,10 +1172,10 @@ if dropPct ≥ threshold AND not in cooldown:
     record cooldown timestamp</div>
         <p>The <strong>floor price</strong> input (optional) suppresses alerts when the coin is already below a configured value — useful for already-crashed assets bouncing on noise.</p>
 
-        <h3>Notification Channels</h3>
+        <h3>Notification Channel</h3>
         <ul>
-            <li><strong>ntfy URGENT:</strong> POST to <code>https://ntfy.sh/&lt;your-topic&gt;</code> with <code>Priority: urgent</code> header. On Android plays a continuous loud alarm; on iOS uses Critical Alerts (bypasses silent/DND if the user grants permission)</li>
-            <li><strong>Slack:</strong> reuses existing <code>SLACK_WEBHOOK_URL</code> env var</li>
+            <li><strong>ntfy URGENT only:</strong> POST to <code>https://ntfy.sh/&lt;your-topic&gt;</code> with <code>Priority: urgent</code> header. On Android plays a continuous loud alarm; on iOS uses Critical Alerts (bypasses silent/DND if the user grants permission)</li>
+            <li>Slack is deliberately <em>not</em> used here — the existing Slack-based alerts (funding flip, ETF flip) are for situational awareness during business hours, while this is for genuine wake-up emergencies. Mixing them would dilute Slack's signal-to-noise.</li>
         </ul>
 
         <h3>One-Time Setup</h3>
@@ -3289,6 +3332,92 @@ async function initCrashAlertCard(){
     document.getElementById('crashFloorInput').value    = notifSettings.crash_alert_floor_price ?? '';
     document.getElementById('crashNtfyInput').value     = notifSettings.ntfy_topic || '';
     updateCrashDisplayLabels();
+    // Kick off live status refresh and auto-refresh every 30s
+    refreshCrashStatus();
+    if(!window._crashStatusInterval){
+        window._crashStatusInterval = setInterval(refreshCrashStatus, 30000);
+    }
+}
+
+async function refreshCrashStatus(){
+    const coin       = (document.getElementById('crashCoinInput').value || 'FARTCOIN').trim().toUpperCase();
+    const windowMin  = Math.max(2, parseInt(document.getElementById('crashWindowInput').value) || 10);
+    const dropThr    = parseFloat(document.getElementById('crashDropInput').value) || 8;
+    const enabled    = document.getElementById('crashEnabledInput').checked;
+    const cooldown   = parseInt(document.getElementById('crashCooldownInput').value) || 60;
+
+    // Fetch live klines (futures first, fallback spot — same as backend)
+    const symbol = coin + 'USDT';
+    let candles = null, sourceUsed = null;
+    try{
+        const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${windowMin+2}`);
+        if(r.ok){const j=await r.json();if(Array.isArray(j)&&j.length){candles=j;sourceUsed='futures';}}
+    }catch(e){}
+    if(!candles){
+        try{
+            const r2 = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&limit=${windowMin+2}`);
+            if(r2.ok){const j=await r2.json();if(Array.isArray(j)&&j.length){candles=j;sourceUsed='spot';}}
+        }catch(e){}
+    }
+
+    // Load cooldown state (best-effort; static file, may lag a few minutes)
+    let lastAlertTs = null;
+    try{
+        const r = await fetch('crash_alert_state.json?t='+Date.now());
+        if(r.ok){const s=await r.json();lastAlertTs = s.last_alerts?.[coin] || null;}
+    }catch(e){}
+
+    const refreshEl  = document.getElementById('crashStatusLastRefresh');
+    const priceEl    = document.getElementById('crashStatusPrice');
+    const dropEl     = document.getElementById('crashStatusDrop');
+    const healthEl   = document.getElementById('crashStatusHealth');
+    const lastAlertEl= document.getElementById('crashStatusLastAlert');
+
+    refreshEl.textContent = new Date().toLocaleTimeString('en-AU');
+
+    if(!candles){
+        priceEl.textContent = '—';
+        dropEl.textContent  = '—';
+        healthEl.innerHTML  = '<span style="color:#fbbf24;">⚠ No data for ' + symbol + '</span>';
+        lastAlertEl.textContent = lastAlertTs ? new Date(lastAlertTs).toLocaleString('en-AU') : 'Never';
+        return;
+    }
+
+    const highs  = candles.map(c=>parseFloat(c[2]));
+    const closes = candles.map(c=>parseFloat(c[4]));
+    const currentPrice = closes[closes.length-1];
+    const windowHigh   = Math.max(...highs.slice(-windowMin));
+    const dropPctActual = ((windowHigh - currentPrice) / windowHigh) * 100;
+
+    priceEl.textContent = '$' + formatPriceJs(currentPrice);
+    const dropColor = dropPctActual >= dropThr ? '#ef4444' : dropPctActual >= dropThr*0.5 ? '#fbbf24' : '#10b981';
+    dropEl.innerHTML = `<span style="color:${dropColor};">${dropPctActual.toFixed(2)}%</span> / ${dropThr}%`;
+
+    // Determine status
+    const now = Date.now();
+    let healthHtml;
+    if(!enabled){
+        healthHtml = '<span style="color:#64748b;">⚪ Disabled</span>';
+    }else if(lastAlertTs && (now - lastAlertTs) < cooldown*60*1000){
+        const remaining = Math.ceil((cooldown*60*1000 - (now - lastAlertTs))/60000);
+        healthHtml = `<span style="color:#fbbf24;">🟡 In cooldown · ${remaining} min left</span>`;
+    }else if(dropPctActual >= dropThr){
+        healthHtml = '<span style="color:#ef4444;">🔴 Threshold breached — next cron tick will alert</span>';
+    }else{
+        healthHtml = `<span style="color:#10b981;">🟢 Monitoring · ${sourceUsed||'futures'}</span>`;
+    }
+    healthEl.innerHTML = healthHtml;
+
+    lastAlertEl.textContent = lastAlertTs
+        ? new Date(lastAlertTs).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+        : 'Never';
+}
+
+function formatPriceJs(p){
+    if(p<0.001) return p.toFixed(8);
+    if(p<1)     return p.toFixed(4);
+    if(p<100)   return p.toFixed(2);
+    return p.toFixed(0);
 }
 
 function updateCrashDisplayLabels(){

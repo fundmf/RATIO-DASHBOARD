@@ -1,6 +1,6 @@
 // functions/api/crash-check.js
 // Cron-triggered endpoint that detects fast price crashes for a configured coin
-// and fires ntfy URGENT + Slack alerts.
+// and fires an ntfy URGENT push notification (no Slack).
 //
 // Auth: requires ?key=<CRON_SECRET> query param (CRON_SECRET set as Cloudflare env var).
 // The middleware skips its password gate for /api/crash-check so this endpoint
@@ -9,14 +9,23 @@
 //
 // Settings live in notification_settings.json (editable via dashboard /api/settings):
 //   - crash_alert_enabled       (bool)
-//   - crash_alert_coin          (string, default "FARTCOIN")
+//   - crash_alert_coin          (string, default "FARTCOIN")  — any Binance perp/spot coin
 //   - crash_alert_drop_pct      (number, default 8)
 //   - crash_alert_window_min    (number, default 10)
 //   - crash_alert_cooldown_min  (number, default 60)
 //   - crash_alert_floor_price   (number|null, default null)
 //   - ntfy_topic                (string, required)
 //
-// Cooldown state persisted in crash_alert_state.json (auto-committed via GitHub API).
+// Cooldown state persisted in crash_alert_state.json (auto-committed via GitHub API,
+// only when an alert actually fires — no per-minute heartbeat writes).
+//
+// Data source resilience:
+//   1. Tries Binance USDT-margined FUTURES klines first (most coins traded there)
+//   2. Falls back to Binance SPOT klines if futures returns 400/4XX (coin not on futures)
+//   3. 8-second timeout per fetch (via AbortController)
+//   4. User-agent header set to avoid rare empty responses on bot detection
+//   5. Public Binance endpoints used — no API key, no rate-limit headaches
+//      at 1 req/min (Binance allows 2400 weight/min; each klines call = 1 weight)
 
 export async function onRequest(context) {
     const { request, env } = context;
@@ -104,19 +113,26 @@ async function runCheck(env) {
         };
     }
 
-    // ── ALERT FAN-OUT ──
+    // ── ALERT — ntfy URGENT only (no Slack) ──
     const title = `${coin} CRASH ALERT`;
     const body  = `Down ${dropPctActual.toFixed(1)}% in last ${windowMin} min · Current $${formatPrice(currentPrice)} · Window high $${formatPrice(windowHigh)}`;
+    let ntfyResult = 'ok';
+    try {
+        await sendNtfy(ntfyTopic, title, body);
+    } catch (e) {
+        ntfyResult = 'failed: ' + String(e.message).substring(0, 200);
+    }
 
-    const dispatched = await Promise.allSettled([
-        sendNtfy(ntfyTopic, title, body),
-        env.SLACK_WEBHOOK_URL
-            ? sendSlack(env.SLACK_WEBHOOK_URL, `:rotating_light: *${title}*\n${body}`)
-            : Promise.resolve('slack disabled'),
-    ]);
-
-    // Persist cooldown
+    // Persist cooldown timestamp (only writes here — no per-minute heartbeat writes)
     state.last_alerts[coin] = now;
+    state.last_alert_summary = state.last_alert_summary || {};
+    state.last_alert_summary[coin] = {
+        timestamp: now,
+        drop_pct: round(dropPctActual, 2),
+        current_price: currentPrice,
+        window_high: windowHigh,
+        window_min: windowMin,
+    };
     try {
         await saveJson(env, 'crash_alert_state.json', state, `Crash alert fired for ${coin}`);
     } catch (e) {
@@ -132,14 +148,8 @@ async function runCheck(env) {
         threshold_pct: dropPct,
         current_price: currentPrice,
         window_high: windowHigh,
-        ntfy_result: summariseResult(dispatched[0]),
-        slack_result: summariseResult(dispatched[1]),
+        ntfy_result: ntfyResult,
     };
-}
-
-function summariseResult(r) {
-    if (r.status === 'fulfilled') return 'ok';
-    return 'failed: ' + String(r.reason).substring(0, 200);
 }
 
 function coinToBinanceSymbol(coin) {
@@ -154,10 +164,47 @@ function coinToBinanceSymbol(coin) {
 
 async function fetchBinanceCandles(symbol, minutes) {
     const limit = Math.min(Math.max(minutes, 2), 100);
-    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${limit}`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'CrashMonitor/1.0' } });
-    if (!r.ok) throw new Error('Binance klines API: ' + r.status);
-    return await r.json();
+    // Try futures first, then fall back to spot if futures doesn't list the coin.
+    // Both endpoints return the same array shape: [[openTime,o,h,l,c,vol,closeTime,...], ...]
+    const futuresUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${limit}`;
+    const spotUrl    = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&limit=${limit}`;
+    const tries = [
+        { url: futuresUrl, source: 'futures' },
+        { url: spotUrl,    source: 'spot' },
+    ];
+
+    let lastErr = null;
+    for (const t of tries) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);  // 8s timeout
+        try {
+            const r = await fetch(t.url, {
+                headers: { 'User-Agent': 'Mozilla/5.0 CrashMonitor/1.0' },
+                signal: controller.signal,
+            });
+            clearTimeout(timer);
+            if (r.ok) {
+                const data = await r.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    data._source = t.source;
+                    return data;
+                }
+                lastErr = new Error(`empty data from ${t.source}`);
+                continue;
+            }
+            // 400 = symbol not listed on this endpoint → try the next one
+            if (r.status === 400 || r.status === 404) {
+                lastErr = new Error(`${t.source} ${r.status}`);
+                continue;
+            }
+            // 5xx or other → record and try next
+            lastErr = new Error(`${t.source} HTTP ${r.status}`);
+        } catch (e) {
+            clearTimeout(timer);
+            lastErr = e;
+        }
+    }
+    throw new Error('Binance klines unreachable: ' + (lastErr?.message || 'unknown'));
 }
 
 async function loadJson(env, filename) {
@@ -225,16 +272,6 @@ async function sendNtfy(topic, title, message) {
         body: message,
     });
     if (!r.ok) throw new Error('ntfy ' + r.status);
-    return 'ok';
-}
-
-async function sendSlack(webhook, text) {
-    const r = await fetch(webhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-    });
-    if (!r.ok) throw new Error('slack ' + r.status);
     return 'ok';
 }
 
