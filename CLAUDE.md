@@ -8,7 +8,8 @@ Single-file crypto dashboard deployed on **Cloudflare Pages**, auto-updated via 
 
 ```
 index.html                  ← entire frontend (HTML + CSS + JS, no bundler)
-functions/_middleware.js    ← Cloudflare Pages Functions: password gate + API proxies
+functions/_middleware.js    ← Cloudflare Pages Functions: password gate + API proxies (bypasses password for /api/crash-check)
+functions/api/crash-check.js ← cron-triggered endpoint that detects fast price crashes and fires ntfy + Slack alerts
 data.json                   ← daily OHLC for BTC/ETH/MSTR/BMNR (2021–present)
 fartcoin_hourly.json        ← hourly BTC+FART prices  {last_updated, hours:[{t,btc,fart}]}
 liquidity_daily.json        ← BTC price+volume daily  {last_updated, days:[{date,btc_price,volume}]}
@@ -17,7 +18,8 @@ spx6900_hourly.json         ← hourly SPX6900 data
 ai_watchlist.json           ← weekly Friday closes for GTLB/CDW/ADBE/EXLS/ADP/^NDX
 funding_rates.json          ← DAILY MARKET-AGGREGATE funding snapshots per coin (avg across Binance/Bybit/OKX/Bitget/Gate/MEXC/KuCoin/Hyperliquid); per_exchange breakdown in each snapshot + alert_state
 etf_flows.json              ← daily BTC ETF net flows from Farside + last_alert_date
-notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py + etf_flows.py
+notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py, etf_flows.py, AND crash-check.js
+crash_alert_state.json      ← cooldown timestamps per coin for crash monitor; updated only when an alert fires
 custom_alerts.json          ← server-side alert state
 update_data.py              ← daily OHLC updater (BTC/ETH via CoinGecko, MSTR/BMNR via yfinance)
 backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.json

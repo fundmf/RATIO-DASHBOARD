@@ -8,6 +8,12 @@ export async function onRequest(context) {
     const { request, env, next } = context;
     const url = new URL(request.url);
 
+    // ── Crash-check endpoint bypasses password (has its own ?key=<CRON_SECRET> auth) ──
+    // Lets cron-job.org or any external cron service hit it without dashboard credentials.
+    if (url.pathname === '/api/crash-check') {
+        return await next();
+    }
+
     // ── Check password first (applies to everything) ──
     const PASSWORD = env.CFP_PASSWORD;
     if (PASSWORD) {

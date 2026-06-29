@@ -452,6 +452,64 @@
 
     <div class="data-notice" id="fartNotice" style="display:none"></div>
 
+    <!-- ─────────────── CRASH ALERT MONITOR ─────────────── -->
+    <div class="card" id="crashAlertCard" style="border-left:3px solid #ef4444;">
+        <div class="card-title">⚠ Real-Time Crash Alert
+            <span style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;">via ntfy URGENT + Slack · polled every minute</span>
+        </div>
+        <div style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
+            Alert fires when the selected coin drops by <strong id="crashDropDisplay">8%</strong> within <strong id="crashWindowDisplay">10 min</strong>, with a <strong id="crashCooldownDisplay">60 min</strong> cooldown to prevent spam.
+            Each alert sends an <strong>ntfy URGENT push</strong> (loud wake-up sound on phones with the app installed) and a Slack message.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;">
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">Coin</label>
+                <select id="crashCoinInput" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+                    <option value="FARTCOIN">FARTCOIN</option>
+                    <option value="BTC">BTC</option>
+                    <option value="SPX">SPX</option>
+                    <option value="ETH">ETH</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">Drop threshold (%)</label>
+                <input type="number" id="crashDropInput" min="1" max="50" step="0.5" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">Window (minutes)</label>
+                <input type="number" id="crashWindowInput" min="2" max="60" step="1" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">Cooldown (minutes)</label>
+                <input type="number" id="crashCooldownInput" min="1" max="1440" step="5" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">Floor price (optional)</label>
+                <input type="number" id="crashFloorInput" min="0" step="any" placeholder="leave blank to disable" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+            <div class="input-group">
+                <label style="font-size:12px;color:#94a3b8;">ntfy topic</label>
+                <input type="text" id="crashNtfyInput" placeholder="e.g. fartcoin-crash-team" onchange="saveCrashSettings()" style="padding:8px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;">
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#e2e8f0;cursor:pointer;">
+                <input type="checkbox" id="crashEnabledInput" onchange="saveCrashSettings()" style="width:18px;height:18px;cursor:pointer;">
+                <strong>Enable crash monitoring</strong>
+            </label>
+            <button onclick="sendCrashTestPush()" style="padding:8px 16px;background:#475569;color:#e2e8f0;border:none;border-radius:6px;cursor:pointer;font-size:13px;">📲 Send test push to my ntfy topic</button>
+            <span id="crashSettingsStatus" style="font-size:12px;color:#64748b;"></span>
+        </div>
+        <div style="margin-top:14px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+            <strong style="color:#cbd5e1;">Setup:</strong>
+            (1) Install the <strong>ntfy</strong> app on your phone (iOS/Android, free).
+            (2) Subscribe to your chosen topic name (no account needed — just type the topic).
+            (3) Enable Critical Alerts (iOS) so it bypasses silent mode.
+            (4) Each team member who wants the wake-up does the same.
+            (5) Cloudflare cron must be hitting <code>/api/crash-check?key=&lt;CRON_SECRET&gt;</code> every minute — see Documentation tab for setup.
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-title">Analysis Parameters</div>
         <div class="date-controls" style="flex-wrap:wrap;gap:16px;">
@@ -1045,6 +1103,67 @@ Display rate (% per hour) = Aggregate / 8760</div>
 
         <h3>Configuration</h3>
         <p>The toggle and the dollar threshold are editable inline on the Market Liquidity tab's BTC ETF Flows card. Both save via <code>/api/settings</code> and take effect on the next scrape.</p>
+    </div>
+
+    <!-- 7d. CRASH ALERT MONITOR -->
+    <div class="card doc-section" id="doc-crash">
+        <h2>7d. Real-Time Crash Alert</h2>
+        <p>Polls a coin's 1-minute price candles every minute. If the drop from the highest high in the window exceeds the configured threshold, fires an <strong>ntfy URGENT</strong> push (loud wake-up sound on phones) and a <strong>Slack</strong> message. Cooldown prevents spam during sustained crashes.</p>
+
+        <h3>Architecture</h3>
+        <ul>
+            <li><strong>Endpoint:</strong> <code>functions/api/crash-check.js</code> — Cloudflare Pages Function</li>
+            <li><strong>Polling:</strong> External cron service (e.g. <code>cron-job.org</code> free tier, 1-minute resolution) hits <code>https://&lt;your-domain&gt;/api/crash-check?key=&lt;CRON_SECRET&gt;</code> every minute</li>
+            <li><strong>Data source:</strong> Binance public klines API (<code>fapi.binance.com</code>) — no key, no rate limit issues at 1 req/min</li>
+            <li><strong>Settings:</strong> read from <code>notification_settings.json</code> via GitHub API (same pattern as <code>/api/settings</code>)</li>
+            <li><strong>Cooldown state:</strong> persisted in <code>crash_alert_state.json</code> via GitHub API — only updated when an alert fires</li>
+        </ul>
+
+        <h3>Detection Logic</h3>
+        <div class="formula">windowHigh = max(highs over last N 1-min candles)
+currentPrice = latest close
+dropPct = (windowHigh - currentPrice) / windowHigh × 100
+
+if dropPct ≥ threshold AND not in cooldown:
+    fire ntfy URGENT + Slack
+    record cooldown timestamp</div>
+        <p>The <strong>floor price</strong> input (optional) suppresses alerts when the coin is already below a configured value — useful for already-crashed assets bouncing on noise.</p>
+
+        <h3>Notification Channels</h3>
+        <ul>
+            <li><strong>ntfy URGENT:</strong> POST to <code>https://ntfy.sh/&lt;your-topic&gt;</code> with <code>Priority: urgent</code> header. On Android plays a continuous loud alarm; on iOS uses Critical Alerts (bypasses silent/DND if the user grants permission)</li>
+            <li><strong>Slack:</strong> reuses existing <code>SLACK_WEBHOOK_URL</code> env var</li>
+        </ul>
+
+        <h3>One-Time Setup</h3>
+        <ol>
+            <li><strong>Each team member who wants alerts:</strong> install the ntfy app (iOS/Android, free), open it, subscribe to the topic name you chose on the dashboard (e.g. <code>fartcoin-crash-team</code>). On iOS, grant Critical Alerts permission when prompted.</li>
+            <li><strong>Cloudflare Pages env vars</strong> (Pages project → Settings → Variables and Secrets, mark as Secret):
+                <ul>
+                    <li><code>CRON_SECRET</code> — any random string, used to authorise the cron service</li>
+                    <li><code>GITHUB_PAT</code> / <code>GITHUB_REPO</code> — already configured for <code>/api/alerts</code> and <code>/api/settings</code>, reused here</li>
+                    <li><code>SLACK_WEBHOOK_URL</code> — already configured</li>
+                </ul>
+            </li>
+            <li><strong>External cron:</strong> sign up at <a href="https://cron-job.org" target="_blank" rel="noopener" style="color:#3b82f6;">cron-job.org</a> (free), create a job:
+                <ul>
+                    <li>URL: <code>https://&lt;your-domain&gt;/api/crash-check?key=&lt;CRON_SECRET&gt;</code></li>
+                    <li>Schedule: every 1 minute</li>
+                    <li>Method: GET</li>
+                </ul>
+            </li>
+            <li><strong>On the dashboard:</strong> FARTCOIN Analysis tab → Crash Alert card → set the threshold/window/cooldown/floor/coin/ntfy-topic → tick "Enable crash monitoring" → click "Send test push" to verify your phone receives it.</li>
+        </ol>
+
+        <h3>Security</h3>
+        <p>The <code>/api/crash-check</code> endpoint bypasses the dashboard's password gate but requires <code>?key=&lt;CRON_SECRET&gt;</code> for any request to be honoured. Without the key it returns 403. Keep <code>CRON_SECRET</code> secret — anyone with it can trigger a check (which costs nothing but could fire an alert).</p>
+
+        <h3>Defaults / Safety</h3>
+        <ul>
+            <li><code>crash_alert_enabled</code> defaults to <strong>false</strong> — you have to actively enable it on the dashboard, so an unconfigured deploy won't fire any alerts</li>
+            <li><code>ntfy_topic</code> defaults to empty string — if not set, the endpoint returns a clean "<code>ntfy_topic not set</code>" message rather than alerting</li>
+            <li>Window has a 2-minute minimum; cooldown has a 1-minute minimum (input validation)</li>
+        </ul>
     </div>
 
     <!-- 8. CUSTOM ALERTS -->
@@ -2387,6 +2506,8 @@ function renderFartDDDistribution(events){
 }
 
 async function initFartcoin(){
+    // Crash alert card — always initialise so user can configure it even before chart loads
+    initCrashAlertCard();
     document.getElementById('fartStart').value='2025-09-01';
     document.getElementById('fartEnd').value=todayStr();
     // Load static JSON first for fast initial render
@@ -3149,6 +3270,83 @@ async function saveNotifSettings(partial){
         if(j.settings)notifSettings={...notifSettings,...j.settings};
         return true;
     }catch(e){console.warn('settings save:',e.message);return false;}
+}
+
+// ──────────────────────────────────────────────
+// CRASH ALERT CARD (FARTCOIN Analysis tab)
+// ──────────────────────────────────────────────
+let crashCardInited=false;
+
+async function initCrashAlertCard(){
+    if(crashCardInited)return;
+    crashCardInited=true;
+    await loadNotifSettings();
+    document.getElementById('crashEnabledInput').checked = !!notifSettings.crash_alert_enabled;
+    document.getElementById('crashCoinInput').value     = notifSettings.crash_alert_coin || 'FARTCOIN';
+    document.getElementById('crashDropInput').value     = notifSettings.crash_alert_drop_pct ?? 8;
+    document.getElementById('crashWindowInput').value   = notifSettings.crash_alert_window_min ?? 10;
+    document.getElementById('crashCooldownInput').value = notifSettings.crash_alert_cooldown_min ?? 60;
+    document.getElementById('crashFloorInput').value    = notifSettings.crash_alert_floor_price ?? '';
+    document.getElementById('crashNtfyInput').value     = notifSettings.ntfy_topic || '';
+    updateCrashDisplayLabels();
+}
+
+function updateCrashDisplayLabels(){
+    const drop  = document.getElementById('crashDropInput').value || '8';
+    const win   = document.getElementById('crashWindowInput').value || '10';
+    const cool  = document.getElementById('crashCooldownInput').value || '60';
+    document.getElementById('crashDropDisplay').textContent = drop + '%';
+    document.getElementById('crashWindowDisplay').textContent = win + ' min';
+    document.getElementById('crashCooldownDisplay').textContent = cool + ' min';
+}
+
+async function saveCrashSettings(){
+    updateCrashDisplayLabels();
+    const status = document.getElementById('crashSettingsStatus');
+    status.textContent = 'Saving…';
+    const floor = document.getElementById('crashFloorInput').value;
+    const partial = {
+        crash_alert_enabled:      document.getElementById('crashEnabledInput').checked,
+        crash_alert_coin:         document.getElementById('crashCoinInput').value,
+        crash_alert_drop_pct:     parseFloat(document.getElementById('crashDropInput').value) || 8,
+        crash_alert_window_min:   parseInt(document.getElementById('crashWindowInput').value) || 10,
+        crash_alert_cooldown_min: parseInt(document.getElementById('crashCooldownInput').value) || 60,
+        crash_alert_floor_price:  floor === '' ? null : parseFloat(floor),
+        ntfy_topic:               document.getElementById('crashNtfyInput').value.trim(),
+    };
+    const ok = await saveNotifSettings(partial);
+    status.textContent = ok ? 'Saved.' : 'Save failed (still applied locally).';
+    setTimeout(()=>{ status.textContent = ''; }, 3000);
+}
+
+async function sendCrashTestPush(){
+    const topic = document.getElementById('crashNtfyInput').value.trim();
+    const status = document.getElementById('crashSettingsStatus');
+    if(!topic){
+        status.textContent = 'Set an ntfy topic first.';
+        status.style.color = '#fbbf24';
+        return;
+    }
+    status.textContent = 'Sending test push…';
+    status.style.color = '#94a3b8';
+    try{
+        const r = await fetch('https://ntfy.sh/' + encodeURIComponent(topic), {
+            method: 'POST',
+            headers: {
+                'Title': 'Crash Alert — TEST',
+                'Priority': 'high',  // not urgent for test, less aggressive
+                'Tags': 'test_tube',
+            },
+            body: 'Test push from dashboard. If you got this, ntfy is wired up correctly.',
+        });
+        if(!r.ok) throw new Error('ntfy ' + r.status);
+        status.textContent = '✅ Sent. Check your phone within ~5 seconds.';
+        status.style.color = '#10b981';
+    }catch(e){
+        status.textContent = '❌ Failed: ' + e.message;
+        status.style.color = '#ef4444';
+    }
+    setTimeout(()=>{ status.textContent = ''; status.style.color = '#64748b'; }, 6000);
 }
 
 // ──────────────────────────────────────────────

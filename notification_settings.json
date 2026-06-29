@@ -3,5 +3,12 @@
   "funding_alert_spx": true,
   "funding_alert_fartcoin": true,
   "etf_flow_alert_btc": true,
-  "etf_flow_threshold_m_usd": 300
+  "etf_flow_threshold_m_usd": 300,
+  "crash_alert_enabled": false,
+  "crash_alert_coin": "FARTCOIN",
+  "crash_alert_drop_pct": 8,
+  "crash_alert_window_min": 10,
+  "crash_alert_cooldown_min": 60,
+  "crash_alert_floor_price": null,
+  "ntfy_topic": ""
 }
