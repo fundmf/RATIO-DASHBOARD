@@ -45,13 +45,14 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
 <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
 <button class="tab-btn" data-tab="funding">Funding Rates</button>
+<button class="tab-btn" data-tab="crash">Crash Alert</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
 <button class="tab-btn" data-tab="docs" style="margin-left:auto;...">Documentation</button>
 ```
 
 Tab init guard (line ~1008):
 ```javascript
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
 ```
 
 Tab click wiring (lines ~1016–1021):
