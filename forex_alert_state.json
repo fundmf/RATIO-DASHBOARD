@@ -1,6 +1,9 @@
 {
   "alerted": [
     "2026-07-01T09:00:00-04:00|Fed Chairman Warsh Speaks",
-    "2026-07-01T10:00:00-04:00|ISM Manufacturing PMI"
+    "2026-07-01T10:00:00-04:00|ISM Manufacturing PMI",
+    "2026-07-02T08:30:00-04:00|Average Hourly Earnings m/m",
+    "2026-07-02T08:30:00-04:00|Non-Farm Employment Change",
+    "2026-07-02T08:30:00-04:00|Unemployment Rate"
   ]
 }
