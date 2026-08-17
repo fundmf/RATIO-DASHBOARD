@@ -1,17 +1,22 @@
 name: Update BTC ETF Flows (Daily)
 
 # Farside publishes daily after US market close. We try at 04:00 UTC (primary),
-# 06:00 UTC (backup), and 10:00 UTC (second backup) so a single dropped GHA
-# scheduled run doesn't lose the day's capture or alert.
+# 06:00 UTC (backup), 10:00 UTC (second backup), and 14:00 UTC (afternoon safety
+# net) so a single dropped GHA scheduled run doesn't lose the day's capture.
 #
 # The script is idempotent — once the latest day is recorded and the alert is
 # sent (or determined not to fire), subsequent runs that day are no-ops.
+#
+# NOTE (Aug 2026): GitHub silently paused this schedule after ~2 months with no
+# runs in log history. Push any edit here to re-register the schedule, and/or
+# hit "Run workflow" manually once from the Actions tab to prime it.
 
 on:
   schedule:
     - cron: '0 4 * * *'    # 04:00 UTC primary
     - cron: '0 6 * * *'    # 06:00 UTC backup
     - cron: '0 10 * * *'   # 10:00 UTC second backup
+    - cron: '0 14 * * *'   # 14:00 UTC afternoon safety net
   workflow_dispatch:        # manual trigger from Actions tab
 
 jobs:
@@ -42,7 +47,10 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add etf_flows.json
-          git diff --staged --quiet && exit 0
+          if git diff --staged --quiet; then
+            echo "::notice::etf_flows.json unchanged — no commit needed (script may have returned no new days, or Farside hasn't published yet today)."
+            exit 0
+          fi
           git commit -m "ETF flows: $(date -u '+%Y-%m-%d') daily snapshot"
           ok=0
           for i in 1 2 3 4 5; do
