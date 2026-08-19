@@ -40,6 +40,7 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn active" data-tab="ratio">Ratio Analysis</button>
 <button class="tab-btn" data-tab="geo">Geopolitics</button>
 <button class="tab-btn" data-tab="liq">Market Liquidity</button>
+<button class="tab-btn" data-tab="btc">BTC</button>
 <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
 <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
 <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
@@ -52,7 +53,7 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 
 Tab init guard (line ~1008):
 ```javascript
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
 ```
 
 Tab click wiring (lines ~1016–1021):

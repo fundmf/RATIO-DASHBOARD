@@ -143,6 +143,7 @@
     <button class="tab-btn active" data-tab="ratio">Ratio Analysis</button>
     <button class="tab-btn" data-tab="geo">Geopolitics</button>
     <button class="tab-btn" data-tab="liq">Market Liquidity</button>
+    <button class="tab-btn" data-tab="btc">BTC</button>
     <button class="tab-btn" data-tab="fart">FARTCOIN Analysis</button>
     <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
     <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
@@ -440,6 +441,68 @@
                 </label>
                 <span id="etfSettingsStatus" style="font-size:12px;color:#64748b;"></span>
             </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ══════════════════════════ TAB: BTC ══════════════════════════ -->
+<div id="tab-btc" class="tab-content">
+<div class="container">
+    <h1>BTC</h1>
+    <div class="subtitle">Long-term BTC charts — supply in loss, 200-day moving average, and correlation with NASDAQ 100</div>
+
+    <!-- ─────────── Chart 1: BTC Supply in Loss (external embed) ─────────── -->
+    <div class="card">
+        <div class="card-title">BTC Held at a Loss (% of Supply)
+            <a href="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" target="_blank" rel="noopener" style="font-size:12px;color:#3b82f6;font-weight:400;margin-left:10px;text-decoration:none;">↗ Open full chart on LookIntoBitcoin</a>
+        </div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
+            <strong style="color:#cbd5e1;">In plain English:</strong> Every bitcoin has a "last-moved price" (roughly, the price when it was last spent to its current wallet — a proxy for cost basis). This chart shows the % of all BTC where the current market price is <em>below</em> that last-moved price — i.e., the holder is currently underwater. High readings (&gt;50%) = capitulation/bear regime. Low readings (&lt;10%) = euphoric/top regime.
+        </p>
+        <div style="position:relative;width:100%;background:#0a0a0a;border:1px solid #334155;border-radius:6px;overflow:hidden;">
+            <iframe src="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" style="width:100%;height:640px;border:0;background:#fff;" loading="lazy" title="BTC Supply in Loss — LookIntoBitcoin"></iframe>
+        </div>
+        <div style="margin-top:10px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+            <strong style="color:#cbd5e1;">Source:</strong> <a href="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" target="_blank" rel="noopener" style="color:#3b82f6;">LookIntoBitcoin</a>, powered by <a href="https://glassnode.com" target="_blank" rel="noopener" style="color:#3b82f6;">Glassnode</a> on-chain data — industry standard for BTC supply metrics.<br>
+            <strong style="color:#cbd5e1;">Method (short):</strong> Every UTXO's last-moved price is compared to today's price. If today's price is lower, that BTC is "in loss." Sum those, divide by total supply, get the %.<br>
+            <strong style="color:#fbbf24;">Note:</strong> If the iframe above appears blank, LookIntoBitcoin's server has blocked embedding — click the "Open full chart" link at the top to view the chart directly on their site.
+        </div>
+    </div>
+
+    <!-- ─────────── Chart 2: BTC 200-Day MA ─────────── -->
+    <div class="card">
+        <div class="card-title">BTC Price vs 200-Day Moving Average
+            <span id="btc200Latest" style="font-size:12px;color:#64748b;font-weight:400;margin-left:10px;">Loading…</span>
+        </div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
+            <strong style="color:#cbd5e1;">In plain English:</strong> The 200-day MA is the average of BTC's daily closes over the last 200 days. Price <em>above</em> the MA = long-term uptrend. Price <em>below</em> the MA = long-term downtrend. Historically one of the most-watched "regime" signals in crypto.
+        </p>
+        <div style="height:400px;position:relative;">
+            <canvas id="btc200Chart"></canvas>
+        </div>
+        <div style="margin-top:10px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+            <strong style="color:#cbd5e1;">Source:</strong> <a href="https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data" target="_blank" rel="noopener" style="color:#3b82f6;">Binance public klines API</a> — the largest global crypto exchange by volume; the industry-standard reference for BTC price data.<br>
+            <strong style="color:#cbd5e1;">Method:</strong> Fetches the last 300 daily candles (BTCUSDT), plots the close price as a solid line and the trailing 200-day simple moving average as a dashed line.
+        </div>
+    </div>
+
+    <!-- ─────────── Chart 3: BTC vs NASDAQ 100 ─────────── -->
+    <div class="card">
+        <div class="card-title">BTC vs NASDAQ 100 (365-day % Return)
+            <span id="btcNdxLatest" style="font-size:12px;color:#64748b;font-weight:400;margin-left:10px;">Loading…</span>
+        </div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
+            <strong style="color:#cbd5e1;">In plain English:</strong> Both assets are rebased to 0% on the first day shown, then tracked as cumulative % change. If the lines move together, BTC is trading like a tech stock. If they diverge, BTC is behaving independently (e.g. driven by crypto-specific catalysts).
+        </p>
+        <div style="height:400px;position:relative;">
+            <canvas id="btcNdxChart"></canvas>
+        </div>
+        <div style="margin-top:10px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+            <strong style="color:#cbd5e1;">Sources:</strong>
+            BTC — <a href="https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data" target="_blank" rel="noopener" style="color:#3b82f6;">Binance</a> daily klines.
+            NASDAQ 100 (^NDX) — <a href="https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX" target="_blank" rel="noopener" style="color:#3b82f6;">Yahoo Finance</a> daily chart data (via our <code>/api/yahoo</code> proxy).<br>
+            <strong style="color:#cbd5e1;">Method:</strong> Both series are aligned by trading date (Yahoo skips weekends/holidays — we align BTC to those same dates), rebased so day-1 = 0%, then plotted as (price / baseline − 1) × 100.
         </div>
     </div>
 </div>
@@ -1566,7 +1629,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1576,6 +1639,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         document.getElementById('tab-'+id).classList.add('active');
         if(id==='geo'&&!tabInit.geo){tabInit.geo=true;initGeopolitics();}
         if(id==='liq'&&!tabInit.liq){tabInit.liq=true;initLiquidity();}
+        if(id==='btc'&&!tabInit.btc){tabInit.btc=true;initBtcTab();}
         if(id==='fart'&&!tabInit.fart){tabInit.fart=true;initFartcoin();}
         if(id==='fart2'&&!tabInit.fart2){tabInit.fart2=true;initFartcoinV2();}
         if(id==='fartmin'&&!tabInit.fartmin){tabInit.fartmin=true;initFartMinAnalysis();}
@@ -2700,6 +2764,135 @@ function renderFartDDDistribution(events){
       }
     }
   });
+}
+
+// ──────────────────────────────────────────────
+// TAB — BTC (200D MA + BTC vs NDX + external Supply-in-Loss iframe)
+// ──────────────────────────────────────────────
+let btc200ChartInst=null, btcNdxChartInst=null;
+
+async function initBtcTab(){
+    // Kick off both fetches in parallel — the supply-in-loss chart is an iframe
+    // so it loads independently, nothing to do here for it.
+    renderBtc200Chart().catch(e=>{
+        document.getElementById('btc200Latest').textContent='⚠ '+e.message;
+    });
+    renderBtcNdxChart().catch(e=>{
+        document.getElementById('btcNdxLatest').textContent='⚠ '+e.message;
+    });
+}
+
+async function fetchBinanceDailyCloses(symbol, days){
+    // Binance klines: [openTime, o, h, l, close, vol, closeTime, ...]
+    const limit=Math.min(days,1000);
+    const url=`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=${limit}`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('Binance '+r.status);
+    const data=await r.json();
+    if(!Array.isArray(data)||!data.length) throw new Error('Binance returned no data');
+    return data.map(c=>({
+        date: new Date(c[0]).toISOString().slice(0,10),  // YYYY-MM-DD
+        close: parseFloat(c[4]),
+    }));
+}
+
+async function renderBtc200Chart(){
+    const btc=await fetchBinanceDailyCloses('BTCUSDT', 300);
+    // Compute 200-day SMA (null for first 199 points)
+    const sma=btc.map((_,i)=>{
+        if(i<199) return null;
+        let sum=0;
+        for(let j=i-199;j<=i;j++) sum+=btc[j].close;
+        return sum/200;
+    });
+    const labels=btc.map(d=>new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
+    const latestPrice=btc[btc.length-1].close;
+    const latestMa=sma[sma.length-1];
+    const deltaPct=((latestPrice-latestMa)/latestMa)*100;
+    const trendColor=latestPrice>latestMa?'#10b981':'#ef4444';
+    const trendLbl=latestPrice>latestMa?'above':'below';
+    document.getElementById('btc200Latest').innerHTML=
+        `Price <strong>$${Math.round(latestPrice).toLocaleString()}</strong> · 200D MA <strong>$${Math.round(latestMa).toLocaleString()}</strong> · <span style="color:${trendColor}">${deltaPct>=0?'+':''}${deltaPct.toFixed(1)}% ${trendLbl} MA</span>`;
+    const ctx=document.getElementById('btc200Chart').getContext('2d');
+    if(btc200ChartInst) btc200ChartInst.destroy();
+    btc200ChartInst=new Chart(ctx,{
+        type:'line',
+        data:{labels, datasets:[
+            {label:'BTC price', data:btc.map(d=>d.close), borderColor:'#f59e0b', backgroundColor:'#f59e0b22', borderWidth:1.8, pointRadius:0, tension:0.15, fill:false},
+            {label:'200-day MA', data:sma, borderColor:'#94a3b8', borderWidth:1.5, borderDash:[6,4], pointRadius:0, tension:0.15, fill:false, spanGaps:false},
+        ]},
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{labels:{color:'#e2e8f0'}},
+                tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:c=>`${c.dataset.label}: $${Math.round(c.parsed.y).toLocaleString()}`}},
+            },
+            scales:{
+                x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:14}},
+                y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>'$'+Math.round(v/1000)+'k'}},
+            },
+        },
+    });
+}
+
+async function renderBtcNdxChart(){
+    // 365 days back
+    const btc=await fetchBinanceDailyCloses('BTCUSDT', 365);
+    // Yahoo NDX daily via existing /api/yahoo proxy
+    const to=Math.floor(Date.now()/1000);
+    const from=to-365*24*3600;
+    const yUrl=`https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=${from}&period2=${to}&interval=1d`;
+    const proxied=`/api/yahoo?url=${encodeURIComponent(yUrl)}`;
+    const r=await fetch(proxied);
+    if(!r.ok) throw new Error('Yahoo proxy '+r.status);
+    const j=await r.json();
+    const result=j?.chart?.result?.[0];
+    if(!result) throw new Error('Yahoo returned no NDX data');
+    const ts=result.timestamp||[];
+    const closes=result.indicators?.quote?.[0]?.close||[];
+    const ndx=ts.map((t,i)=>({
+        date: new Date(t*1000).toISOString().slice(0,10),
+        close: closes[i],
+    })).filter(d=>d.close!=null);
+
+    // Align: for every NDX date, find matching BTC date
+    const btcMap=Object.fromEntries(btc.map(d=>[d.date,d.close]));
+    const merged=[];
+    for(const nd of ndx){
+        if(nd.date in btcMap) merged.push({date:nd.date, btc:btcMap[nd.date], ndx:nd.close});
+    }
+    if(!merged.length) throw new Error('No overlapping dates between BTC and NDX');
+
+    // Rebase both to 0% on first common day
+    const btcBase=merged[0].btc, ndxBase=merged[0].ndx;
+    const labels=merged.map(m=>new Date(m.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
+    const btcPct=merged.map(m=>((m.btc/btcBase)-1)*100);
+    const ndxPct=merged.map(m=>((m.ndx/ndxBase)-1)*100);
+    const btcCur=btcPct[btcPct.length-1], ndxCur=ndxPct[ndxPct.length-1];
+    document.getElementById('btcNdxLatest').innerHTML=
+        `BTC <strong style="color:${btcCur>=0?'#10b981':'#ef4444'}">${btcCur>=0?'+':''}${btcCur.toFixed(1)}%</strong> · NDX <strong style="color:${ndxCur>=0?'#10b981':'#ef4444'}">${ndxCur>=0?'+':''}${ndxCur.toFixed(1)}%</strong> · from ${merged[0].date}`;
+    const ctx=document.getElementById('btcNdxChart').getContext('2d');
+    if(btcNdxChartInst) btcNdxChartInst.destroy();
+    btcNdxChartInst=new Chart(ctx,{
+        type:'line',
+        data:{labels, datasets:[
+            {label:'BTC', data:btcPct, borderColor:'#f59e0b', backgroundColor:'#f59e0b22', borderWidth:2, pointRadius:0, tension:0.2, fill:false},
+            {label:'NASDAQ 100', data:ndxPct, borderColor:'#3b82f6', backgroundColor:'#3b82f622', borderWidth:2, pointRadius:0, tension:0.2, fill:false},
+        ]},
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{labels:{color:'#e2e8f0'}},
+                tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y>=0?'+':''}${c.parsed.y.toFixed(2)}%`}},
+            },
+            scales:{
+                x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxTicksLimit:14}},
+                y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>(v>=0?'+':'')+v.toFixed(0)+'%'},title:{display:true,text:'% return from baseline',color:'#64748b'}},
+            },
+        },
+    });
 }
 
 async function initFartcoin(){
