@@ -26,6 +26,7 @@ publishes the prior US trading day's flows).
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
@@ -48,14 +49,33 @@ def load_settings():
 
 
 def fetch_farside():
-    """Fetch and parse Farside's BTC ETF daily flow table."""
+    """Fetch and parse Farside's BTC ETF daily flow table.
+
+    Uses a realistic browser User-Agent because Farside is known to serve empty
+    or different content to bot-like UAs / datacentre IPs. Also logs status +
+    body size so silent scrape failures are diagnosable from the workflow log.
+    """
+    ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+          "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
     resp = requests.get(
         FARSIDE_URL,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; RatioDashboard/1.0)"},
+        headers={
+            "User-Agent": ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate",
+        },
         timeout=30,
     )
     resp.raise_for_status()
-    return parse_farside_html(resp.text)
+    print(f"  Farside HTTP {resp.status_code} · body {len(resp.text)} chars")
+    days = parse_farside_html(resp.text)
+    if not days:
+        # Print a chunk of the body so we can see what Farside actually returned
+        # (bot-block page? redirect? maintenance?)
+        snippet = resp.text[:400].replace('\n', ' ').replace('\r', ' ')
+        print(f"  WARNING: parser returned 0 days. First 400 chars of body: {snippet!r}")
+    return days
 
 
 def parse_farside_html(html):
@@ -111,15 +131,15 @@ def main():
     settings    = load_settings()
     threshold_m = float(settings.get("etf_flow_threshold_m_usd", DEFAULT_THRESHOLD_M))
 
-    # Scrape Farside
+    # Scrape Farside — fail loudly so bad runs show RED in GH Actions
     try:
         new_days = fetch_farside()
     except Exception as e:
-        print(f"Farside fetch error: {e}")
-        return
+        print(f"ERROR: Farside fetch failed: {e}")
+        sys.exit(1)
     if not new_days:
-        print("No data parsed from Farside.")
-        return
+        print("ERROR: parser returned 0 days — see log snippet above.")
+        sys.exit(1)
     print(f"Parsed {len(new_days)} days from Farside. Last 3: {new_days[-3:]}")
 
     # Load or initialize JSON
