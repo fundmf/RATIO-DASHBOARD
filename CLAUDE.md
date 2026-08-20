@@ -20,6 +20,7 @@ funding_rates.json          ← DAILY MARKET-AGGREGATE funding snapshots per coi
 etf_flows.json              ← daily BTC ETF net flows from Farside + last_alert_date
 notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py, etf_flows.py, AND crash-check.js
 crash_alert_state.json      ← cooldown timestamps per coin for crash monitor; updated only when an alert fires
+volume_crossings_state.json ← last-seen FARTCOIN 24h volume for threshold-crossing Slack alerts
 custom_alerts.json          ← server-side alert state
 update_data.py              ← daily OHLC updater (BTC/ETH via CoinGecko, MSTR/BMNR via yfinance)
 backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.json
@@ -27,6 +28,7 @@ backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidit
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
 funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
 etf_flows.py                ← Farside BTC ETF scrape + sign-flip Slack alert (dedicated workflow, 04/06/10 UTC redundant runs)
+volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts (50M/100M/…/700M)
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
 .github/workflows/update.yml ← runs all scripts hourly Mon–Fri, commits + pushes
