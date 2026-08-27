@@ -452,21 +452,21 @@
     <h1>BTC</h1>
     <div class="subtitle">Long-term BTC charts — supply in loss, 200-day moving average, and correlation with NASDAQ 100</div>
 
-    <!-- ─────────── Chart 1: BTC Supply in Loss (external embed) ─────────── -->
+    <!-- ─────────── Chart 1: BTC Supply in Profit or Loss (CheckOnChain iframe) ─────────── -->
     <div class="card">
-        <div class="card-title">BTC Held at a Loss (% of Supply)
-            <a href="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" target="_blank" rel="noopener" style="font-size:12px;color:#3b82f6;font-weight:400;margin-left:10px;text-decoration:none;">↗ Open full chart on LookIntoBitcoin</a>
+        <div class="card-title">BTC Supply in Profit or Loss (% of Supply)
+            <a href="https://charts.checkonchain.com/btconchain/supply/breakdown_pnl/breakdown_pnl_light.html" target="_blank" rel="noopener" style="font-size:12px;color:#3b82f6;font-weight:400;margin-left:10px;text-decoration:none;">↗ Open full chart on CheckOnChain</a>
         </div>
         <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">
-            <strong style="color:#cbd5e1;">In plain English:</strong> Every bitcoin has a "last-moved price" (roughly, the price when it was last spent to its current wallet — a proxy for cost basis). This chart shows the % of all BTC where the current market price is <em>below</em> that last-moved price — i.e., the holder is currently underwater. High readings (&gt;50%) = capitulation/bear regime. Low readings (&lt;10%) = euphoric/top regime.
+            <strong style="color:#cbd5e1;">In plain English:</strong> Every bitcoin has a "last-moved price" (roughly, the price when it was last spent to its current wallet — a proxy for cost basis). This chart splits the total BTC supply into two bands: coins currently <strong>in profit</strong> (last-moved below today's price) and coins currently <strong>in loss</strong> (last-moved above today's price). A rising red/loss band = holders getting underwater (capitulation risk). A large green/profit band = market euphoria/top risk.
         </p>
-        <div style="position:relative;width:100%;background:#0a0a0a;border:1px solid #334155;border-radius:6px;overflow:hidden;">
-            <iframe src="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" style="width:100%;height:640px;border:0;background:#fff;" loading="lazy" title="BTC Supply in Loss — LookIntoBitcoin"></iframe>
+        <div style="position:relative;width:100%;background:#fff;border:1px solid #334155;border-radius:6px;overflow:hidden;">
+            <iframe src="https://charts.checkonchain.com/btconchain/supply/breakdown_pnl/breakdown_pnl_light.html" style="width:100%;height:640px;border:0;display:block;" loading="lazy" title="BTC Supply in Profit or Loss — CheckOnChain"></iframe>
         </div>
         <div style="margin-top:10px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.6;">
-            <strong style="color:#cbd5e1;">Source:</strong> <a href="https://www.lookintobitcoin.com/charts/percent-supply-in-loss/" target="_blank" rel="noopener" style="color:#3b82f6;">LookIntoBitcoin</a>, powered by <a href="https://glassnode.com" target="_blank" rel="noopener" style="color:#3b82f6;">Glassnode</a> on-chain data — industry standard for BTC supply metrics.<br>
-            <strong style="color:#cbd5e1;">Method (short):</strong> Every UTXO's last-moved price is compared to today's price. If today's price is lower, that BTC is "in loss." Sum those, divide by total supply, get the %.<br>
-            <strong style="color:#fbbf24;">Note:</strong> If the iframe above appears blank, LookIntoBitcoin's server has blocked embedding — click the "Open full chart" link at the top to view the chart directly on their site.
+            <strong style="color:#cbd5e1;">Source:</strong> <a href="https://charts.checkonchain.com/" target="_blank" rel="noopener" style="color:#3b82f6;">CheckOnChain</a> — free public on-chain dashboards published by <a href="https://x.com/_Checkmatey_" target="_blank" rel="noopener" style="color:#3b82f6;">James Check (@_Checkmatey_)</a>, a respected on-chain analyst and former Glassnode lead. Chart data derived from Bitcoin's public blockchain (UTXO set) — no paid API required.<br>
+            <strong style="color:#cbd5e1;">Method (short):</strong> Every bitcoin UTXO's price at last movement is compared to the current spot price. Coins with last-move price below spot are counted as "in profit"; above spot = "in loss". Aggregated to a daily snapshot and stacked as % of circulating supply.<br>
+            <strong style="color:#cbd5e1;">Interactive:</strong> Hover for exact values, use the toolbar in the top-right of the chart to zoom/pan.
         </div>
     </div>
 

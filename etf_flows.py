@@ -131,15 +131,17 @@ def main():
     settings    = load_settings()
     threshold_m = float(settings.get("etf_flow_threshold_m_usd", DEFAULT_THRESHOLD_M))
 
-    # Scrape Farside — fail loudly so bad runs show RED in GH Actions
+    # Scrape Farside — soft-exit on upstream failure to avoid email spam from
+    # transient Farside/Cloudflare bot-blocks. Diagnostic info still logs so
+    # you can see WHY in the run log if you go looking.
     try:
         new_days = fetch_farside()
     except Exception as e:
-        print(f"ERROR: Farside fetch failed: {e}")
-        sys.exit(1)
+        print(f"WARNING: Farside fetch failed (soft-exit, will retry next run): {e}")
+        return
     if not new_days:
-        print("ERROR: parser returned 0 days — see log snippet above.")
-        sys.exit(1)
+        print("WARNING: parser returned 0 days (soft-exit) — see log snippet above.")
+        return
     print(f"Parsed {len(new_days)} days from Farside. Last 3: {new_days[-3:]}")
 
     # Load or initialize JSON

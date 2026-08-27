@@ -99,8 +99,11 @@ def main():
     try:
         curr_m = fetch_current_volume_m()
     except Exception as e:
-        print(f"ERROR: CoinGecko fetch failed: {e}")
-        sys.exit(1)
+        # Log as warning and exit CLEAN — CoinGecko occasionally rate-limits or blocks
+        # GHA runner IPs; we don't want that to spam email-on-failure notifications.
+        # Next hourly run will retry; nothing is lost.
+        print(f"WARNING: CoinGecko fetch failed (soft-exit, will retry next run): {e}")
+        return
 
     state = load_state()
     prev_m = state.get("last_volume_m")
