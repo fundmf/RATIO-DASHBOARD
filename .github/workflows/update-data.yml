@@ -43,11 +43,17 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python volume_crossings.py
 
+      - name: Check USD/JPY threshold crossings (Slack alert if crossed)
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python fx_crossings.py
+
       - name: Commit updated data
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json volume_crossings_state.json
+          git add data.json fartcoin_hourly.json spx6900_hourly.json liquidity_daily.json fartcoin_liquidity_daily.json volume_crossings_state.json fx_crossings_state.json
           git diff --staged --quiet && exit 0
           git commit -m "Auto-update: $(date -u '+%Y-%m-%dT%H:%M') data refresh"
           ok=0
