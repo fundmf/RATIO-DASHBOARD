@@ -3,12 +3,18 @@
 market_alerts.py — Sends Slack alerts when Oil or Nasdaq trigger significant moves.
 
 Thresholds (same as dashboard Geopolitics tab):
-  - WTI Crude Oil (CL=F): 3% move in 3 hours
-  - Nasdaq 100 (^NDX):    2% move in 2 hours
+  - Brent Crude Oil (xyz:BRENTOIL on Hyperliquid, 24/7): 3% move in 3 hours
+  - Nasdaq 100 (^NDX from Yahoo Finance):                2% move in 2 hours
 
-Reads Yahoo Finance intraday data, checks for threshold breaches,
-and sends alerts via SLACK_WEBHOOK_URL. Tracks state in
-market_alert_state.json to avoid duplicate alerts.
+Data sources:
+  - Oil: Hyperliquid builder-DEX perp xyz:BRENTOIL — 24/7 pricing including
+    weekends. Previously used Yahoo CL=F (WTI) but WTI markets on HL are
+    dormant; Brent is the practical 24/7 substitute (typically ~$3-5/bbl
+    correlated with WTI).
+  - Nasdaq: Yahoo Finance (no crypto-market 24/7 equivalent).
+
+Sends alerts via SLACK_WEBHOOK_URL. Tracks state in market_alert_state.json
+to avoid duplicate alerts.
 
 Run via GitHub Actions every hour.
 """
@@ -24,13 +30,15 @@ STATE_FILE = "market_alert_state.json"
 
 MARKETS = [
     {
-        "ticker": "CL=F",
-        "name": "WTI Crude Oil",
+        "source": "hl",
+        "ticker": "xyz:BRENTOIL",
+        "name": "Brent Crude Oil",
         "threshold_pct": 3.0,
         "window_hours": 3,
         "emoji": "\U0001f6e2\ufe0f",  # oil drum
     },
     {
+        "source": "yahoo",
         "ticker": "^NDX",
         "name": "Nasdaq 100",
         "threshold_pct": 2.0,
@@ -42,6 +50,8 @@ MARKETS = [
 YAHOO_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
+
+HL_INFO_URL = "https://api.hyperliquid.xyz/info"
 
 
 def load_state():
@@ -55,6 +65,57 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def fetch_hl_intraday(coin, hours_back=24):
+    """Fetch intraday 5-min candles from Hyperliquid, return in same shape as
+    fetch_yahoo_intraday so the downstream check_market logic works unchanged.
+    """
+    end_ms   = int(datetime.now(timezone.utc).timestamp() * 1000)
+    start_ms = end_ms - hours_back * 3600 * 1000
+    try:
+        resp = requests.post(
+            HL_INFO_URL,
+            json={
+                "type": "candleSnapshot",
+                "req": {
+                    "coin": coin,
+                    "interval": "5m",
+                    "startTime": start_ms,
+                    "endTime": end_ms,
+                },
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        candles = resp.json() or []
+        if not candles:
+            print(f"  HL returned no candles for {coin}")
+            return None
+        # HL candle: {t: openMs (int), T: closeMs, s, i, o, c, h, l, v, n} (prices as strings)
+        candles.sort(key=lambda c: c.get("t", 0))
+        ts     = [int(c["t"]) // 1000 for c in candles]  # to seconds like Yahoo
+        closes = [float(c["c"]) for c in candles]
+        highs  = [float(c["h"]) for c in candles]
+        lows   = [float(c["l"]) for c in candles]
+        current_price = closes[-1] if closes else None
+        # For HL there's no "previous close" concept from a single request;
+        # approximate day-change baseline from the earliest candle in the window.
+        prev_close = closes[0] if len(closes) > 12 else None
+        return {
+            "meta": {
+                "regularMarketPrice": current_price,
+                "chartPreviousClose": prev_close,
+                "marketState": "REGULAR",  # HL is always open
+            },
+            "timestamps": ts,
+            "closes": closes,
+            "highs": highs,
+            "lows": lows,
+        }
+    except Exception as e:
+        print(f"  Failed to fetch HL {coin}: {e}")
+        return None
 
 
 def fetch_yahoo_intraday(ticker):
@@ -97,8 +158,12 @@ def check_market(market):
     threshold = market["threshold_pct"]
     window_hrs = market["window_hours"]
 
-    print(f"\n  Checking {name} ({ticker})...")
-    data = fetch_yahoo_intraday(ticker)
+    source = market.get("source", "yahoo")
+    print(f"\n  Checking {name} ({ticker}) [source: {source}]...")
+    if source == "hl":
+        data = fetch_hl_intraday(ticker)
+    else:
+        data = fetch_yahoo_intraday(ticker)
     if not data or not data["timestamps"]:
         print(f"    No data available")
         return None
@@ -259,8 +324,8 @@ def main():
     if "--test" in sys.argv:
         print("=== TEST MODE ===")
         test_alerts = [{
-            "name": "WTI Crude Oil",
-            "ticker": "CL=F",
+            "name": "Brent Crude Oil",
+            "ticker": "xyz:BRENTOIL",
             "emoji": "\U0001f6e2\ufe0f",
             "price": 71.50,
             "move_pct": 3.5,

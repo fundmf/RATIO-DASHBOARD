@@ -249,10 +249,10 @@
     <div class="subtitle">Live market signals, prediction markets &amp; sentiment indicators</div>
 
     <div class="card">
-        <div class="card-title">Market Alerts <span class="info-badge">~15 min delayed</span></div>
+        <div class="card-title">Market Alerts</div>
         <div class="geo-split">
             <div>
-                <div class="asset-label">🛢 Crude Oil (WTI)</div>
+                <div class="asset-label">🛢 Brent Crude Oil</div>
                 <div id="oil-alert" class="alert-banner loading">⏳ Loading...</div>
                 <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
                     <span class="price-stat" id="oil-price">—</span>
@@ -260,6 +260,9 @@
                 </div>
                 <div class="mini-chart-wrap"><canvas id="oilChart"></canvas></div>
                 <div class="market-status" id="oil-status"></div>
+                <div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.4;">
+                    <strong>Source:</strong> Hyperliquid <code>xyz:BRENTOIL</code> perp · 24/7 pricing · 5-min candles, last 3hr shown · alert fires on ≥3% move in any 3hr rolling window
+                </div>
             </div>
             <div>
                 <div class="asset-label">📈 Nasdaq 100</div>
@@ -270,6 +273,9 @@
                 </div>
                 <div class="mini-chart-wrap"><canvas id="qqqChart"></canvas></div>
                 <div class="market-status" id="qqq-status"></div>
+                <div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.4;">
+                    <strong>Source:</strong> Yahoo Finance <code>^NDX</code> · US market hours only · 5-min candles, last 3hr shown · alert fires on ≥2% move in any 2hr rolling window
+                </div>
             </div>
         </div>
     </div>
@@ -1110,11 +1116,10 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Oil &amp; Nasdaq Alert Cards</h3>
         <ul>
-            <li><strong>WTI Crude Oil (CL=F):</strong> Alerts if price moves <strong>&ge;3% within any 3-hour window</strong></li>
-            <li><strong>Nasdaq 100 (^NDX):</strong> Alerts if price moves <strong>&ge;2% within any 2-hour window</strong></li>
-            <li>Data: Yahoo Finance 5-min intraday bars via Cloudflare proxy</li>
-            <li>Move calculation: <code>(max high &minus; min low) / min low &times; 100</code> across the window</li>
-            <li>Mini-chart shows last 3 hours of trading. Colour: green (up) / red (down) when triggered, blue when normal</li>
+            <li><strong>Brent Crude Oil (Hyperliquid <code>xyz:BRENTOIL</code>):</strong> Alerts if price moves <strong>&ge;3% within any 3-hour window</strong>. Sourced from Hyperliquid's builder-DEX Brent perpetual — trades 24/7 including weekends (previously used Yahoo Finance WTI <code>CL=F</code>, which is closed weekends and paused daily). Brent tracks WTI closely (~$3-5/bbl spread).</li>
+            <li><strong>Nasdaq 100 (Yahoo Finance <code>^NDX</code>):</strong> Alerts if price moves <strong>&ge;2% within any 2-hour window</strong>. US-market hours only — no 24/7 equivalent exists for the index.</li>
+            <li>Data granularity: 5-min bars. Move calculation: <code>(max high &minus; min low) / min low &times; 100</code> across the rolling window.</li>
+            <li>Mini-chart shows the last 3 hours of trading. Colour: green (up) / red (down) when triggered, blue when normal.</li>
         </ul>
         <div class="doc-note">These thresholds are also checked hourly by <code>market_alerts.py</code> in GitHub Actions and sent to Slack. See <a href="#doc-slack" style="color:#3b82f6;">Slack Alert Systems</a>.</div>
 
@@ -1468,7 +1473,7 @@ if dropPct ≥ threshold AND not in cooldown:
 
         <h3>b) Market Alerts (<code>market_alerts.py</code>)</h3>
         <ul>
-            <li>Fetches Oil and Nasdaq 100 intraday data from Yahoo Finance</li>
+            <li>Oil data: Hyperliquid <code>xyz:BRENTOIL</code> (Brent, 24/7). Nasdaq data: Yahoo Finance <code>^NDX</code> (US-hours only).</li>
             <li>Scans rolling windows (3hr for Oil, 2hr for Nasdaq) ending in the <strong>last 2 hours</strong></li>
             <li>Only windows ending recently are checked — old spikes age out naturally, preventing duplicate alerts</li>
             <li>Dedup safety net: tracks peak move % per ticker per day, only re-alerts if move grows by &ge;1% more</li>
@@ -1908,11 +1913,77 @@ function renderChart(canvasId,data,showRefLine,isChart1){
 // TAB 2 — GEOPOLITICS
 // ──────────────────────────────────────────────
 async function initGeopolitics(){
-    fetchMarketAlert('CL%3DF','oil','WTI Crude Oil',3,3,'oilChart');
+    // Oil: switched from Yahoo CL=F (WTI, 5-day) to Hyperliquid xyz:BRENTOIL (24/7)
+    fetchHlMarketAlert('xyz:BRENTOIL','oil','Brent Crude Oil',3,3,'oilChart');
     fetchMarketAlert('%5ENDX','qqq','Nasdaq 100',2,2,'qqqChart');
     fetchRateOdds();
     fetchFearAndGreed();
     fetchVIX();
+}
+
+async function fetchHlMarketAlert(coin,prefix,name,thresholdPct,windowHours,canvasId){
+    const alertEl=document.getElementById(prefix+'-alert');
+    const priceEl=document.getElementById(prefix+'-price');
+    const changeEl=document.getElementById(prefix+'-change');
+    const statusEl=document.getElementById(prefix+'-status');
+    try{
+        const endMs=Date.now();
+        const startMs=endMs-24*3600*1000;  // last 24h of 5-min candles
+        const resp=await fetch('https://api.hyperliquid.xyz/info',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({type:'candleSnapshot',req:{coin,interval:'5m',startTime:startMs,endTime:endMs}}),
+        });
+        if(!resp.ok)throw new Error('HL '+resp.status);
+        const candles=await resp.json();
+        if(!Array.isArray(candles)||candles.length<2)throw new Error('no candle data');
+        // Normalise: t (ms int), close/high/low as strings
+        const bars=candles.map(c=>({t:c.t/1000,c:parseFloat(c.c),h:parseFloat(c.h),l:parseFloat(c.l)}))
+                          .sort((a,b)=>a.t-b.t);
+        const cur=bars[bars.length-1].c;
+        // 24h % change approximation from earliest bar in window
+        const dayChg=bars.length>12?((cur-bars[0].c)/bars[0].c)*100:null;
+        priceEl.textContent='$'+fmt(cur);
+        if(dayChg!=null){changeEl.textContent=(dayChg>=0?'+':'')+dayChg.toFixed(2)+'% (24h)';changeEl.className='price-change '+(dayChg>=0?'up':'down');}
+        statusEl.textContent='Market open (24/7 on Hyperliquid)';
+        // Rolling window scan for the biggest move ending in the last 2 hours
+        const nowSec=Date.now()/1000, winSec=windowHours*3600;
+        const scanCutoff=nowSec-2*3600;
+        let triggered=false,up=false;
+        for(let i=0;i<bars.length;i++){
+            const endT=bars[i].t;
+            if(endT<scanCutoff)continue;
+            const startT=endT-winSec;
+            const win=[];
+            for(let j=i;j>=0;j--){
+                if(bars[j].t<startT)break;
+                win.push(bars[j]);
+            }
+            if(win.length<2)continue;
+            const rh=Math.max(...win.map(b=>b.h)), rl=Math.min(...win.map(b=>b.l));
+            if(rl<=0)continue;
+            const move=(rh-rl)/rl*100;
+            if(move>=thresholdPct){
+                triggered=true;
+                up=win[0].c<win[win.length-1].c;
+                break;
+            }
+        }
+        if(triggered){
+            alertEl.className='alert-banner '+(up?'triggered-up':'triggered-down');
+            alertEl.textContent=`🚨 ALERT: ${name} moved ${thresholdPct}%+ ${up?'▲ UP':'▼ DOWN'} in the last ${windowHours}hrs`;
+        }else{
+            alertEl.className='alert-banner normal';
+            alertEl.textContent=`✓ No significant move detected (< ${thresholdPct}% in ${windowHours}hrs)`;
+        }
+        // Last 3hr mini chart
+        const chartWin=3*3600;
+        const chartData=bars.filter(b=>b.t>=nowSec-chartWin).map(b=>({t:b.t,c:b.c}));
+        renderMiniChart(canvasId,chartData,triggered,up);
+    }catch(e){
+        console.warn('HL market alert',prefix,e.message);
+        alertEl.className='alert-banner normal';alertEl.textContent='⚠ Could not load data';priceEl.textContent='Unavailable';
+    }
 }
 
 async function fetchMarketAlert(ticker,prefix,name,thresholdPct,windowHours,canvasId){

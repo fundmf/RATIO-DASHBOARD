@@ -30,7 +30,8 @@ update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yf
 funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
 etf_flows.py                ← Farside BTC ETF scrape + sign-flip Slack alert (dedicated workflow, 04/06/10 UTC redundant runs)
 volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts (50M/100M/…/700M)
-fx_crossings.py             ← Hourly USD/JPY threshold-crossing Slack alerts (159/160/…/165)
+fx_crossings.py             ← Hourly USD/JPY threshold-crossing Slack alerts (159/160/…/165) — data from Hyperliquid xyz:JPY (24/7)
+market_alerts.py            ← Hourly Oil + Nasdaq threshold-move Slack alerts. Oil = Hyperliquid xyz:BRENTOIL (24/7 Brent); Nasdaq = Yahoo ^NDX
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
 .github/workflows/update.yml ← runs all scripts hourly Mon–Fri, commits + pushes

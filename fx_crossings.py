@@ -6,15 +6,17 @@ fx_crossings.py — Hourly USD/JPY threshold-crossing Slack alerts.
 ║  HOW IT WORKS                                                              ║
 ║  ────────────                                                              ║
 ║  - Runs hourly inside the main GitHub Actions workflow (update-data.yml)   ║
-║  - Fetches the current USD/JPY spot rate from Yahoo Finance                ║
+║  - Fetches the current USD/JPY rate from HYPERLIQUID (xyz:JPY perp) —      ║
+║    24/7 pricing, including weekends. Previously used Yahoo which is        ║
+║    closed weekends and pauses trading briefly daily.                       ║
 ║  - Compares to the last recorded rate in fx_crossings_state.json           ║
 ║  - For every threshold crossed (up OR down) between last and current,      ║
 ║    adds a line to a single Slack message                                   ║
 ║  - Sends one consolidated Slack post to SLACK_WEBHOOK_URL if any           ║
 ║    crossings happened; silent otherwise                                    ║
 ║  - Idempotent: first run just seeds state, no alerts                       ║
-║  - Soft-exit on fetch failure (avoids GH email spam from transient Yahoo   ║
-║    outages)                                                                ║
+║  - Soft-exit on fetch failure (avoids GH email spam from transient         ║
+║    upstream outages)                                                       ║
 ║                                                                            ║
 ║  Adjust thresholds by editing THRESHOLDS below.                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
@@ -28,16 +30,14 @@ import requests
 
 STATE_FILE = Path("fx_crossings_state.json")
 
-PAIR_SYMBOL = "USDJPY=X"   # Yahoo Finance FX ticker
+# Hyperliquid builder-DEX perp for USD/JPY. Priced in JPY-per-USD, trades 24/7.
+PAIR_SYMBOL = "xyz:JPY"
 PAIR_LABEL  = "USD/JPY"
 
 # JPY-per-USD levels. Alert fires on cross above or below.
 THRESHOLDS = [159, 160, 161, 162, 163, 164, 165]
 
-YAHOO_URL = (
-    f"https://query1.finance.yahoo.com/v8/finance/chart/{PAIR_SYMBOL}"
-    f"?interval=1h&range=1d"
-)
+HL_INFO_URL = "https://api.hyperliquid.xyz/info"
 
 
 def load_state():
@@ -55,30 +55,28 @@ def save_state(state):
 
 
 def fetch_current_rate():
-    """Fetch the current USD/JPY spot rate via Yahoo Finance."""
-    r = requests.get(
-        YAHOO_URL,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/128.0.0.0 Safari/537.36",
+    """Fetch the latest USD/JPY rate from Hyperliquid xyz:JPY perp (24/7)."""
+    end_ms   = int(datetime.now(timezone.utc).timestamp() * 1000)
+    start_ms = end_ms - 6 * 3600 * 1000  # last 6 hours of 1h candles
+    resp = requests.post(
+        HL_INFO_URL,
+        json={
+            "type": "candleSnapshot",
+            "req": {
+                "coin": PAIR_SYMBOL,
+                "interval": "1h",
+                "startTime": start_ms,
+                "endTime": end_ms,
+            },
         },
         timeout=15,
     )
-    r.raise_for_status()
-    data = r.json()
-    result = data.get("chart", {}).get("result")
-    if not result:
-        raise ValueError(f"Yahoo response missing chart.result: {data}")
-    meta = result[0].get("meta", {})
-    # Prefer regularMarketPrice (most recent tick), fall back to last valid hourly close
-    price = meta.get("regularMarketPrice")
-    if price is None:
-        closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
-        price = next((c for c in reversed(closes) if c is not None), None)
-    if price is None:
-        raise ValueError("Yahoo response has no price data")
-    price = float(price)
+    resp.raise_for_status()
+    candles = resp.json()
+    if not candles:
+        raise ValueError(f"HL returned no candle data for {PAIR_SYMBOL}")
+    latest = max(candles, key=lambda c: c.get("t", 0))
+    price = float(latest.get("c"))
     # Sanity check — USDJPY has been between ~75 and ~180 historically
     if price < 50 or price > 300:
         raise ValueError(f"suspicious USDJPY value: {price}")
