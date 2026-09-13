@@ -151,7 +151,8 @@
     <button class="tab-btn" data-tab="funding">Funding Rates</button>
     <button class="tab-btn" data-tab="crash">Crash Alert</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
-    <button class="tab-btn" data-tab="docs" style="margin-left:auto;color:#475569;font-size:13px;">Documentation</button>
+    <button class="tab-btn" data-tab="status" style="margin-left:auto;color:#475569;font-size:13px;">Status</button>
+    <button class="tab-btn" data-tab="docs" style="color:#475569;font-size:13px;">Documentation</button>
 </nav>
 
 <!-- ══════════════════════════ TAB 1: RATIO ANALYSIS ══════════════════════════ -->
@@ -1040,6 +1041,51 @@ FIRE alert if ALL conditions met:
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB: STATUS ══════════════════════════ -->
+<div id="tab-status" class="tab-content">
+<div class="container" style="max-width:1100px;">
+    <h1>Feature Status <span class="info-badge live" id="statusBadge">Loading...</span></h1>
+    <div class="subtitle">Uptime and freshness of every data source powering this dashboard. Auto-refreshes when you open the tab.</div>
+
+    <div class="card">
+        <div class="card-title">Legend</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#334155;">
+            <span><span class="dot-status" style="background:#10b981"></span> OK — within expected cadence</span>
+            <span><span class="dot-status" style="background:#f59e0b"></span> Slow — mildly stale</span>
+            <span><span class="dot-status" style="background:#ef4444"></span> Down — very stale / failing</span>
+            <span><span class="dot-status" style="background:#94a3b8"></span> Live-fetch — browser-side, no cached timestamp</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Backend data files (GitHub Actions)</div>
+        <div id="statusGrid" style="display:grid;grid-template-columns:1fr;gap:6px;font-size:13px;">Loading…</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Live-fetch endpoints (browser-side)</div>
+        <div id="statusLive" style="display:grid;grid-template-columns:1fr;gap:6px;font-size:13px;">Loading…</div>
+    </div>
+</div>
+</div>
+
+<style>
+.dot-status{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.status-row{display:grid;grid-template-columns:14px 1.6fr 1.4fr 1fr 100px;gap:10px;align-items:center;padding:8px 10px;border-radius:6px;background:#f8fafc;}
+.status-row.ok{border-left:3px solid #10b981;}
+.status-row.warn{border-left:3px solid #f59e0b;background:#fef9e7;}
+.status-row.bad{border-left:3px solid #ef4444;background:#fef2f2;}
+.status-row.live{border-left:3px solid #94a3b8;}
+.status-pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-align:center;}
+.status-pill.ok{background:#d1fae5;color:#065f46;}
+.status-pill.warn{background:#fef3c7;color:#92400e;}
+.status-pill.bad{background:#fee2e2;color:#991b1b;}
+.status-pill.live{background:#e2e8f0;color:#334155;}
+.status-name{font-weight:600;color:#1e293b;}
+.status-source{color:#64748b;font-size:12px;}
+.status-time{color:#334155;font-size:12px;font-variant-numeric:tabular-nums;}
+</style>
+
 <!-- ══════════════════════════ TAB 9: DOCUMENTATION ══════════════════════════ -->
 <div id="tab-docs" class="tab-content">
 <div class="container" style="max-width:960px;">
@@ -1634,7 +1680,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false};
+const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false,status:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1652,6 +1698,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='funding'&&!tabInit.funding){tabInit.funding=true;initFundingRates();}
         if(id==='crash'&&!tabInit.crash){tabInit.crash=true;initCrashAlertCard();}
         if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
+        if(id==='status'){tabInit.status=true;initStatus();} // always refresh on open
     });
 });
 
@@ -4162,6 +4209,142 @@ async function saveEtfSettings(){
     // Re-render to update the "would alert" indicator with new threshold
     if(etfFlowData)renderEtfFlows(etfFlowData);
     setTimeout(()=>{status.textContent='';},3000);
+}
+
+// ──────────────────────────────────────────────
+// STATUS TAB — uptime dashboard
+// ──────────────────────────────────────────────
+const STATUS_FEATURES=[
+    // {file, name, tab, source, cadence, warnH, badH, timestampKey?, dateInLastEntry?}
+    {file:'data.json',                    name:'BTC/ETH/MSTR daily prices',    tab:'Ratio Analysis',   source:'CoinGecko + Yahoo (workflow)',   cadence:'Hourly (data), daily bar',   warnH:6,  badH:30, dateInLastEntry:'date'},
+    {file:'liquidity_daily.json',         name:'BTC liquidity / volume',       tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
+    {file:'fartcoin_liquidity_daily.json',name:'FARTCOIN liquidity / volume',  tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
+    {file:'fartcoin_hourly.json',         name:'FARTCOIN hourly candles',      tab:'FARTCOIN',         source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
+    {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',      tab:'Ratio Analysis',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
+    {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'OKX/Bitget/Gate/MEXC/KuCoin/HL', cadence:'Weekdays 21:00 UTC',         warnH:36, badH:96, timestampKey:'last_updated'},
+    {file:'etf_flows.json',               name:'BTC ETF net flows',            tab:'Market Liquidity', source:'Farside Investors (workflow)',   cadence:'Daily 04:00 UTC',            warnH:36, badH:72, timestampKey:'last_updated'},
+    {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
+    {file:'last_events.json',             name:'Ratio-cross event history',    tab:'Ratio Analysis',   source:'Workflow-generated',             cadence:'Hourly',                     warnH:3,  badH:6},
+    {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
+    {file:'market_alert_state.json',      name:'Oil / Nasdaq move alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid + Yahoo',            cadence:'Hourly',                     warnH:3,  badH:6},
+    {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
+    {file:'crash_alert_state.json',       name:'Crash-alert state',            tab:'Crash Alert',      source:'Binance (cron-job.org)',         cadence:'Every 1 min (external cron)',warnH:48, badH:168},
+    {file:'custom_alerts.json',           name:'User custom alerts',           tab:'Custom Alerts',    source:'User-defined',                   cadence:'On demand',                  warnH:99999,badH:99999},
+    {file:'notification_settings.json',   name:'Notification settings',        tab:'Funding Rates / Liq', source:'User-defined',                cadence:'On demand',                  warnH:99999,badH:99999},
+];
+const STATUS_LIVE=[
+    {name:'CoinGecko simple price',        url:'https://api.coingecko.com/api/v3/ping',           note:'BTC/ETH live price + 24h high/low'},
+    {name:'CoinGecko market_chart',        url:'https://api.coingecko.com/api/v3/ping',           note:'BTC/FARTCOIN intraday & 30d history'},
+    {name:'Yahoo Finance proxy',           url:'/api/yahoo?url='+encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?interval=5m&range=1d'), note:'NASDAQ 100 intraday for Geopolitics + market alerts'},
+    {name:'Hyperliquid candles',           url:'https://api.hyperliquid.xyz/info', method:'POST', body:{"type":"candleSnapshot","req":{"coin":"xyz:JPY","interval":"1h","startTime":Date.now()-6*3600*1000,"endTime":Date.now()}}, note:'USD/JPY + Brent 24/7 pricing'},
+    {name:'CMC Fear & Greed proxy',        url:'/api/cmc-fng',                                    note:'Fear & Greed index card'},
+    {name:'Polymarket proxy',              url:'/api/polymarket?url='+encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=1'), note:'Geopolitical odds cards'},
+    {name:'Binance klines',                url:'https://api.binance.com/api/v3/ping',             note:'Crash-alert data source + fallback candles'},
+    {name:'KuCoin klines',                 url:'https://api.kucoin.com/api/v1/timestamp',         note:'FARTCOIN minute candles'},
+];
+function fmtAge(ms){
+    if(ms<0)return 'in the future';
+    const s=Math.floor(ms/1000);
+    if(s<60)return s+'s ago';
+    const m=Math.floor(s/60);
+    if(m<60)return m+'m ago';
+    const h=Math.floor(m/60);
+    if(h<48)return h+'h ago';
+    const d=Math.floor(h/24);
+    return d+'d ago';
+}
+function fmtDate(d){
+    if(!d)return '—';
+    return d.toISOString().slice(0,16).replace('T',' ')+' UTC';
+}
+async function statusCheckFile(feat){
+    try{
+        const r=await fetch(feat.file+'?t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)return {feat,state:'bad',lastDate:null,reason:'HTTP '+r.status};
+        const j=await r.json();
+        let d=null;
+        if(feat.timestampKey){
+            const v=j[feat.timestampKey];
+            if(v)d=new Date(v);
+        }
+        if(!d&&feat.dateInLastEntry&&Array.isArray(j)&&j.length){
+            const last=j[j.length-1][feat.dateInLastEntry];
+            if(last)d=new Date(last+'T00:00:00Z');
+        }
+        if(!d){
+            // fall back to Last-Modified header
+            const lm=r.headers.get('last-modified');
+            if(lm)d=new Date(lm);
+        }
+        if(!d)return {feat,state:'warn',lastDate:null,reason:'no timestamp'};
+        const ageH=(Date.now()-d.getTime())/3600000;
+        let state='ok';
+        if(ageH>feat.badH)state='bad';
+        else if(ageH>feat.warnH)state='warn';
+        return {feat,state,lastDate:d,ageH};
+    }catch(e){
+        return {feat,state:'bad',lastDate:null,reason:e.message};
+    }
+}
+async function statusCheckLive(ep){
+    const start=performance.now();
+    try{
+        const opts={method:ep.method||'GET',cache:'no-store'};
+        if(ep.body){opts.headers={'Content-Type':'application/json'};opts.body=JSON.stringify(ep.body);}
+        const r=await fetch(ep.url,opts);
+        const ms=Math.round(performance.now()-start);
+        if(!r.ok)return {ep,ok:false,ms,reason:'HTTP '+r.status};
+        return {ep,ok:true,ms};
+    }catch(e){
+        return {ep,ok:false,ms:Math.round(performance.now()-start),reason:e.message};
+    }
+}
+function renderStatusRow(res){
+    const {feat,state,lastDate,reason,ageH}=res;
+    const cls=state==='ok'?'ok':(state==='warn'?'warn':'bad');
+    const pillTxt=state==='ok'?'OK':(state==='warn'?'SLOW':'DOWN');
+    const timeTxt=lastDate?(fmtAge(Date.now()-lastDate.getTime())+' · '+fmtDate(lastDate)):(reason||'unknown');
+    const dot=state==='ok'?'#10b981':(state==='warn'?'#f59e0b':'#ef4444');
+    return `<div class="status-row ${cls}">
+        <span class="dot-status" style="background:${dot}"></span>
+        <div><div class="status-name">${feat.name}</div><div class="status-source">${feat.tab} · ${feat.source}</div></div>
+        <div class="status-source">${feat.cadence}<br><span style="color:#94a3b8">${feat.file}</span></div>
+        <div class="status-time">${timeTxt}</div>
+        <div><span class="status-pill ${cls}">${pillTxt}</span></div>
+    </div>`;
+}
+function renderLiveRow(res){
+    const {ep,ok,ms,reason}=res;
+    const cls=ok?'ok':'bad';
+    const pillTxt=ok?'OK':'DOWN';
+    const dot=ok?'#10b981':'#ef4444';
+    const time=ok?(ms+' ms'):(reason||'error');
+    return `<div class="status-row ${cls}">
+        <span class="dot-status" style="background:${dot}"></span>
+        <div><div class="status-name">${ep.name}</div><div class="status-source">${ep.note}</div></div>
+        <div class="status-source" style="word-break:break-all">${ep.url.length>80?ep.url.slice(0,77)+'…':ep.url}</div>
+        <div class="status-time">${time}</div>
+        <div><span class="status-pill ${cls}">${pillTxt}</span></div>
+    </div>`;
+}
+async function initStatus(){
+    const grid=document.getElementById('statusGrid');
+    const liveEl=document.getElementById('statusLive');
+    const badge=document.getElementById('statusBadge');
+    grid.innerHTML='Checking…';
+    liveEl.innerHTML='Checking…';
+    badge.textContent='Checking…';
+    const [files,live]=await Promise.all([
+        Promise.all(STATUS_FEATURES.map(statusCheckFile)),
+        Promise.all(STATUS_LIVE.map(statusCheckLive)),
+    ]);
+    grid.innerHTML=files.map(renderStatusRow).join('');
+    liveEl.innerHTML=live.map(renderLiveRow).join('');
+    const bad=files.filter(f=>f.state==='bad').length+live.filter(l=>!l.ok).length;
+    const warn=files.filter(f=>f.state==='warn').length;
+    if(bad>0){badge.className='info-badge';badge.style.background='#fee2e2';badge.style.color='#991b1b';badge.textContent=`${bad} down`;}
+    else if(warn>0){badge.className='info-badge';badge.style.background='#fef3c7';badge.style.color='#92400e';badge.textContent=`${warn} slow`;}
+    else{badge.className='info-badge live';badge.textContent='All systems OK';}
 }
 
 async function initAlerts(){
