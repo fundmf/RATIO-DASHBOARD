@@ -1,16 +1,6 @@
 {
   "alerts": [
     {
-      "id": "1787097874332",
-      "title": "Clarity Act Senate vote",
-      "description": "",
-      "datetime": "2026-09-15T14:00",
-      "timezone": "America/New_York",
-      "utc_iso": "2026-09-15T18:00:00.000Z",
-      "sent": true,
-      "created": "2026-08-19T00:04:34.332Z"
-    },
-    {
       "id": "1788787939904",
       "title": "4 Weeks from Rally Start",
       "description": "",
