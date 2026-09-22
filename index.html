@@ -1526,7 +1526,29 @@ if dropPct ≥ threshold AND not in cooldown:
             <li>Thresholds: Oil &ge;3%, Nasdaq &ge;2%</li>
         </ul>
 
-        <h3>c) Forex Calendar (<code>forex_calendar_alert.py</code>)</h3>
+        <h3>c) FARTCOIN Volume Crossings (<code>volume_crossings.py</code>)</h3>
+        <ul>
+            <li>Source: CoinGecko <code>simple/price?include_24hr_vol=true</code> for <code>fartcoin</code></li>
+            <li>Compares rolling 24h volume to last-seen value in <code>volume_crossings_state.json</code></li>
+            <li>Fires on every crossing (up or down) of thresholds: <code>50M / 100M / 150M / … / 700M</code></li>
+        </ul>
+
+        <h3>d) BTC Volume Crossings (<code>btc_volume_crossings.py</code>)</h3>
+        <ul>
+            <li>Source: CoinGecko <code>simple/price?include_24hr_vol=true</code> for <code>bitcoin</code></li>
+            <li>Compares rolling 24h volume to last-seen value in <code>btc_volume_crossings_state.json</code></li>
+            <li>Fires on every 10-billion-USD crossing (up or down) starting at 30B: <code>30B / 40B / 50B / … / 150B</code></li>
+            <li>Message shows current volume, previous volume, and each threshold crossed with an ⬆ or ⬇ arrow</li>
+            <li>Adjust levels by editing <code>THRESHOLDS_B</code> at the top of <code>btc_volume_crossings.py</code></li>
+        </ul>
+
+        <h3>e) USD/JPY Threshold Crossings (<code>fx_crossings.py</code>)</h3>
+        <ul>
+            <li>Source: Hyperliquid <code>xyz:JPY</code> perp (24/7 pricing)</li>
+            <li>Fires on every crossing (up or down) of thresholds: <code>159 / 160 / … / 165</code></li>
+        </ul>
+
+        <h3>f) Forex Calendar (<code>forex_calendar_alert.py</code>)</h3>
         <ul>
             <li>Source: nfs.faireconomy.media (Forex Factory mirror)</li>
             <li>Filters: <strong>USD currency only</strong>, <strong>High impact only</strong> (red events)</li>
@@ -1556,6 +1578,9 @@ if dropPct ≥ threshold AND not in cooldown:
             <li><code>detect_events.py</code> — Run divergence detection, alert Slack on new events</li>
             <li><code>forex_calendar_alert.py</code> — Check for upcoming USD high-impact events</li>
             <li><code>market_alerts.py</code> — Check Oil &amp; Nasdaq for threshold moves</li>
+            <li><code>volume_crossings.py</code> — Check FARTCOIN 24h volume threshold crossings (50M steps)</li>
+            <li><code>btc_volume_crossings.py</code> — Check BTC 24h volume threshold crossings (10B steps ≥30B)</li>
+            <li><code>fx_crossings.py</code> — Check USD/JPY threshold crossings (Hyperliquid, 24/7)</li>
             <li><code>custom_alerts.py</code> — Check for due custom team alerts</li>
             <li>Each alert script commits its own state file after running</li>
         </ul>
@@ -4228,6 +4253,7 @@ const STATUS_FEATURES=[
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'market_alert_state.json',      name:'Oil / Nasdaq move alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid + Yahoo',            cadence:'Hourly',                     warnH:3,  badH:6},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
+    {file:'btc_volume_crossings_state.json', name:'BTC volume alerts (10B steps ≥30B)', tab:'Alerts (Slack)', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'crash_alert_state.json',       name:'Crash-alert state',            tab:'Crash Alert',      source:'Binance (cron-job.org)',         cadence:'Every 1 min (external cron)',warnH:48, badH:168},
     {file:'custom_alerts.json',           name:'User custom alerts',           tab:'Custom Alerts',    source:'User-defined',                   cadence:'On demand',                  warnH:99999,badH:99999},
     {file:'notification_settings.json',   name:'Notification settings',        tab:'Funding Rates / Liq', source:'User-defined',                cadence:'On demand',                  warnH:99999,badH:99999},
