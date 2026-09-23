@@ -13,10 +13,10 @@ name: Update BTC ETF Flows (Daily)
 
 on:
   schedule:
-    - cron: '0 4 * * *'    # 04:00 UTC primary
-    - cron: '0 6 * * *'    # 06:00 UTC backup
-    - cron: '0 10 * * *'   # 10:00 UTC second backup
-    - cron: '0 14 * * *'   # 14:00 UTC afternoon safety net
+    - cron: '13 4 * * *'   # 04:13 UTC primary (off-peak minute)
+    - cron: '13 6 * * *'   # 06:13 UTC backup
+    - cron: '13 10 * * *'  # 10:13 UTC second backup
+    - cron: '13 14 * * *'  # 14:13 UTC afternoon safety net
   workflow_dispatch:        # manual trigger from Actions tab
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests curl_cffi
 
       - name: Scrape Farside + Slack alert if sign flip & threshold met
         env:

@@ -3,8 +3,8 @@
 forex_calendar_alert.py — Sends Slack alerts for upcoming high-impact USD
 economic events from Forex Factory calendar.
 
-Checks this week + next week's calendar. Sends a reminder ~24 hours before
-each event. Tracks already-alerted events to avoid duplicate notifications.
+Checks this week + next week's calendar. Sends one reminder per event once it is <=26h
+away (late rather than never if GitHub skipped runs). Tracks already-alerted events to avoid duplicate notifications.
 
 Data source: nfs.faireconomy.media (mirrors Forex Factory)
 Run via GitHub Actions every hour.
@@ -27,8 +27,9 @@ STATE_FILE = "forex_alert_state.json"
 CURRENCY_FILTER = "USD"
 IMPACT_FILTER = "High"
 
-# Alert window: send alert when event is 22-26 hours away (wider window so hourly cron reliably catches it)
-ALERT_WINDOW_MIN_HOURS = 22
+# Alert once an event is <=26h away. No lower bound other than "still in the
+# future": GitHub can skip scheduled runs for hours, so a late reminder beats none.
+ALERT_WINDOW_MIN_HOURS = 0
 ALERT_WINDOW_MAX_HOURS = 26
 
 
@@ -113,7 +114,7 @@ def send_slack_alert(events_to_alert):
     blocks = []
     blocks.append({
         "type": "header",
-        "text": {"type": "plain_text", "text": ":rotating_light: USD High Impact Events — 24hr Reminder"}
+        "text": {"type": "plain_text", "text": ":rotating_light: USD High Impact Events — Upcoming Reminder"}
     })
 
     for ev, dt_utc in events_to_alert:
@@ -128,7 +129,7 @@ def send_slack_alert(events_to_alert):
                 "text": (
                     f"*{ev['title']}*\n"
                     f":calendar: {format_aest(dt_utc)}\n"
-                    f":clock3: {format_utc(dt_utc)}\n"
+                    f":clock3: {format_utc(dt_utc)}  (in {(dt_utc - datetime.now(timezone.utc)).total_seconds() / 3600:.0f}h)\n"
                     f":chart_with_upwards_trend: Forecast: *{forecast}*  |  Previous: *{previous}*"
                 )
             }
@@ -184,7 +185,7 @@ def send_test_alert():
     blocks = []
     blocks.append({
         "type": "header",
-        "text": {"type": "plain_text", "text": ":test_tube: TEST — USD High Impact Events — 24hr Reminder"}
+        "text": {"type": "plain_text", "text": ":test_tube: TEST — USD High Impact Events — Upcoming Reminder"}
     })
 
     for ev, dt_utc in test_events:
@@ -199,7 +200,7 @@ def send_test_alert():
                 "text": (
                     f"*{ev['title']}*\n"
                     f":calendar: {format_aest(dt_utc)}\n"
-                    f":clock3: {format_utc(dt_utc)}\n"
+                    f":clock3: {format_utc(dt_utc)}  (in {(dt_utc - datetime.now(timezone.utc)).total_seconds() / 3600:.0f}h)\n"
                     f":chart_with_upwards_trend: Forecast: *{forecast}*  |  Previous: *{previous}*"
                 )
             }
@@ -252,7 +253,7 @@ def main():
         hours_until = (dt - now).total_seconds() / 3600
         eid = event_id(ev)
 
-        if ALERT_WINDOW_MIN_HOURS <= hours_until <= ALERT_WINDOW_MAX_HOURS:
+        if ALERT_WINDOW_MIN_HOURS < hours_until <= ALERT_WINDOW_MAX_HOURS:
             if eid not in state["alerted"]:
                 events_to_alert.append((ev, dt))
                 print(f"  >> ALERTING: {ev['title']} in {hours_until:.1f}hrs")

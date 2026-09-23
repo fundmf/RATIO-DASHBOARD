@@ -12,9 +12,9 @@ name: Update AI Watchlist (Weekly)
 
 on:
   schedule:
-    - cron: '0 2 * * 6'   # Saturday 02:00 UTC (primary)
-    - cron: '0 2 * * 0'   # Sunday 02:00 UTC   (backup)
-    - cron: '0 2 * * 1'   # Monday 02:00 UTC   (backup)
+    - cron: '11 2 * * 6'  # Saturday 02:11 UTC (primary)
+    - cron: '11 2 * * 0'  # Sunday 02:11 UTC   (backup)
+    - cron: '11 2 * * 1'  # Monday 02:11 UTC   (backup)
   workflow_dispatch:       # manual trigger from Actions tab
 
 jobs:

@@ -8,7 +8,7 @@ name: Update Funding Rates (Daily)
 
 on:
   schedule:
-    - cron: '0 21 * * 1-5'   # 21:00 UTC, Mon-Fri
+    - cron: '7 21 * * 1-5'   # 21:07 UTC, Mon-Fri (off-peak minute)
   workflow_dispatch:           # manual trigger from Actions tab
 
 jobs:

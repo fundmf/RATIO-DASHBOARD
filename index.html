@@ -415,7 +415,7 @@
     <!-- BTC ETF Flows (Farside.co.uk) -->
     <div class="card" id="etfFlowsCard">
         <div class="card-title">BTC ETF Daily Net Flows
-            <span style="font-size:11px;color:#64748b;font-weight:400;margin-left:8px;">Source: <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk</a></span>
+            <span style="font-size:11px;color:#64748b;font-weight:400;margin-left:8px;">Source: <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk</a> (fallback: <a href="https://bitbo.io/treasuries/etf-flows/" target="_blank" rel="noopener" style="color:#3b82f6;">bitbo.io</a>) · daily, US trading days · $M</span>
         </div>
         <div id="etfFlowsSummary" style="font-size:13px;color:#94a3b8;margin-bottom:12px;">Loading…</div>
         <div style="height:240px;position:relative;">
@@ -1053,7 +1053,7 @@ FIRE alert if ALL conditions met:
             <span><span class="dot-status" style="background:#10b981"></span> OK — within expected cadence</span>
             <span><span class="dot-status" style="background:#f59e0b"></span> Slow — mildly stale</span>
             <span><span class="dot-status" style="background:#ef4444"></span> Down — very stale / failing</span>
-            <span><span class="dot-status" style="background:#94a3b8"></span> Live-fetch — browser-side, no cached timestamp</span>
+            <span><span class="dot-status" style="background:#94a3b8"></span> Event — file only changes when an alert fires (reachable = healthy)</span>
         </div>
     </div>
 
@@ -1385,7 +1385,7 @@ Display rate (% per hour) = Aggregate / 8760</div>
     <!-- 7c. ETF FLOWS -->
     <div class="card doc-section" id="doc-etf">
         <h2>7c. BTC ETF Flows (Market Liquidity tab)</h2>
-        <p>Scrapes <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk/btc/</a> daily, stores history in <code>etf_flows.json</code>, and sends a Slack alert when consecutive days' net flows flip sign with a magnitude above a configurable threshold.</p>
+        <p>Scrapes <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk/btc/</a> daily (falls back to <a href="https://bitbo.io/treasuries/etf-flows/" target="_blank" rel="noopener" style="color:#3b82f6;">bitbo.io</a> when Farside's Cloudflare bot-check blocks GitHub Actions), stores history in <code>etf_flows.json</code> with a per-day <code>source</code> tag, and sends a Slack alert when consecutive days' net flows flip sign with a magnitude above a configurable threshold.</p>
 
         <h3>Alert Logic</h3>
         <p>Alert fires when ALL of these are true:</p>
@@ -1403,7 +1403,9 @@ Display rate (% per hour) = Aggregate / 8760</div>
 
         <h3>Cadence</h3>
         <ul>
-            <li><code>etf_flows.py</code> runs in its own dedicated workflow (<code>update-etf-flows.yml</code>) on a daily cron — <strong>04:00 UTC primary, 06:00 UTC backup, 10:00 UTC second backup</strong></li>
+            <li><code>etf_flows.py</code> runs in its own dedicated workflow (<code>update-etf-flows.yml</code>) on a daily cron — <strong>04:13, 06:13, 10:13 and 14:13 UTC</strong></li>
+            <li>Farside is fetched with <code>curl_cffi</code> (Chrome TLS fingerprint) to get past its Cloudflare challenge; if it's still blocked, Bitbo is used. Bitbo days never overwrite Farside days, and no sign-flip alert fires across two different sources (their totals differ by up to a few hundred $M)</li>
+            <li>Days Farside lists as "-" (not yet published) are skipped rather than stored as $0</li>
             <li>The triple-cron is for GitHub Actions reliability — their scheduler regularly drops individual scheduled runs, so multiple cron times ensure the daily capture &amp; alert don't get lost</li>
             <li>The script is idempotent — once the latest day is recorded and the alert is dispatched, subsequent runs that day are no-ops (no double-alerts, no extra Farside requests beyond the dedupe check)</li>
         </ul>
@@ -1505,7 +1507,7 @@ if dropPct ≥ threshold AND not in cooldown:
     <!-- 9. SLACK ALERT SYSTEMS -->
     <div class="card doc-section" id="doc-slack">
         <h2>9. Slack Alert Systems</h2>
-        <p>All automated alerts run hourly via GitHub Actions (cron <code>0 * * * *</code>). Two separate Slack channels are used.</p>
+        <p>All automated alerts run via GitHub Actions at <code>:17</code> and <code>:47</code> past each hour. GitHub often delays or skips scheduled runs, so every alert is written to catch up on whatever happened since the previous run. Two separate Slack channels are used.</p>
 
         <h3>Channel 1: <code>SLACK_WEBHOOK_URL</code></h3>
         <p>Receives three types of alerts:</p>
@@ -1520,7 +1522,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <h3>b) Market Alerts (<code>market_alerts.py</code>)</h3>
         <ul>
             <li>Oil data: Hyperliquid <code>xyz:BRENTOIL</code> (Brent, 24/7). Nasdaq data: Yahoo Finance <code>^NDX</code> (US-hours only).</li>
-            <li>Scans rolling windows (3hr for Oil, 2hr for Nasdaq) ending in the <strong>last 2 hours</strong></li>
+            <li>Scans rolling windows (3hr for Oil, 2hr for Nasdaq) ending <strong>since the previous run</strong> (min 2h, max 12h back; stored as <code>last_scan_ts</code>)</li>
             <li>Only windows ending recently are checked — old spikes age out naturally, preventing duplicate alerts</li>
             <li>Dedup safety net: tracks peak move % per ticker per day, only re-alerts if move grows by &ge;1% more</li>
             <li>Thresholds: Oil &ge;3%, Nasdaq &ge;2%</li>
@@ -1552,7 +1554,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <ul>
             <li>Source: nfs.faireconomy.media (Forex Factory mirror)</li>
             <li>Filters: <strong>USD currency only</strong>, <strong>High impact only</strong> (red events)</li>
-            <li>Sends a reminder <strong>22-26 hours before</strong> the event</li>
+            <li>Sends one reminder once the event is <strong>&le;26 hours away</strong> (normally ~24h; later if GitHub skipped runs). The message shows hours remaining</li>
             <li>Shows event name, AEST time, ET time, forecast, and previous values</li>
             <li>State tracked in <code>forex_alert_state.json</code> — only saves state after confirmed webhook success</li>
         </ul>
@@ -1569,7 +1571,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <h2>10. Data Pipeline &amp; Infrastructure</h2>
 
         <h3>GitHub Actions Workflow (<code>update-data.yml</code>)</h3>
-        <p>Runs hourly. Steps execute sequentially:</p>
+        <p>Scheduled at <code>:17</code> and <code>:47</code> past every hour (off-peak minutes — runs at <code>:00</code> were being delayed 2-6h by GitHub). A concurrency group stops overlapping runs. Alert steps use <code>continue-on-error</code> so one failing script doesn't block the rest. Steps execute sequentially:</p>
         <ul>
             <li><code>update_data.py</code> — Fetches daily ratio data (BTC, ETH, MSTR, BMNR) &rarr; <code>data.json</code></li>
             <li><code>backfill_hourly.py</code> — Fetches hourly prices (BTC, FARTCOIN, SPX6900) &rarr; <code>fartcoin_hourly.json</code>, <code>spx6900_hourly.json</code></li>
@@ -1634,7 +1636,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <h3>Market Alerts (Oil/Nasdaq)</h3>
         <ul>
             <li>Yahoo Finance <code>range=1d</code> returns data for the <strong>current trading session only</strong>. Outside market hours, data may be stale or unavailable</li>
-            <li>Rolling window scan only checks windows ending in the last 2 hours — spikes from earlier in the day that were already processed won't re-trigger</li>
+            <li>Rolling window scan only checks windows ending since the previous run (max 12h back) — spikes already processed won't re-trigger</li>
             <li>A legitimate second spike of similar magnitude on the same day may not re-alert unless it exceeds the prior alert's move by &ge;1%</li>
         </ul>
 
@@ -3397,18 +3399,6 @@ function renderFartTableV2(events){
 // FARTCOIN MINUTE ANALYSIS — KuCoin 1m candles
 // 8:29 PM – 2:29 AM AEST Apr 15 = UTC 10:29–16:29 Apr 15 2026
 // ──────────────────────────────────────────────
-async function fetchKuCoinCandles(symbol,startAt,endAt){
-    // KuCoin: [time_sec, open, close, high, low, volume, turnover] newest-first
-    const url=`https://api.kucoin.com/api/v1/market/candles?type=1min&symbol=${symbol}&startAt=${startAt}&endAt=${endAt}`;
-    const resp=await fetch(url);
-    if(!resp.ok)throw new Error(`KuCoin ${symbol} HTTP ${resp.status}`);
-    const json=await resp.json();
-    if(json.code!=='200000')throw new Error(`KuCoin error: ${json.msg}`);
-    return (json.data||[]).sort((a,b)=>Number(a[0])-Number(b[0])).map(c=>({
-        time:Number(c[0]),open:parseFloat(c[1]),close:parseFloat(c[2]),high:parseFloat(c[3]),low:parseFloat(c[4])
-    }));
-}
-
 function drawCandlesticks(canvasId,candles){
     const canvas=document.getElementById(canvasId);
     if(!canvas||!candles.length)return;
@@ -4141,7 +4131,7 @@ function renderEtfFlows(data){
     const sumEl=document.getElementById('etfFlowsSummary');
     const tbody=document.getElementById('etfFlowsTbody');
     if(!days.length){
-        sumEl.innerHTML='<em>No data yet — waiting for first Farside scrape (runs 04-06 UTC daily).</em>';
+        sumEl.innerHTML='<em>No data yet — waiting for first ETF scrape (runs 04:13 UTC daily).</em>';
         tbody.innerHTML='';
         return;
     }
@@ -4240,33 +4230,33 @@ async function saveEtfSettings(){
 // STATUS TAB — uptime dashboard
 // ──────────────────────────────────────────────
 const STATUS_FEATURES=[
-    // {file, name, tab, source, cadence, warnH, badH, timestampKey?, dateInLastEntry?}
-    {file:'data.json',                    name:'BTC/ETH/MSTR daily prices',    tab:'Ratio Analysis',   source:'CoinGecko + Yahoo (workflow)',   cadence:'Hourly (data), daily bar',   warnH:6,  badH:30, dateInLastEntry:'date'},
+    // Age thresholds in hours. dateInLastEntry measures from the END of the last recorded day.
+    // event:true = file only changes when something fires; shown as EVENT, never stale.
+    {file:'data.json',                    name:'BTC/ETH/MSTR/BMNR daily prices', tab:'Ratio Analysis',   source:'CoinGecko + Yahoo (workflow)',   cadence:'Hourly, last completed day',  warnH:30, badH:54, dateInLastEntry:'date'},
     {file:'liquidity_daily.json',         name:'BTC liquidity / volume',       tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'fartcoin_liquidity_daily.json',name:'FARTCOIN liquidity / volume',  tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'fartcoin_hourly.json',         name:'FARTCOIN hourly candles',      tab:'FARTCOIN',         source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
-    {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',      tab:'Ratio Analysis',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
-    {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'OKX/Bitget/Gate/MEXC/KuCoin/HL', cadence:'Weekdays 21:00 UTC',         warnH:36, badH:96, timestampKey:'last_updated'},
-    {file:'etf_flows.json',               name:'BTC ETF net flows',            tab:'Market Liquidity', source:'Farside Investors (workflow)',   cadence:'Daily 04:00 UTC',            warnH:36, badH:72, timestampKey:'last_updated'},
+    {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',       tab:'FARTCOIN / Divergence', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
+    {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'8 exchanges (workflow)',         cadence:'Weekdays 21:00 UTC',         warnH:76, badH:100,timestampKey:'last_updated'},
+    {file:'etf_flows.json',               name:'BTC ETF net flows',            tab:'Market Liquidity', source:'Farside (Bitbo fallback)',       cadence:'Daily, 4 runs',              warnH:30, badH:54, timestampKey:'last_updated'},
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
-    {file:'last_events.json',             name:'Ratio-cross event history',    tab:'Ratio Analysis',   source:'Workflow-generated',             cadence:'Hourly',                     warnH:3,  badH:6},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
-    {file:'market_alert_state.json',      name:'Oil / Nasdaq move alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid + Yahoo',            cadence:'Hourly',                     warnH:3,  badH:6},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'btc_volume_crossings_state.json', name:'BTC volume alerts (10B steps ≥30B)', tab:'Alerts (Slack)', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
-    {file:'crash_alert_state.json',       name:'Crash-alert state',            tab:'Crash Alert',      source:'Binance (cron-job.org)',         cadence:'Every 1 min (external cron)',warnH:48, badH:168},
-    {file:'custom_alerts.json',           name:'User custom alerts',           tab:'Custom Alerts',    source:'User-defined',                   cadence:'On demand',                  warnH:99999,badH:99999},
-    {file:'notification_settings.json',   name:'Notification settings',        tab:'Funding Rates / Liq', source:'User-defined',                cadence:'On demand',                  warnH:99999,badH:99999},
+    {file:'last_events.json',             name:'Divergence event alerts',      tab:'Alerts (Slack)',   source:'Workflow-generated',             cadence:'Hourly check, on event',     event:true},
+    {file:'market_alert_state.json',      name:'Oil / Nasdaq move alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid + Yahoo',            cadence:'Hourly check, on event',     event:true},
+    {file:'forex_alert_state.json',       name:'Forex calendar alerts',        tab:'Alerts (Slack)',   source:'Forex Factory mirror',           cadence:'Hourly check, on event',     event:true},
+    {file:'crash_alert_state.json',       name:'Crash-alert state',            tab:'Crash Alert',      source:'Binance (cron-job.org)',         cadence:'1-min external cron, on event', event:true},
+    {file:'custom_alerts.json',           name:'User custom alerts',           tab:'Custom Alerts',    source:'User-defined',                   cadence:'On demand',                  event:true},
+    {file:'notification_settings.json',   name:'Notification settings',        tab:'Settings',         source:'User-defined',                   cadence:'On demand',                  event:true},
 ];
 const STATUS_LIVE=[
-    {name:'CoinGecko simple price',        url:'https://api.coingecko.com/api/v3/ping',           note:'BTC/ETH live price + 24h high/low'},
-    {name:'CoinGecko market_chart',        url:'https://api.coingecko.com/api/v3/ping',           note:'BTC/FARTCOIN intraday & 30d history'},
-    {name:'Yahoo Finance proxy',           url:'/api/yahoo?url='+encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?interval=5m&range=1d'), note:'NASDAQ 100 intraday for Geopolitics + market alerts'},
+    {name:'CoinGecko',                     url:'https://api.coingecko.com/api/v3/ping',           note:'Live BTC/ETH prices, intraday & 30d history'},
+    {name:'Yahoo Finance proxy',           url:'/api/yahoo?url='+encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?interval=5m&range=1d'), note:'NASDAQ 100 intraday + stock prices'},
     {name:'Hyperliquid candles',           url:'https://api.hyperliquid.xyz/info', method:'POST', body:{"type":"candleSnapshot","req":{"coin":"xyz:JPY","interval":"1h","startTime":Date.now()-6*3600*1000,"endTime":Date.now()}}, note:'USD/JPY + Brent 24/7 pricing'},
     {name:'CMC Fear & Greed proxy',        url:'/api/cmc-fng',                                    note:'Fear & Greed index card'},
     {name:'Polymarket proxy',              url:'/api/polymarket?url='+encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=1'), note:'Geopolitical odds cards'},
-    {name:'Binance klines',                url:'https://api.binance.com/api/v3/ping',             note:'Crash-alert data source + fallback candles'},
-    {name:'KuCoin klines',                 url:'https://api.kucoin.com/api/v1/timestamp',         note:'FARTCOIN minute candles'},
+    {name:'Binance',                       url:'https://api.binance.com/api/v3/ping',             note:'Crash-alert data source + BTC tab candles'},
 ];
 function fmtAge(ms){
     if(ms<0)return 'in the future';
@@ -4295,13 +4285,14 @@ async function statusCheckFile(feat){
         }
         if(!d&&feat.dateInLastEntry&&Array.isArray(j)&&j.length){
             const last=j[j.length-1][feat.dateInLastEntry];
-            if(last)d=new Date(last+'T00:00:00Z');
+            if(last)d=new Date(Date.parse(last+'T00:00:00Z')+86400000);
         }
         if(!d){
             // fall back to Last-Modified header
             const lm=r.headers.get('last-modified');
             if(lm)d=new Date(lm);
         }
+        if(feat.event)return {feat,state:'event',lastDate:d,reason:'updates only when an alert fires'};
         if(!d)return {feat,state:'warn',lastDate:null,reason:'no timestamp'};
         const ageH=(Date.now()-d.getTime())/3600000;
         let state='ok';
@@ -4322,15 +4313,16 @@ async function statusCheckLive(ep){
         if(!r.ok)return {ep,ok:false,ms,reason:'HTTP '+r.status};
         return {ep,ok:true,ms};
     }catch(e){
-        return {ep,ok:false,ms:Math.round(performance.now()-start),reason:e.message};
+        const reason=e.message==='Failed to fetch'?'blocked or rate-limited (retry in 1 min)':e.message;
+        return {ep,ok:false,ms:Math.round(performance.now()-start),reason};
     }
 }
 function renderStatusRow(res){
     const {feat,state,lastDate,reason,ageH}=res;
-    const cls=state==='ok'?'ok':(state==='warn'?'warn':'bad');
-    const pillTxt=state==='ok'?'OK':(state==='warn'?'SLOW':'DOWN');
+    const cls={ok:'ok',warn:'warn',event:'live'}[state]||'bad';
+    const pillTxt={ok:'OK',warn:'SLOW',event:'EVENT'}[state]||'DOWN';
     const timeTxt=lastDate?(fmtAge(Date.now()-lastDate.getTime())+' · '+fmtDate(lastDate)):(reason||'unknown');
-    const dot=state==='ok'?'#10b981':(state==='warn'?'#f59e0b':'#ef4444');
+    const dot={ok:'#10b981',warn:'#f59e0b',event:'#94a3b8'}[state]||'#ef4444';
     return `<div class="status-row ${cls}">
         <span class="dot-status" style="background:${dot}"></span>
         <div><div class="status-name">${feat.name}</div><div class="status-source">${feat.tab} · ${feat.source}</div></div>

@@ -26,7 +26,6 @@ publishes the prior US trading day's flows).
 import json
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
@@ -48,69 +47,87 @@ def load_settings():
         return {}
 
 
-def fetch_farside():
-    """Fetch and parse Farside's BTC ETF daily flow table.
+BITBO_URL     = "https://bitbo.io/treasuries/etf-flows/"
+BROWSER_UA    = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                 "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
 
-    Uses a realistic browser User-Agent because Farside is known to serve empty
-    or different content to bot-like UAs / datacentre IPs. Also logs status +
-    body size so silent scrape failures are diagnosable from the workflow log.
+
+def http_get(url):
+    """GET with a Chrome TLS fingerprint when curl_cffi is available.
+
+    Farside sits behind a Cloudflare bot challenge that rejects plain
+    python-requests from GitHub Actions IPs; impersonating Chrome's TLS
+    handshake gets through far more often.
     """
-    ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-          "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-    resp = requests.get(
-        FARSIDE_URL,
-        headers={
-            "User-Agent": ua,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",
-        },
-        timeout=30,
-    )
+    headers = {
+        "User-Agent": BROWSER_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        from curl_cffi import requests as cffi
+        resp = cffi.get(url, headers=headers, impersonate="chrome", timeout=30)
+    except ImportError:
+        resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
-    print(f"  Farside HTTP {resp.status_code} · body {len(resp.text)} chars")
-    days = parse_farside_html(resp.text)
-    if not days:
-        # Print a chunk of the body so we can see what Farside actually returned
-        # (bot-block page? redirect? maintenance?)
-        snippet = resp.text[:400].replace('\n', ' ').replace('\r', ' ')
-        print(f"  WARNING: parser returned 0 days. First 400 chars of body: {snippet!r}")
-    return days
+    return resp.text
 
 
-def parse_farside_html(html):
-    """
-    Each data row has cells [Date, IBIT, FBTC, ..., Total].
-    Date format: '04 Jun 2024' style.
-    Total is in millions USD. Negative shown as '(123.4)' or '-123.4'.
-    """
-    # Farside's <tr> tags carry style/class attrs (e.g. <tr style="...">) — must
-    # allow attributes on the opening tag, otherwise zero rows are matched.
-    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE)
+def parse_money(t):
+    t = t.replace(',', '').replace('$', '').replace('&nbsp;', '').strip()
+    if t in ('', '-'):
+        return 0.0
+    if t.startswith('(') and t.endswith(')'):
+        return -float(t[1:-1])
+    return float(t)
+
+
+def parse_table(html, date_fmts):
+    """Rows of [Date, fund..., Total]. Skips rows where every fund cell is '-'
+    (Farside's placeholder for a day that hasn't been published yet)."""
     days = []
-    for row in rows:
-        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+    for row in re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE):
+        cells = [re.sub(r'<[^>]+>', '', c).replace('&nbsp;', '').strip()
+                 for c in re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)]
         if len(cells) < 3:
             continue
-        date_str  = re.sub(r'<[^>]+>', '', cells[0]).strip()
-        total_str = re.sub(r'<[^>]+>', '', cells[-1]).replace('&nbsp;', '').strip()
-        try:
-            d = datetime.strptime(date_str, "%d %b %Y").date()
-        except ValueError:
+        d = None
+        for fmt in date_fmts:
+            try:
+                d = datetime.strptime(cells[0], fmt).date()
+                break
+            except ValueError:
+                pass
+        if d is None:
+            continue
+        if all(c in ('', '-') for c in cells[1:-1]):
             continue
         try:
-            t = total_str.replace(',', '').replace('$', '').strip()
-            if t in ('', '-'):
-                total_m = 0.0
-            elif t.startswith('(') and t.endswith(')'):
-                total_m = -float(t[1:-1])
-            else:
-                total_m = float(t)
+            total_m = parse_money(cells[-1])
         except ValueError:
             continue
         days.append({"date": d.strftime("%Y-%m-%d"), "total_m_usd": round(total_m, 2)})
     days.sort(key=lambda x: x["date"])
     return days
+
+
+def fetch_days():
+    """Return (days, source). Farside first; Bitbo if Farside is blocked."""
+    try:
+        days = parse_table(http_get(FARSIDE_URL), ["%d %b %Y"])
+        if days:
+            return days, "farside"
+        print("  WARNING: Farside returned no parseable rows (likely bot challenge).")
+    except Exception as e:
+        print(f"  WARNING: Farside fetch failed: {e}")
+    try:
+        days = parse_table(http_get(BITBO_URL), ["%b %d, %Y"])
+        if days:
+            return days, "bitbo"
+        print("  WARNING: Bitbo returned no parseable rows.")
+    except Exception as e:
+        print(f"  WARNING: Bitbo fetch failed: {e}")
+    return [], None
 
 
 def send_slack(webhook, text):
@@ -134,15 +151,11 @@ def main():
     # Scrape Farside — soft-exit on upstream failure to avoid email spam from
     # transient Farside/Cloudflare bot-blocks. Diagnostic info still logs so
     # you can see WHY in the run log if you go looking.
-    try:
-        new_days = fetch_farside()
-    except Exception as e:
-        print(f"WARNING: Farside fetch failed (soft-exit, will retry next run): {e}")
-        return
+    new_days, source = fetch_days()
     if not new_days:
-        print("WARNING: parser returned 0 days (soft-exit) — see log snippet above.")
+        print("WARNING: no ETF data from any source (soft-exit, will retry next run).")
         return
-    print(f"Parsed {len(new_days)} days from Farside. Last 3: {new_days[-3:]}")
+    print(f"Parsed {len(new_days)} days from {source}. Last 3: {new_days[-3:]}")
 
     # Load or initialize JSON
     if DATA_FILE.exists():
@@ -154,9 +167,13 @@ def main():
     data.setdefault("last_alert_date", "")
 
     # Merge
+    # Farside is authoritative: a Bitbo day never overwrites a Farside day.
     by_date = {d["date"]: d for d in data["days"]}
     for d in new_days:
-        by_date[d["date"]] = d
+        existing = by_date.get(d["date"])
+        if source == "bitbo" and existing and existing.get("source", "farside") == "farside":
+            continue
+        by_date[d["date"]] = {**d, "source": source}
     data["days"] = sorted(by_date.values(), key=lambda x: x["date"])
     data["last_updated"]   = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     data["threshold_m_usd"] = threshold_m
@@ -177,6 +194,10 @@ def main():
     today     = data["days"][-1]
     if data["last_alert_date"] == today["date"]:
         print(f"Already alerted for {today['date']} — skip.")
+        return
+
+    if yesterday.get("source", "farside") != today.get("source", "farside"):
+        print("Yesterday and today come from different sources — skip sign-flip check.")
         return
 
     y = yesterday["total_m_usd"]
@@ -203,7 +224,7 @@ def main():
            f"Today ({today['date']}): `${t:+,.1f}M`\n"
            f"{direction}\n"
            f"Diff: `${diff:,.1f}M` (threshold ${threshold_m:,.0f}M)\n"
-           f"Source: {FARSIDE_URL}")
+           f"Source: {BITBO_URL if today.get('source') == 'bitbo' else FARSIDE_URL}")
     if send_slack(webhook, msg):
         data["last_alert_date"] = today["date"]
         with open(DATA_FILE, "w") as f:

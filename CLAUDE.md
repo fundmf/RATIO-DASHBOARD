@@ -17,7 +17,7 @@ fartcoin_liquidity_daily.json ← FART price+volume daily {last_updated, days:[{
 spx6900_hourly.json         ← hourly SPX6900 data
 ai_watchlist.json           ← weekly Friday closes for GTLB/CDW/ADBE/EXLS/ADP/^NDX
 funding_rates.json          ← DAILY MARKET-AGGREGATE funding snapshots per coin (avg across Binance/Bybit/OKX/Bitget/Gate/MEXC/KuCoin/Hyperliquid); per_exchange breakdown in each snapshot + alert_state
-etf_flows.json              ← daily BTC ETF net flows from Farside + last_alert_date
+etf_flows.json              ← daily BTC ETF net flows {date,total_m_usd,source:farside|bitbo} + last_alert_date
 notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py, etf_flows.py, AND crash-check.js
 crash_alert_state.json      ← cooldown timestamps per coin for crash monitor; updated only when an alert fires
 volume_crossings_state.json ← last-seen FARTCOIN 24h volume for threshold-crossing Slack alerts
@@ -28,7 +28,7 @@ backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.js
 backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidity_daily.json
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
 funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
-etf_flows.py                ← Farside BTC ETF scrape + sign-flip Slack alert (dedicated workflow, 04/06/10 UTC redundant runs)
+etf_flows.py                ← BTC ETF scrape (Farside via curl_cffi; Bitbo fallback when Cloudflare blocks GHA) + sign-flip Slack alert (dedicated workflow, 04:13/06:13/10:13/14:13 UTC)
 volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts (50M/100M/…/700M)
 btc_volume_crossings.py     ← Hourly BTC 24h-volume threshold-crossing Slack alerts (30B/40B/…/150B, every 10B ≥30B)
 btc_volume_crossings_state.json ← last-seen BTC 24h volume for threshold-crossing Slack alerts
@@ -36,7 +36,8 @@ fx_crossings.py             ← Hourly USD/JPY threshold-crossing Slack alerts (
 market_alerts.py            ← Hourly Oil + Nasdaq threshold-move Slack alerts. Oil = Hyperliquid xyz:BRENTOIL (24/7 Brent); Nasdaq = Yahoo ^NDX
 detect_events.py            ← Slack alerts for divergence events
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
-.github/workflows/update.yml ← runs all scripts hourly Mon–Fri, commits + pushes
+.github/workflows/update-data.yml ← runs data + alert scripts at :17 and :47 every hour (NOT :00 — GitHub delayed those 2-6h), commits + pushes
+.github/workflows/update-etf-flows.yml / update-funding.yml / update-ai-watchlist.yml ← daily/weekly jobs, all on off-peak minutes
 ```
 
 ---
@@ -55,6 +56,7 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="funding">Funding Rates</button>
 <button class="tab-btn" data-tab="crash">Crash Alert</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
+<button class="tab-btn" data-tab="status" style="margin-left:auto;...">Status</button>   ← initStatus(): freshness of every JSON + live API pings (STATUS_FEATURES / STATUS_LIVE)
 <button class="tab-btn" data-tab="docs" style="margin-left:auto;...">Documentation</button>
 ```
 
@@ -175,13 +177,15 @@ Data structure: `[{t: unix_sec, o: open, h: high, l: low, c: close}, ...]`
 
 ## API proxy routes (`functions/_middleware.js`)
 
-All requests go through middleware. Password check runs first (Basic auth, `CFP_PASSWORD` env var).
+All requests go through middleware. Password check runs first (Basic auth, `CFP_PASSWORD` env var). Proxy targets are validated with `hostAllowed()` (exact https hostname match, not substring).
 
 | Path | Purpose |
 |------|---------|
 | `/api/yahoo` | Yahoo Finance proxy (CORS bypass) |
 | `/api/polymarket` | Polymarket gamma API proxy |
 | `/api/deribit` | Deribit API proxy |
+| `/api/cmc-fng` | CMC Fear & Greed proxy |
+| `/api/settings` | Read/write `notification_settings.json` via GitHub API |
 | `/api/alerts` | Read/write `custom_alerts.json` via GitHub Contents API |
 | Everything else | `next()` → serve static files |
 
@@ -219,7 +223,7 @@ All requests go through middleware. Password check runs first (Basic auth, `CFP_
 ## Deployment
 
 - **Cloudflare Pages** connected to GitHub repo, auto-deploys on push to `main`
-- GitHub Actions workflow (`.github/workflows/update.yml`) runs hourly, commits updated JSON files
+- GitHub Actions workflow (`.github/workflows/update-data.yml`) runs twice hourly (:17/:47), commits updated JSON files. GitHub skips scheduled runs often — alert scripts must catch up on everything since their last run, never assume exactly 1h gaps
 - Environment variables set in Cloudflare Pages dashboard: `CFP_PASSWORD`, `GITHUB_PAT`, `GITHUB_REPO`, `SLACK_WEBHOOK_URL`, `SLACK_WEBHOOK_URL_CUSTOM`
 - Branch: `main`
 

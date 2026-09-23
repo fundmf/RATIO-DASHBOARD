@@ -4,6 +4,15 @@
 // Setup: Add an environment variable called CFP_PASSWORD in your
 // Cloudflare Pages dashboard with the password you want to use.
 
+function hostAllowed(target, domain) {
+    try {
+        const u = new URL(target);
+        return u.protocol === 'https:' && (u.hostname === domain || u.hostname.endsWith('.' + domain));
+    } catch (e) {
+        return false;
+    }
+}
+
 export async function onRequest(context) {
     const { request, env, next } = context;
     const url = new URL(request.url);
@@ -47,7 +56,7 @@ export async function onRequest(context) {
     // Bypasses CORS — Yahoo blocks third-party proxy services
     if (url.pathname === '/api/yahoo') {
         const targetUrl = url.searchParams.get('url');
-        if (!targetUrl || !targetUrl.includes('finance.yahoo.com')) {
+        if (!targetUrl || !hostAllowed(targetUrl, 'finance.yahoo.com')) {
             return new Response('Bad request', { status: 400 });
         }
         try {
@@ -76,7 +85,7 @@ export async function onRequest(context) {
     // ── Polymarket proxy route ──
     if (url.pathname === '/api/polymarket') {
         const targetUrl = url.searchParams.get('url');
-        if (!targetUrl || !targetUrl.includes('gamma-api.polymarket.com')) {
+        if (!targetUrl || !hostAllowed(targetUrl, 'gamma-api.polymarket.com')) {
             return new Response('Bad request', { status: 400 });
         }
         try {
@@ -103,7 +112,7 @@ export async function onRequest(context) {
     // ── Deribit proxy route ──
     if (url.pathname === '/api/deribit') {
         const targetUrl = url.searchParams.get('url');
-        if (!targetUrl || !targetUrl.includes('deribit.com')) {
+        if (!targetUrl || !hostAllowed(targetUrl, 'deribit.com')) {
             return new Response('Bad request', { status: 400 });
         }
         try {

@@ -2,10 +2,17 @@ name: Update Dashboard Data
 
 on:
   schedule:
-    # Run every hour to pick up new divergence events quickly
-    - cron: '0 * * * *'
+    # GitHub delays/drops runs scheduled at :00 (peak load) — in Sep 2026 the
+    # "hourly" job actually ran every 2-6h. Off-peak minutes + two slots per
+    # hour keep real cadence close to hourly.
+    - cron: '17 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch:
     # Allows you to manually trigger from GitHub Actions tab anytime
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
 
 jobs:
   update-data:
@@ -72,6 +79,7 @@ jobs:
           [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
 
       - name: Detect divergence events and alert Slack
+        continue-on-error: true
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python detect_events.py
@@ -91,6 +99,7 @@ jobs:
           [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
 
       - name: Check Forex Factory calendar alerts
+        continue-on-error: true
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python forex_calendar_alert.py
@@ -110,6 +119,7 @@ jobs:
           [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
 
       - name: Check Oil and Nasdaq market alerts
+        continue-on-error: true
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python market_alerts.py
@@ -129,6 +139,7 @@ jobs:
           [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
 
       - name: Check custom team alerts
+        continue-on-error: true
         env:
           SLACK_WEBHOOK_URL_CUSTOM: ${{ secrets.SLACK_WEBHOOK_URL_CUSTOM }}
         run: python custom_alerts.py

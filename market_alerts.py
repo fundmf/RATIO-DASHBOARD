@@ -144,7 +144,7 @@ def fetch_yahoo_intraday(ticker):
         return None
 
 
-def check_market(market):
+def check_market(market, scan_from_ts):
     """Check if a market has triggered its threshold.
 
     Scans ALL rolling windows of size window_hours across the full day's
@@ -189,11 +189,9 @@ def check_market(market):
     prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
 
     now_ts = datetime.now(timezone.utc).timestamp()
-    # Only scan rolling windows whose END falls within the last 2 hours.
-    # This covers the hourly cron gap with buffer, so:
-    #  - Old spikes naturally fall out → no duplicates
-    #  - New spikes are always caught → no misses
-    scan_cutoff = now_ts - 2 * 3600
+    # Only scan windows ending since the previous run (GitHub often skips
+    # "hourly" runs for several hours). Older spikes were already processed.
+    scan_cutoff = scan_from_ts
 
     best_move = 0
     best_end_idx = -1
@@ -352,9 +350,17 @@ def main():
         alerted = {}
         state.pop("alerts", None)
 
+    # Scan back to the previous run (10 min overlap), min 2h, max 12h.
+    now_ts = now.timestamp()
+    last_scan = state.get("last_scan_ts")
+    scan_from = now_ts - 2 * 3600
+    if last_scan:
+        scan_from = max(now_ts - 12 * 3600, min(scan_from, last_scan - 600))
+    print(f"  Scanning windows ending after {datetime.fromtimestamp(scan_from, timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC")
+
     triggered = []
     for market in MARKETS:
-        alert = check_market(market)
+        alert = check_market(market, scan_from)
         if alert:
             key = make_state_key(alert)
             prev_move = alerted.get(key, 0)
@@ -385,7 +391,7 @@ def main():
     yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     alerted = {k: v for k, v in alerted.items() if k.split(":")[-1] >= yesterday_str}
 
-    state = {"alerted": alerted}
+    state = {"alerted": alerted, "last_scan_ts": int(now_ts)}
     save_state(state)
 
     print("Done!")
