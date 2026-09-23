@@ -15,7 +15,7 @@ import json
 import math
 import sys
 import time
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import requests
 import yfinance as yf
 
@@ -42,51 +42,31 @@ def date_range(start_str, end_str):
         yield str(current)
         current += timedelta(days=1)
 
-def fetch_coingecko_ohlc(coin_id, start_str, end_str):
-    """
-    Fetch daily OHLC from CoinGecko free API.
-    Returns dict keyed by YYYY-MM-DD with {close, high, low}.
-    CoinGecko free tier: 30 calls/min, no API key needed.
-    """
-    start_ts = int(datetime.strptime(start_str, "%Y-%m-%d").timestamp())
-    end_ts   = int((datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=1)).timestamp())
+BINANCE_KLINES = "https://data-api.binance.vision/api/v3/klines"  # public market data, not geo-blocked
 
+
+def fetch_crypto_daily(symbol, start_str, end_str):
+    """Exact UTC daily OHLC from Binance spot (e.g. BTCUSDT), inclusive dates.
+    Returns dict keyed by YYYY-MM-DD with {close, high, low}."""
+    start_ms = int(datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+    end_ms = int((datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=1)).replace(tzinfo=timezone.utc).timestamp() * 1000) - 1
     result = {}
-
-    # Use /market_chart/range for close prices
-    url = (
-        f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart/range"
-        f"?vs_currency=usd&from={start_ts}&to={end_ts}"
-    )
     try:
-        resp = requests.get(url, timeout=15)
-        resp.raise_for_status()
-        chart = resp.json()
-
-        # prices = [[timestamp_ms, price], ...]
-        for ts_ms, price in chart.get("prices", []):
-            d = datetime.utcfromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d")
-            if d not in result:
-                result[d] = {"close": price, "high": price, "low": price}
-
-        # Override with OHLC data for high/low
-        ohlc_url = (
-            f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
-            f"?vs_currency=usd&days=90"
-        )
-        time.sleep(1.5)  # Rate limit: 30 req/min on free tier
-        resp2 = requests.get(ohlc_url, timeout=15)
-        if resp2.ok:
-            for ts_ms, o, h, l, c in resp2.json():
-                d = datetime.utcfromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d")
-                if d in result:
-                    result[d]["high"] = h
-                    result[d]["low"]  = l
-                    result[d]["close"] = c
-
+        while start_ms <= end_ms:
+            resp = requests.get(BINANCE_KLINES, params={
+                "symbol": symbol, "interval": "1d",
+                "startTime": start_ms, "endTime": end_ms, "limit": 1000,
+            }, timeout=15)
+            resp.raise_for_status()
+            rows = resp.json()
+            if not rows:
+                break
+            for k in rows:
+                d = datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                result[d] = {"close": float(k[4]), "high": float(k[2]), "low": float(k[3])}
+            start_ms = rows[-1][0] + 86_400_000
     except Exception as e:
-        print(f"  CoinGecko error for {coin_id}: {e}")
-
+        print(f"  Binance error for {symbol}: {e}")
     return result
 
 def fetch_yahoo_ohlc(ticker, start_str, end_str):
@@ -179,8 +159,7 @@ def main():
     print(f"Fetching up to:           {target_end}")
 
     if last_date >= target_end:
-        print("Data is already up to date. Nothing to do.")
-        return
+        print("No new days to add — re-checking recent days for corrections.")
 
     # Build list of new dates we need (skip already-live entries)
     existing_dates = {d["date"] for d in data}
@@ -190,14 +169,14 @@ def main():
     fetch_start = last_date  # fetch_coingecko_ohlc/yahoo will start from day after
     fetch_end   = target_end
 
-    print(f"\nFetching CoinGecko BTC data...")
-    time.sleep(1)
-    btc_data = fetch_coingecko_ohlc("bitcoin", fetch_start, fetch_end)
+    # Re-fetch the last 7 days too so any earlier bad/partial candle self-corrects.
+    crypto_start = min(fetch_start, str(date.today() - timedelta(days=7)))
+    print(f"\nFetching Binance BTCUSDT daily (from {crypto_start})...")
+    btc_data = fetch_crypto_daily("BTCUSDT", crypto_start, fetch_end)
     print(f"  Got {len(btc_data)} BTC days")
 
-    print(f"Fetching CoinGecko ETH data...")
-    time.sleep(2)  # Be polite to free API
-    eth_data = fetch_coingecko_ohlc("ethereum", fetch_start, fetch_end)
+    print(f"Fetching Binance ETHUSDT daily (from {crypto_start})...")
+    eth_data = fetch_crypto_daily("ETHUSDT", crypto_start, fetch_end)
     print(f"  Got {len(eth_data)} ETH days")
 
     # yfinance: look back 14 days to auto-correct any stale carry-forwards.
@@ -260,6 +239,20 @@ def main():
     else:
         print("\n No new records to add.")
 
+    crypto_fixed = 0
+    for rec in data:
+        for key, src in (("btc", btc_data), ("eth", eth_data)):
+            c = src.get(rec["date"])
+            if not c:
+                continue
+            vals = (round(c["close"], 2), round(c["high"], 2), round(c["low"], 2))
+            if (rec.get(key), rec.get(f"{key}_high_price"), rec.get(f"{key}_low_price")) != vals:
+                rec[key], rec[f"{key}_high_price"], rec[f"{key}_low_price"] = vals
+                crypto_fixed += 1
+    if crypto_fixed:
+        save_data(data)
+        print(f"✓ Corrected {crypto_fixed} BTC/ETH entries against Binance.")
+
     # Backfill/overwrite MSTR/BMNR for existing records whenever yfinance has real data.
     # Always overwrite — this corrects any prior carry-forward values that were placeholders
     # from a day when yfinance was temporarily failing but real market data existed.
@@ -297,10 +290,6 @@ def main():
     if cf_patched:
         save_data(data)
         print(f"✓ Carry-forwarded {cf_patched} stock field(s) into gap days.")
-
-if __name__ == "__main__":
-    main()
-
 
 # ─── Hourly FARTCOIN + BTC data ────────────────────────────────────────────
 FARTCOIN_FILE = "fartcoin_hourly.json"

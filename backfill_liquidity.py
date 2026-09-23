@@ -16,11 +16,21 @@ Run locally or via GitHub Actions:
 import json
 import time
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 BTC_OUTPUT = "liquidity_daily.json"
 FART_OUTPUT = "fartcoin_liquidity_daily.json"
 MIN_DATE = "2025-01-01"  # Earliest date we want to keep
+
+
+def day_key(ts_ms):
+    """CoinGecko daily points are stamped 00:00 UTC and carry the PREVIOUS
+    day's close and 24h volume. The final non-midnight point is intraday
+    (rolling 24h to now) and is labelled with today's date."""
+    d = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+    if ts_ms % 86_400_000 == 0:
+        d -= timedelta(days=1)
+    return d.strftime("%Y-%m-%d")
 
 
 def fetch_daily(coin_id, retries=3):
@@ -39,15 +49,8 @@ def fetch_daily(coin_id, retries=3):
             resp.raise_for_status()
             data = resp.json()
 
-            prices = {}
-            for ts, price in data.get("prices", []):
-                key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-                prices[key] = price
-
-            volumes = {}
-            for ts, vol in data.get("total_volumes", []):
-                key = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-                volumes[key] = vol
+            prices = {day_key(ts): price for ts, price in data.get("prices", [])}
+            volumes = {day_key(ts): vol for ts, vol in data.get("total_volumes", [])}
 
             return prices, volumes
         except requests.exceptions.RequestException as e:

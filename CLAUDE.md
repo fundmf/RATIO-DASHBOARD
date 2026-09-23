@@ -23,12 +23,12 @@ crash_alert_state.json      ← cooldown timestamps per coin for crash monitor; 
 volume_crossings_state.json ← last-seen FARTCOIN 24h volume for threshold-crossing Slack alerts
 fx_crossings_state.json     ← last-seen USD/JPY rate for threshold-crossing Slack alerts
 custom_alerts.json          ← server-side alert state
-update_data.py              ← daily OHLC updater (BTC/ETH via CoinGecko, MSTR/BMNR via yfinance)
+update_data.py              ← daily OHLC updater (BTC/ETH via Binance data-api.binance.vision daily klines, MSTR/BMNR via yfinance); re-checks last 7d crypto / 14d stocks every run
 backfill_hourly.py          ← updates fartcoin_hourly.json + spx6900_hourly.json
 backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidity_daily.json
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
 funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
-etf_flows.py                ← BTC ETF scrape (Farside via curl_cffi; Bitbo fallback when Cloudflare blocks GHA) + sign-flip Slack alert (dedicated workflow, 04:13/06:13/10:13/14:13 UTC)
+etf_flows.py                ← PAUSED (manual-only; card just links to farside.co.uk/btc). BTC ETF scrape (Farside via curl_cffi; Bitbo fallback when Cloudflare blocks GHA) + sign-flip Slack alert (dedicated workflow, 04:13/06:13/10:13/14:13 UTC)
 volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts (50M/100M/…/700M)
 btc_volume_crossings.py     ← Hourly BTC 24h-volume threshold-crossing Slack alerts (30B/40B/…/150B, every 10B ≥30B)
 btc_volume_crossings_state.json ← last-seen BTC 24h volume for threshold-crossing Slack alerts
@@ -103,7 +103,7 @@ let fart2ChartInst = null;  // Chart.js instance for V2
 **Load flow:**
 1. Fetch `liquidity_daily.json` → `liqData` (388 days of BTC price+volume)
 2. If loaded, `renderLiquidityChart()` immediately
-3. Top-up last 30 days from CoinGecko → merge → re-render
+3. Top-up last 30 days from CoinGecko → merge → re-render. **Day labels:** CoinGecko daily points at 00:00 UTC belong to the PREVIOUS day — always key them with `cgDayKey()` (JS) / `day_key()` (backfill_liquidity.py)
 4. Separately fetch `fartcoin_liquidity_daily.json` → `fartLiqData`
 5. Top-up FART last 30 days from CoinGecko → merge → `renderFartLiqChart()` + `renderCombinedLiqChart()`
 6. Auto-refresh every hour (last 2 days only)
@@ -193,7 +193,7 @@ All requests go through middleware. Password check runs first (Basic auth, `CFP_
 
 ## Data update pipeline (`update_data.py`)
 
-- BTC/ETH: CoinGecko free API (`/market_chart/range` + `/ohlc`)
+- BTC/ETH: Binance spot daily klines via `data-api.binance.vision` (exact UTC OHLC, not geo-blocked for GHA). Was CoinGecko until Sep 2026 — that stored each day's OPEN as its close (1-day lag, up to 15% off) and 4-day-candle highs/lows; 2026-02-01 onward rebuilt from Binance
 - MSTR/BMNR: yfinance with **14-day lookback** (one `download()` call, no rate limit)
 - Backfill loop **always overwrites** existing MSTR/BMNR with real yfinance data (corrects stale carry-forwards)
 - `carry_forward_stock()`: fills holidays/fetch-failure weekdays with last known value

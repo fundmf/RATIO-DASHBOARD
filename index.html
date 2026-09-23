@@ -412,42 +412,12 @@
         <div class="last-updated" id="comboChartLatest"></div>
     </div>
 
-    <!-- BTC ETF Flows (Farside.co.uk) -->
+    <!-- BTC ETF Flows — link only (tracking paused) -->
     <div class="card" id="etfFlowsCard">
-        <div class="card-title">BTC ETF Daily Net Flows
-            <span style="font-size:11px;color:#64748b;font-weight:400;margin-left:8px;">Source: <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk</a> (fallback: <a href="https://bitbo.io/treasuries/etf-flows/" target="_blank" rel="noopener" style="color:#3b82f6;">bitbo.io</a>) · daily, US trading days · $M</span>
-        </div>
-        <div id="etfFlowsSummary" style="font-size:13px;color:#94a3b8;margin-bottom:12px;">Loading…</div>
-        <div style="height:240px;position:relative;">
-            <canvas id="etfFlowsChart"></canvas>
-        </div>
-        <div style="margin-top:14px;overflow-x:auto;">
-            <table id="etfFlowsTable" style="width:100%;border-collapse:collapse;font-size:13px;">
-                <thead>
-                    <tr style="border-bottom:1px solid #334155;">
-                        <th style="text-align:left;padding:8px;color:#94a3b8;font-weight:500;">Date</th>
-                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Net Flow ($M)</th>
-                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Δ vs Prior Day</th>
-                        <th style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;">Sign Flip?</th>
-                    </tr>
-                </thead>
-                <tbody id="etfFlowsTbody"></tbody>
-            </table>
-        </div>
-        <!-- ETF settings -->
-        <div style="margin-top:18px;padding-top:14px;border-top:1px solid #334155;">
-            <div style="font-size:13px;color:#94a3b8;margin-bottom:10px;"><strong>Slack Alert:</strong> fires when yesterday and today have opposite signs AND |Δ| ≥ threshold.</div>
-            <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;cursor:pointer;">
-                    <input type="checkbox" id="etfAlertToggle" onchange="saveEtfSettings()">
-                    <span>Enable BTC ETF flow flip alert</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;">
-                    Threshold ($M):
-                    <input type="number" id="etfThresholdInput" min="50" max="5000" step="50" style="width:90px;padding:6px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;" onchange="saveEtfSettings()">
-                </label>
-                <span id="etfSettingsStatus" style="font-size:12px;color:#64748b;"></span>
-            </div>
+        <div class="card-title">BTC ETF Daily Net Flows</div>
+        <div style="font-size:13px;color:#94a3b8;">
+            Daily US spot-BTC ETF net flows ($M, per fund and total) are published by Farside Investors:
+            <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;font-weight:600;">farside.co.uk/btc &rarr;</a>
         </div>
     </div>
 </div>
@@ -1113,7 +1083,7 @@ FIRE alert if ALL conditions met:
 
         <h3>Data Sources &amp; Frequency</h3>
         <ul>
-            <li><strong>Historical:</strong> <code>data.json</code> — daily close prices, updated hourly via GitHub Actions using <code>update_data.py</code></li>
+            <li><strong>Historical:</strong> <code>data.json</code> — daily UTC close/high/low. BTC &amp; ETH from Binance spot (BTCUSDT/ETHUSDT daily candles), MSTR &amp; BMNR from Yahoo Finance. Updated by <code>update_data.py</code>, which also re-checks the last 7 days (crypto) / 14 days (stocks) every run and corrects any mismatch</li>
             <li><strong>Live:</strong> CoinGecko API (BTC, ETH) and Yahoo Finance via Cloudflare proxy (MSTR, BMNR) — fetched on page load</li>
         </ul>
 
@@ -1198,7 +1168,7 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Data Sources</h3>
         <ul>
-            <li><strong>BTC:</strong> <code>liquidity_daily.json</code> — 365 days of daily price + volume from CoinGecko, updated hourly by <code>backfill_liquidity.py</code></li>
+            <li><strong>BTC:</strong> <code>liquidity_daily.json</code> — daily close + 24h volume from CoinGecko, updated hourly by <code>backfill_liquidity.py</code>. CoinGecko stamps each day's figures at 00:00 UTC of the <em>next</em> day; we re-label them to the day they belong to. The latest point is today so far (rolling 24h)</li>
             <li><strong>FARTCOIN:</strong> <code>fartcoin_liquidity_daily.json</code> — same format, same update schedule</li>
         </ul>
 
@@ -1385,33 +1355,7 @@ Display rate (% per hour) = Aggregate / 8760</div>
     <!-- 7c. ETF FLOWS -->
     <div class="card doc-section" id="doc-etf">
         <h2>7c. BTC ETF Flows (Market Liquidity tab)</h2>
-        <p>Scrapes <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk/btc/</a> daily (falls back to <a href="https://bitbo.io/treasuries/etf-flows/" target="_blank" rel="noopener" style="color:#3b82f6;">bitbo.io</a> when Farside's Cloudflare bot-check blocks GitHub Actions), stores history in <code>etf_flows.json</code> with a per-day <code>source</code> tag, and sends a Slack alert when consecutive days' net flows flip sign with a magnitude above a configurable threshold.</p>
-
-        <h3>Alert Logic</h3>
-        <p>Alert fires when ALL of these are true:</p>
-        <ul>
-            <li>Yesterday and today have <strong>opposite signs</strong> (one positive, one negative)</li>
-            <li><code>|today − yesterday|</code> ≥ threshold (default <strong>$300M</strong>)</li>
-            <li>Alert is enabled in settings</li>
-            <li>Today's date has not already triggered (dedupe by date)</li>
-        </ul>
-        <div class="formula">Examples (threshold = $300M):
-  Y = −$200M, T = +$200M  → flip, |Δ| = $400M → ALERT (turned positive)
-  Y = +$50M,  T = −$300M  → flip, |Δ| = $350M → ALERT (turned negative)
-  Y = +$50M,  T = +$500M  → no flip            → no alert
-  Y = −$50M,  T = +$200M  → flip, |Δ| = $250M → no alert (below threshold)</div>
-
-        <h3>Cadence</h3>
-        <ul>
-            <li><code>etf_flows.py</code> runs in its own dedicated workflow (<code>update-etf-flows.yml</code>) on a daily cron — <strong>04:13, 06:13, 10:13 and 14:13 UTC</strong></li>
-            <li>Farside is fetched with <code>curl_cffi</code> (Chrome TLS fingerprint) to get past its Cloudflare challenge; if it's still blocked, Bitbo is used. Bitbo days never overwrite Farside days, and no sign-flip alert fires across two different sources (their totals differ by up to a few hundred $M)</li>
-            <li>Days Farside lists as "-" (not yet published) are skipped rather than stored as $0</li>
-            <li>The triple-cron is for GitHub Actions reliability — their scheduler regularly drops individual scheduled runs, so multiple cron times ensure the daily capture &amp; alert don't get lost</li>
-            <li>The script is idempotent — once the latest day is recorded and the alert is dispatched, subsequent runs that day are no-ops (no double-alerts, no extra Farside requests beyond the dedupe check)</li>
-        </ul>
-
-        <h3>Configuration</h3>
-        <p>The toggle and the dollar threshold are editable inline on the Market Liquidity tab's BTC ETF Flows card. Both save via <code>/api/settings</code> and take effect on the next scrape.</p>
+        <p>Tracking is paused. The card links straight to <a href="https://farside.co.uk/btc/" target="_blank" rel="noopener" style="color:#3b82f6;">farside.co.uk/btc</a>. <code>etf_flows.py</code> and its workflow are kept but no longer scheduled (Farside blocks GitHub Actions with a Cloudflare challenge); run it manually from the Actions tab if needed.</p>
     </div>
 
     <!-- 7d. CRASH ALERT MONITOR -->
@@ -1444,7 +1388,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <h3>Notification Channel</h3>
         <ul>
             <li><strong>ntfy URGENT only:</strong> POST to <code>https://ntfy.sh/&lt;your-topic&gt;</code> with <code>Priority: urgent</code> header. On Android plays a continuous loud alarm; on iOS uses Critical Alerts (bypasses silent/DND if the user grants permission)</li>
-            <li>Slack is deliberately <em>not</em> used here — the existing Slack-based alerts (funding flip, ETF flip) are for situational awareness during business hours, while this is for genuine wake-up emergencies. Mixing them would dilute Slack's signal-to-noise.</li>
+            <li>Slack is deliberately <em>not</em> used here — the existing Slack-based alerts (e.g. funding flip) are for situational awareness during business hours, while this is for genuine wake-up emergencies. Mixing them would dilute Slack's signal-to-noise.</li>
         </ul>
 
         <h3>One-Time Setup</h3>
@@ -1573,7 +1517,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <h3>GitHub Actions Workflow (<code>update-data.yml</code>)</h3>
         <p>Scheduled at <code>:17</code> and <code>:47</code> past every hour (off-peak minutes — runs at <code>:00</code> were being delayed 2-6h by GitHub). A concurrency group stops overlapping runs. Alert steps use <code>continue-on-error</code> so one failing script doesn't block the rest. Steps execute sequentially:</p>
         <ul>
-            <li><code>update_data.py</code> — Fetches daily ratio data (BTC, ETH, MSTR, BMNR) &rarr; <code>data.json</code></li>
+            <li><code>update_data.py</code> — Fetches daily ratio data (BTC/ETH from Binance, MSTR/BMNR from Yahoo) &rarr; <code>data.json</code></li>
             <li><code>backfill_hourly.py</code> — Fetches hourly prices (BTC, FARTCOIN, SPX6900) &rarr; <code>fartcoin_hourly.json</code>, <code>spx6900_hourly.json</code></li>
             <li><code>backfill_liquidity.py</code> — Fetches daily price + volume (BTC, FARTCOIN) &rarr; <code>liquidity_daily.json</code>, <code>fartcoin_liquidity_daily.json</code>. Has retry logic with 429 rate-limit handling (30s &times; attempt backoff)</li>
             <li>Commit &amp; push data files</li>
@@ -2274,8 +2218,6 @@ async function initLiquidity(){
     document.getElementById('liqStart').value='2025-03-24';
     document.getElementById('liqEnd').value=todayStr();
     const notice=document.getElementById('liqNotice');
-    // Load ETF flows card (BTC ETF Flows from Farside)
-    initEtfFlows();
     // Load static JSON first
     try{
         const r=await fetch('liquidity_daily.json?t='+Date.now());
@@ -2289,12 +2231,12 @@ async function initLiquidity(){
         const resp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30',20000);
         const liveDays={};
         for(const[ts,price]of(resp.prices||[])){
-            const d=new Date(ts).toISOString().slice(0,10);
+            const d=cgDayKey(ts);
             liveDays[d]=liveDays[d]||{date:d,btc_price:0,volume:0};
             liveDays[d].btc_price=Math.round(price*100)/100;
         }
         for(const[ts,vol]of(resp.total_volumes||[])){
-            const d=new Date(ts).toISOString().slice(0,10);
+            const d=cgDayKey(ts);
             if(liveDays[d])liveDays[d].volume=Math.round(vol*100)/100;
         }
         const merged={};
@@ -2318,12 +2260,12 @@ async function initLiquidity(){
         const resp2=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=30',20000);
         const fLive={};
         for(const[ts,price]of(resp2.prices||[])){
-            const d=new Date(ts).toISOString().slice(0,10);
+            const d=cgDayKey(ts);
             fLive[d]=fLive[d]||{date:d,fart_price:0,volume:0};
             fLive[d].fart_price=Math.round(price*1e6)/1e6;
         }
         for(const[ts,vol]of(resp2.total_volumes||[])){
-            const d=new Date(ts).toISOString().slice(0,10);
+            const d=cgDayKey(ts);
             if(fLive[d])fLive[d].volume=Math.round(vol*100)/100;
         }
         const fm={};
@@ -2340,12 +2282,12 @@ async function initLiquidity(){
             const resp=await safeFetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=2',20000);
             const liveDays={};
             for(const[ts,price]of(resp.prices||[])){
-                const d=new Date(ts).toISOString().slice(0,10);
+                const d=cgDayKey(ts);
                 liveDays[d]=liveDays[d]||{date:d,btc_price:0,volume:0};
                 liveDays[d].btc_price=Math.round(price*100)/100;
             }
             for(const[ts,vol]of(resp.total_volumes||[])){
-                const d=new Date(ts).toISOString().slice(0,10);
+                const d=cgDayKey(ts);
                 if(liveDays[d])liveDays[d].volume=Math.round(vol*100)/100;
             }
             const merged={};
@@ -2360,12 +2302,12 @@ async function initLiquidity(){
             const resp2=await safeFetch('https://api.coingecko.com/api/v3/coins/fartcoin/market_chart?vs_currency=usd&days=2',20000);
             const fLive={};
             for(const[ts,price]of(resp2.prices||[])){
-                const d=new Date(ts).toISOString().slice(0,10);
+                const d=cgDayKey(ts);
                 fLive[d]=fLive[d]||{date:d,fart_price:0,volume:0};
                 fLive[d].fart_price=Math.round(price*1e6)/1e6;
             }
             for(const[ts,vol]of(resp2.total_volumes||[])){
-                const d=new Date(ts).toISOString().slice(0,10);
+                const d=cgDayKey(ts);
                 if(fLive[d])fLive[d].volume=Math.round(vol*100)/100;
             }
             const fm={};
@@ -2381,7 +2323,15 @@ async function initLiquidity(){
 // Filter out US Sundays, Mondays, and major US holidays (dates where volume is artificially low)
 // Uses UTC dates which closely align with US calendar days for this purpose
 function isUSHoliday(dateStr){
-    const d=new Date(dateStr+'T00:00:00Z');
+  // CoinGecko daily points are stamped 00:00 UTC and hold the PREVIOUS day's
+// close + 24h volume; any non-midnight point is intraday (rolling 24h to now).
+function cgDayKey(ts){
+    const d=new Date(ts);
+    if(ts%86400000===0)d.setUTCDate(d.getUTCDate()-1);
+    return d.toISOString().slice(0,10);
+}
+
+  const d=new Date(dateStr+'T00:00:00Z');
     const day=d.getUTCDay(); // 0=Sun, 1=Mon
     if(day===0||day===1)return true;
     // Major US holidays (fixed dates + observed rules)
@@ -4106,139 +4056,17 @@ async function toggleFundingAlert(key,checked){
 }
 
 // ──────────────────────────────────────────────
-// CARD — BTC ETF FLOWS (on Market Liquidity tab)
-// ──────────────────────────────────────────────
-let etfChartInst=null;
-let etfFlowData=null;
-
-async function initEtfFlows(){
-    await loadNotifSettings();
-    try{
-        const r=await fetch('etf_flows.json?t='+Date.now());
-        if(!r.ok){throw new Error('Could not load etf_flows.json');}
-        etfFlowData=await r.json();
-        renderEtfFlows(etfFlowData);
-    }catch(e){
-        document.getElementById('etfFlowsSummary').textContent='Could not load ETF flow data: '+e.message;
-    }
-    // Apply settings to inputs
-    document.getElementById('etfAlertToggle').checked=notifSettings.etf_flow_alert_btc!==false;
-    document.getElementById('etfThresholdInput').value=notifSettings.etf_flow_threshold_m_usd||300;
-}
-
-function renderEtfFlows(data){
-    const days=(data.days||[]).slice(-14);  // last 14 days
-    const sumEl=document.getElementById('etfFlowsSummary');
-    const tbody=document.getElementById('etfFlowsTbody');
-    if(!days.length){
-        sumEl.innerHTML='<em>No data yet — waiting for first ETF scrape (runs 04:13 UTC daily).</em>';
-        tbody.innerHTML='';
-        return;
-    }
-    const latest=days[days.length-1];
-    const prior =days.length>1?days[days.length-2]:null;
-    const latestVal=latest.total_m_usd;
-    const priorVal =prior?prior.total_m_usd:null;
-    const diff=prior?latestVal-priorVal:null;
-    const signFlip=prior&&((latestVal>0&&priorVal<0)||(latestVal<0&&priorVal>0));
-    const thr=parseFloat(notifSettings.etf_flow_threshold_m_usd||300);
-    const wouldAlert=signFlip&&Math.abs(diff||0)>=thr;
-
-    let html=`<strong>Today (${latest.date}):</strong> <span style="color:${latestVal>=0?'#10b981':'#ef4444'};font-family:monospace;">${latestVal>=0?'+':''}$${latestVal.toFixed(1)}M</span>`;
-    if(prior){
-        const arrow=diff>=0?'▲':'▼';
-        html+=` · <strong>Δ vs prior:</strong> <span style="color:${diff>=0?'#10b981':'#ef4444'};font-family:monospace;">${arrow} $${Math.abs(diff).toFixed(1)}M</span>`;
-        if(signFlip)html+=' · <span style="color:#fbbf24;">Sign flip</span>';
-        if(wouldAlert)html+=' · <strong style="color:#ef4444;">ALERT TRIGGERED</strong>';
-    }
-    if(data.last_updated)html+=`<div style="font-size:11px;color:#64748b;margin-top:4px;">Last refreshed: ${new Date(data.last_updated).toLocaleString('en-AU')}</div>`;
-    sumEl.innerHTML=html;
-
-    // Chart: bar chart of last 14 days
-    const ctx=document.getElementById('etfFlowsChart').getContext('2d');
-    if(etfChartInst)etfChartInst.destroy();
-    etfChartInst=new Chart(ctx,{
-        type:'bar',
-        data:{
-            labels:days.map(d=>new Date(d.date+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),
-            datasets:[{
-                label:'Net Flow ($M)',
-                data:days.map(d=>d.total_m_usd),
-                backgroundColor:days.map(d=>d.total_m_usd>=0?'rgba(16,185,129,0.6)':'rgba(239,68,68,0.6)'),
-                borderColor:days.map(d=>d.total_m_usd>=0?'#10b981':'#ef4444'),
-                borderWidth:1,
-            }],
-        },
-        options:{
-            responsive:true,maintainAspectRatio:false,
-            plugins:{
-                legend:{display:false},
-                tooltip:{
-                    backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',
-                    borderColor:'#334155',borderWidth:1,padding:10,
-                    callbacks:{label:c=>'Net flow: '+(c.parsed.y>=0?'+':'')+'$'+c.parsed.y.toFixed(1)+'M'},
-                },
-            },
-            scales:{
-                x:{grid:{display:false},ticks:{color:'#94a3b8'}},
-                y:{
-                    grid:{color:'#334155'},
-                    ticks:{color:'#94a3b8',callback:v=>(v>=0?'+':'')+'$'+v+'M'},
-                },
-            },
-        },
-    });
-
-    // Table
-    let trows='';
-    const reversed=[...days].reverse();
-    for(let i=0;i<reversed.length;i++){
-        const d=reversed[i];
-        const prev=i<reversed.length-1?reversed[i+1]:null;
-        const v=d.total_m_usd;
-        const diffD=prev?v-prev.total_m_usd:null;
-        const flipD=prev&&((v>0&&prev.total_m_usd<0)||(v<0&&prev.total_m_usd>0));
-        const flipBig=flipD&&Math.abs(diffD)>=thr;
-        const vCol=v>=0?'#10b981':'#ef4444';
-        const dCol=diffD!=null?(diffD>=0?'#10b981':'#ef4444'):'#64748b';
-        const flipCell=flipD?(flipBig?'<span style="color:#ef4444;">⚠️ Yes ≥ threshold</span>':'<span style="color:#fbbf24;">Yes (below thr)</span>'):'<span style="color:#64748b;">—</span>';
-        trows+=`<tr style="border-bottom:1px solid #1e293b;">
-            <td style="padding:8px;color:#e2e8f0;font-family:monospace;">${d.date}</td>
-            <td style="padding:8px;text-align:right;color:${vCol};font-family:monospace;">${v>=0?'+':''}$${v.toFixed(1)}</td>
-            <td style="padding:8px;text-align:right;color:${dCol};font-family:monospace;">${diffD!=null?(diffD>=0?'+':'')+'$'+Math.abs(diffD).toFixed(1):'—'}</td>
-            <td style="padding:8px;text-align:right;font-size:12px;">${flipCell}</td>
-        </tr>`;
-    }
-    tbody.innerHTML=trows;
-}
-
-async function saveEtfSettings(){
-    const checked=document.getElementById('etfAlertToggle').checked;
-    const threshold=parseFloat(document.getElementById('etfThresholdInput').value)||300;
-    notifSettings.etf_flow_alert_btc=checked;
-    notifSettings.etf_flow_threshold_m_usd=threshold;
-    const status=document.getElementById('etfSettingsStatus');
-    status.textContent='Saving…';
-    const ok=await saveNotifSettings({etf_flow_alert_btc:checked,etf_flow_threshold_m_usd:threshold});
-    status.textContent=ok?'Saved.':'Save failed (still applied locally).';
-    // Re-render to update the "would alert" indicator with new threshold
-    if(etfFlowData)renderEtfFlows(etfFlowData);
-    setTimeout(()=>{status.textContent='';},3000);
-}
-
-// ──────────────────────────────────────────────
 // STATUS TAB — uptime dashboard
 // ──────────────────────────────────────────────
 const STATUS_FEATURES=[
     // Age thresholds in hours. dateInLastEntry measures from the END of the last recorded day.
     // event:true = file only changes when something fires; shown as EVENT, never stale.
-    {file:'data.json',                    name:'BTC/ETH/MSTR/BMNR daily prices', tab:'Ratio Analysis',   source:'CoinGecko + Yahoo (workflow)',   cadence:'Hourly, last completed day',  warnH:30, badH:54, dateInLastEntry:'date'},
+    {file:'data.json',                    name:'BTC/ETH/MSTR/BMNR daily prices', tab:'Ratio Analysis',   source:'Binance + Yahoo (workflow)',   cadence:'Hourly, last completed day',  warnH:30, badH:54, dateInLastEntry:'date'},
     {file:'liquidity_daily.json',         name:'BTC liquidity / volume',       tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'fartcoin_liquidity_daily.json',name:'FARTCOIN liquidity / volume',  tab:'Market Liquidity', source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'fartcoin_hourly.json',         name:'FARTCOIN hourly candles',      tab:'FARTCOIN',         source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',       tab:'FARTCOIN / Divergence', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'8 exchanges (workflow)',         cadence:'Weekdays 21:00 UTC',         warnH:76, badH:100,timestampKey:'last_updated'},
-    {file:'etf_flows.json',               name:'BTC ETF net flows',            tab:'Market Liquidity', source:'Farside (Bitbo fallback)',       cadence:'Daily, 4 runs',              warnH:30, badH:54, timestampKey:'last_updated'},
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},

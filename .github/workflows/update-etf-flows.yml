@@ -11,13 +11,10 @@ name: Update BTC ETF Flows (Daily)
 # runs in log history. Push any edit here to re-register the schedule, and/or
 # hit "Run workflow" manually once from the Actions tab to prime it.
 
+# PAUSED (Sep 2026): ETF tracking disabled — dashboard card links to
+# farside.co.uk/btc instead. Manual runs still possible from the Actions tab.
 on:
-  schedule:
-    - cron: '13 4 * * *'   # 04:13 UTC primary (off-peak minute)
-    - cron: '13 6 * * *'   # 06:13 UTC backup
-    - cron: '13 10 * * *'  # 10:13 UTC second backup
-    - cron: '13 14 * * *'  # 14:13 UTC afternoon safety net
-  workflow_dispatch:        # manual trigger from Actions tab
+  workflow_dispatch:
 
 jobs:
   update-etf:
