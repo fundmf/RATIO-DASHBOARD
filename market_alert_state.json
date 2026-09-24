@@ -1,4 +1,6 @@
 {
-  "alerted": {},
-  "last_scan_ts": 1790232431
+  "alerted": {
+    "xyz:BRENTOIL:2026-09-24": 3.45
+  },
+  "last_scan_ts": 1790250089
 }
