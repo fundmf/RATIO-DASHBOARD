@@ -4,6 +4,15 @@ Single-file crypto dashboard deployed on **Cloudflare Pages**, auto-updated via 
 
 ---
 
+## GitHub account — check before every commit/push
+
+- Repo: `https://github.com/fundmf/RATIO-DASHBOARD` (owner **fundmf**)
+- Commit author must be **`fundmf <goodhakki@gmail.com>`** (set in this repo's local git config). Verify with `git config user.name` / `git config user.email`; if different, stop and ask — never change git config yourself.
+- Pushes must authenticate as **fundmf**. This repo is pinned to it: remote URL is `https://fundmf@github.com/fundmf/RATIO-DASHBOARD` and local `credential.https://github.com.username=fundmf`. Check with `git remote get-url origin` — if the `fundmf@` is missing, stop and ask. The machine also holds a **RRQLD-Productions** login for other projects; it must NOT be used here.
+- GitHub Actions commits appear as `github-actions[bot]` — that's expected.
+
+---
+
 ## Repo layout
 
 ```
