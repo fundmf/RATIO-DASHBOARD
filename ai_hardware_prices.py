@@ -32,6 +32,7 @@ BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 # Canonical model -> (RunPod gpuType id, [vast.ai gpu_name values])
 GPU_MODELS = {
+    "A100 40GB":       ("NVIDIA A100-SXM4-40GB", []),
     "A100 PCIe 80GB":  ("NVIDIA A100 80GB PCIe", ["A100 PCIE"]),
     "A100 SXM 80GB":   ("NVIDIA A100-SXM4-80GB", ["A100 SXM4"]),
     "H100 PCIe":       ("NVIDIA H100 PCIe", ["H100 PCIE"]),
@@ -73,6 +74,8 @@ def fetch_runpod():
         # RunPod reports 0 (and a 0.5 placeholder on some cards) when a tier has no stock.
         sec = g.get("securePrice") or None
         com = g.get("communityPrice") or None
+        if sec == 0.5:  # RunPod placeholder when a tier has no stock
+            sec = None
         if com is not None and sec is not None and com < sec * 0.3:
             com = None
         out[model] = {"runpod_secure": sec, "runpod_community": com}
@@ -102,6 +105,21 @@ def clean(s):
     return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", s))).strip()
 
 
+def norm_title(t):
+    # "DRAM Contract Price (2H Jul)" -> "DRAM Contract Price" so the series stays continuous
+    return re.sub(r"\s*\([^)]*\)\s*$", "", t).strip()
+
+
+def norm_item(name):
+    # Older DRAMeXchange labels: "DDR3  4Gb 512Mx8 1600/1866Mbps", "DDR4 8G (1G*8) 2400 Mbps"
+    n = re.sub(r"\s+", " ", name.replace("-->", "")).strip()
+    n = re.sub(r"\s?Mbps$", "", n)
+    n = re.sub(r"\)(?=\d)", ") ", n)
+    n = n.replace("*", "x")
+    n = re.sub(r"\b(\d+)G \(", r"\1Gb (", n)
+    return n
+
+
 def parse_trendforce(html):
     """Return {table_title: {"source_updated": str, "items": {item: avg}}}.
     Uses the 'Session Average' column (spot) or 'Average' column (contract)."""
@@ -116,7 +134,7 @@ def parse_trendforce(html):
         titles = [clean(t) for t in titles if clean(t)]
         if not titles:
             continue
-        title = titles[-1]
+        title = norm_title(titles[-1])
         upd = re.findall(r"Last Update\s*([0-9]{4}-[0-9]{2}-[0-9]{2}[^<]{0,20})", pre)
         rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html[start:end], re.S)
         header, items = None, {}
@@ -133,12 +151,234 @@ def parse_trendforce(html):
             if col is None or col >= len(cells):
                 continue
             try:
-                items[cells[0]] = float(cells[col].replace(",", ""))
+                items[norm_item(cells[0])] = float(cells[col].replace(",", ""))
             except ValueError:
                 continue
         if items:
             tables[title] = {"source_updated": clean(upd[-1]) if upd else "", "items": items}
     return tables
+
+
+def canon_gpu(name, mem_gb=None):
+    """Map a provider's GPU label to our canonical model key (None = not tracked)."""
+    n = name.upper()
+    if "GH200" in n:
+        return "GH200"
+    for m in ("B300", "B200", "H200", "H100", "A100", "MI300X"):
+        if m in n:
+            break
+    else:
+        return None
+    if m == "A100":
+        if mem_gb == 40 or "40GB" in n.replace(" ", ""):
+            return "A100 40GB"
+        return "A100 PCIe 80GB" if "PCIE" in n else "A100 SXM 80GB"
+    if m == "H100":
+        return "H100 PCIe" if "PCIE" in n else "H100 NVL" if "NVL" in n else "H100 SXM"
+    if m == "H200":
+        return "H200 NVL" if "NVL" in n else "H200 SXM"
+    return m
+
+
+def page_text(html):
+    t = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S)
+    return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", t)))
+
+
+def parse_lambda(html):
+    """Lambda on-demand list price per GPU-hour -> {model: lowest $/GPU-hr}.
+    Handles old '1x NVIDIA A100 40 GB ... $1.10 / hr' (per instance),
+    '8x NVIDIA H100 SXM 80 GB ... $2.99 / GPU / hr', and the 2025+ table with a
+    PRICE/GPU/HR column. Reserved/1-Click cluster rows ('2 weeks – 1 year') are ignored."""
+    t = page_text(html)
+    found = {}
+
+    def add(label, gb, price):
+        m = canon_gpu(label, int(gb))
+        if m and 0.2 < price < 50:
+            found[m] = min(found.get(m, price), round(price, 4))
+
+    for n, label, gb, price, per_gpu in re.findall(
+            r"(\d+)x NVIDIA ([A-Za-z0-9 ]+?) (\d+) GB(?:(?!NVIDIA|CONTACT)[^$]){0,160}?\$\s?([\d.]+) / (GPU / )?hr", t):
+        add(label, gb, float(price) if per_gpu else float(price) / int(n))
+    if "PRICE/GPU/HR" in t.upper():
+        for label, gb, price in re.findall(
+                r"NVIDIA ((?:[A-Z]+\d+[A-Za-z0-9]*)(?: (?:SXM\d?|PCIe|NVL))?) (\d+) GB (?:(?!NVIDIA)[^$]){0,120}?\$\s?([\d.]+)", t):
+            add(label, gb, float(price))
+    return found
+
+
+def parse_runpod_page(html):
+    """Archived runpod.io/pricing pages embed gpuTypes JSON (same fields as the API)."""
+    h = html.replace('\\"', '"')
+    out = {}
+    for m in re.finditer(r'"id":"((?:NVIDIA|AMD)[^"]+)"', h):
+        seg = h[m.end():m.end() + 1500]
+        nxt = seg.find('"id":"')
+        seg = seg if nxt < 0 else seg[:nxt]
+        sp = re.search(r'"securePrice":([\d.]+)', seg)
+        cp = re.search(r'"communityPrice":([\d.]+)', seg)
+        if not sp:
+            continue
+        model = next((k for k, (rp, _) in GPU_MODELS.items() if rp == m.group(1)), None)
+        if not model:
+            continue
+        sec = float(sp.group(1)) or None
+        com = float(cp.group(1)) if cp else None
+        if sec == 0.5:
+            sec = None
+        if not com or (sec and com < sec * 0.3):
+            com = None
+        out[model] = {"runpod_secure": sec, "runpod_community": com}
+    return out
+
+
+def classify_dx_table(first_item):
+    i = first_item.upper()
+    if "DIMM" in i:
+        return "Module Spot Price"
+    if i.startswith("GDDR"):
+        return "GDDR Spot Price"
+    if i.startswith("LPDDR"):
+        return "LPDDR Spot Price"
+    if i.startswith("DDR"):
+        return "DRAM Spot Price"
+    if i.startswith(("SLC", "MLC")):
+        return "NAND Flash Spot Price"
+    if re.match(r"^\d+GB (TLC|QLC)", i):
+        return "Wafer Spot Price"
+    if i.startswith("MICROSD"):
+        return "Memory Card Spot Price"
+    return None
+
+
+def parse_dramexchange_home(html):
+    """dramexchange.com homepage: untitled 'Item' tables -> titled like TrendForce pages."""
+    out = {}
+    for tbl in re.findall(r"<table.*?</table>", html, re.S):
+        header, items = None, {}
+        for row in re.findall(r"<tr[^>]*>(.*?)</tr>", tbl, re.S):
+            cells = [clean(c) for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)]
+            if not cells:
+                continue
+            if cells[0].lower() == "item":
+                header = [c.lower() for c in cells]
+                continue
+            if not header or "session average" not in header:
+                continue
+            col = header.index("session average")
+            try:
+                items[norm_item(cells[0])] = float(cells[col].replace(",", ""))
+            except (ValueError, IndexError):
+                continue
+        if items:
+            title = classify_dx_table(next(iter(items)))
+            if title and title not in out:
+                out[title] = {"source_updated": "", "items": items}
+    return out
+
+
+def fetch_lambda():
+    r = http_get("https://lambda.ai/pricing")
+    r.raise_for_status()
+    return {m: {"lambda": p} for m, p in parse_lambda(r.text).items()}
+
+
+# getdeploying.com weekly dataset (CC BY 4.0): market-wide median across ~87 providers
+GD_CSV = "https://getdeploying.com/dataset/gpu-prices/weekly.csv"
+# Main chips only — the others (GB200/GB300, GH200, MI3xx, Gaudi) have 1-4 providers, too thin for a median.
+GD_FAMILIES = {
+    "nvidia-a100": "A100", "nvidia-h100": "H100", "nvidia-h200": "H200",
+    "nvidia-b200": "B200", "nvidia-b300": "B300",
+}
+
+
+def fetch_market():
+    """{week: {family: {median, providers, offerings, min, max}}} — on-demand, all weeks in the dataset."""
+    import csv, io
+    r = requests.get(GD_CSV, headers={"User-Agent": BROWSER_UA}, timeout=60)
+    r.raise_for_status()
+    out = {}
+    for row in csv.DictReader(io.StringIO(r.text)):
+        fam = GD_FAMILIES.get(row["gpu_slug"])
+        if not fam or row["billing_type"] != "ON_DEMAND" or not row["median_price"]:
+            continue
+        d = datetime.strptime(row["date"], "%Y-%m-%d")
+        week = (d - timedelta(days=d.weekday())).strftime("%Y-%m-%d")
+        out.setdefault(week, {})[fam] = {
+            "median": round(float(row["median_price"]), 4),
+            "providers": int(row["provider_count"] or 0),
+            "offerings": int(row["offering_count"] or 0),
+            "min": float(row["min_price"]) if row["min_price"] else None,
+            "max": float(row["max_price"]) if row["max_price"] else None,
+        }
+    return out
+
+
+GATEWELL_URL = "https://gatewellusa.com/ai-compute/datacenter-gpu-prices"
+CE_BASE = "https://compute.exchange/hardware-market/"
+CE_PAGES = {  # canonical model -> slug suffix
+    "A100 40GB": "a100-40gb", "A100 SXM 80GB": "a100-80gb", "H100 PCIe": "h100-pcie",
+    "H100 SXM": "h100-sxm5", "H200 SXM": "h200",
+}
+
+
+def purchase_model(label):
+    n = label.upper()
+    for k in ("MI355X", "MI325X"):
+        if k in n:
+            return k
+    if "GAUDI 3" in n:
+        return "Gaudi 3"
+    if "RTX" in n:
+        return None
+    return canon_gpu(label)
+
+
+def parse_gatewell(html):
+    """New-unit dealer quotes per GPU: {model: {new_quote (20-49 units), new_quote_bulk (75-99)}}."""
+    out = {}
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
+        cells = [clean(c) for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)]
+        if len(cells) < 4 or not cells[1].startswith("$"):
+            continue
+        model = purchase_model(cells[0])
+        if not model:
+            continue
+        prices = [float(c.replace("$", "").replace(",", "")) for c in cells[1:4] if re.match(r"^\$[\d,]+$", c)]
+        if len(prices) == 3:
+            out[model] = {"new_quote": prices[0], "new_quote_bulk": prices[2]}
+    return out
+
+
+def parse_ce(html, kind):
+    """compute.exchange indicative range -> {kind_low, kind_high, ce_period}."""
+    t = page_text(html)
+    m = re.search(r"Indicative Range \(([^)]+)\) \$([\d,]+) – \$([\d,]+)", t)
+    if not m:
+        return {}
+    return {f"{kind}_low": float(m.group(2).replace(",", "")),
+            f"{kind}_high": float(m.group(3).replace(",", "")),
+            "ce_period": m.group(1)}
+
+
+def fetch_purchase():
+    out = {}
+    r = http_get(GATEWELL_URL)
+    r.raise_for_status()
+    for m, v in parse_gatewell(r.text).items():
+        out.setdefault(m, {}).update(v)
+    for model, slug in CE_PAGES.items():
+        for kind, path in (("used", f"used-gpus/used-{slug}"), ("refurb", f"refurbished-gpus/refurbished-{slug}")):
+            try:
+                r = http_get(CE_BASE + path)
+                if r.status_code == 200:
+                    v = parse_ce(r.text, kind)
+                    if v:
+                        out.setdefault(model, {}).update(v)
+            except Exception as e:
+                print(f"  WARNING: compute.exchange {path}: {e}")
+    return out
 
 
 def fetch_trendforce():
@@ -161,7 +401,7 @@ def main():
     memory = dict(prev.get("memory", {}))
     got_any = False
 
-    for label, fn in (("RunPod", fetch_runpod), ("vast.ai", fetch_vast)):
+    for label, fn in (("RunPod", fetch_runpod), ("vast.ai", fetch_vast), ("Lambda", fetch_lambda)):
         try:
             res = fn()
             for model, vals in res.items():
@@ -179,14 +419,39 @@ def main():
     except Exception as e:
         print(f"  WARNING: TrendForce failed (keeping last value this week): {e}")
 
+    purchase = dict(prev.get("purchase", {}))
+    try:
+        res = fetch_purchase()
+        for model, vals in res.items():
+            purchase.setdefault(model, {}).update(vals)
+        print(f"  Dealer purchase prices: {len(res)} models")
+        got_any = got_any or bool(res)
+    except Exception as e:
+        print(f"  WARNING: dealer prices failed (keeping last value this week): {e}")
+
+    market = {}
+    try:
+        market = fetch_market()
+        print(f"  getdeploying market medians: {len(market)} weeks")
+        got_any = got_any or bool(market)
+    except Exception as e:
+        print(f"  WARNING: getdeploying failed (keeping previous market data): {e}")
+
     if not got_any:
         print("No source returned data — nothing written.")
         return
 
-    entry = {"week": week, "captured_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-             "gpus": gpus, "memory": memory}
-    data["weeks"] = sorted([w for w in data["weeks"] if w["week"] != week] + [entry],
-                           key=lambda w: w["week"])
+    entry = {**prev, "week": week, "captured_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+             "gpus": gpus, "memory": memory, "purchase": purchase}
+    entry.pop("backfill", None)
+    by_week = {w["week"]: w for w in data["weeks"]}
+    by_week[week] = entry
+    # The dataset re-publishes its full trailing history each week; refresh every week it covers.
+    for wk, fams in market.items():
+        w = by_week.setdefault(wk, {"week": wk, "gpus": {}, "memory": {}, "backfill": True,
+                                    "captured_at": wk + "T00:00:00Z"})
+        w["market"] = fams
+    data["weeks"] = sorted(by_week.values(), key=lambda w: w["week"])
     data["last_updated"] = entry["captured_at"]
     DATA_FILE.write_text(json.dumps(data, separators=(",", ":")))
     print(f"Saved {len(data['weeks'])} week(s) to {DATA_FILE}")
