@@ -11,6 +11,9 @@ Runs daily; the current week's entry is overwritten each run so it always holds
 the latest price for that week. Each source fails independently (soft-exit).
 
 Sources (all public, no key):
+  - GetDeploying weekly CSV  — market-wide median $/GPU-hr (main chips), weeks[].market
+  - Gatewell / Compute Exchange — dealer purchase prices, weeks[].purchase
+  - Lambda pricing page      — list $/GPU-hr
   - RunPod GraphQL gpuTypes  — list $/GPU-hr (secure = datacenter, community)
   - vast.ai bundles API      — marketplace on-demand offers → median $/GPU-hr
   - TrendForce price pages   — DRAM / GDDR / LPDDR / NAND spot + contract averages (USD)
@@ -293,15 +296,11 @@ GD_FAMILIES = {
 }
 
 
-def fetch_market():
-    """{week: {family: {median, providers, offerings, min, max}}} — on-demand, all weeks in the dataset."""
+def _parse_gd_rows(text, out):
     import csv, io
-    r = requests.get(GD_CSV, headers={"User-Agent": BROWSER_UA}, timeout=60)
-    r.raise_for_status()
-    out = {}
-    for row in csv.DictReader(io.StringIO(r.text)):
-        fam = GD_FAMILIES.get(row["gpu_slug"])
-        if not fam or row["billing_type"] != "ON_DEMAND" or not row["median_price"]:
+    for row in csv.DictReader(io.StringIO(text)):
+        fam = GD_FAMILIES.get(row.get("gpu_slug"))
+        if not fam or row.get("billing_type") != "ON_DEMAND" or not row.get("median_price"):
             continue
         d = datetime.strptime(row["date"], "%Y-%m-%d")
         week = (d - timedelta(days=d.weekday())).strftime("%Y-%m-%d")
@@ -312,6 +311,27 @@ def fetch_market():
             "min": float(row["min_price"]) if row["min_price"] else None,
             "max": float(row["max_price"]) if row["max_price"] else None,
         }
+
+
+def fetch_market():
+    """{week: {family: {median, providers, offerings, min, max}}} — on-demand, all weeks in the dataset.
+    Falls back to the per-chip CSV files if the combined file fails."""
+    out = {}
+    try:
+        r = requests.get(GD_CSV, headers={"User-Agent": BROWSER_UA}, timeout=60)
+        r.raise_for_status()
+        _parse_gd_rows(r.text, out)
+    except Exception as e:
+        print(f"  getdeploying weekly.csv failed ({e}) — trying per-chip files")
+    if len({f for w in out.values() for f in w}) < len(GD_FAMILIES):
+        for slug in GD_FAMILIES:
+            try:
+                r = requests.get(GD_CSV.replace("weekly.csv", f"{slug}.csv"),
+                                 headers={"User-Agent": BROWSER_UA}, timeout=60)
+                r.raise_for_status()
+                _parse_gd_rows(r.text, out)
+            except Exception as e:
+                print(f"  getdeploying {slug}.csv failed: {e}")
     return out
 
 
@@ -362,16 +382,18 @@ def parse_ce(html, kind):
             "ce_period": m.group(1)}
 
 
-def fetch_purchase():
-    out = {}
+def fetch_gatewell():
     r = http_get(GATEWELL_URL)
     r.raise_for_status()
-    for m, v in parse_gatewell(r.text).items():
-        out.setdefault(m, {}).update(v)
+    return parse_gatewell(r.text)
+
+
+def fetch_compute_exchange():
+    out = {}
     for model, slug in CE_PAGES.items():
         for kind, path in (("used", f"used-gpus/used-{slug}"), ("refurb", f"refurbished-gpus/refurbished-{slug}")):
             try:
-                r = http_get(CE_BASE + path)
+                r = with_retries(lambda: http_get(CE_BASE + path), tries=2, wait=10)
                 if r.status_code == 200:
                     v = parse_ce(r.text, kind)
                     if v:
@@ -390,72 +412,197 @@ def fetch_trendforce():
     return out
 
 
+def fetch_dramexchange():
+    """Backup for memory: dramexchange.com homepage shows the same TrendForce spot tables."""
+    r = http_get("https://www.dramexchange.com/")
+    r.raise_for_status()
+    return parse_dramexchange_home(r.text)
+
+
+# ─── Safeguards ────────────────────────────────────────────────────────────
+import os
+import time
+
+STALE_DAYS = 8          # Slack warning if a source hasn't updated for this long
+ALERT_EVERY_DAYS = 3    # don't repeat the same warning more often than this
+
+
+def with_retries(fn, tries=3, wait=15):
+    last = None
+    for i in range(tries):
+        try:
+            return fn()
+        except Exception as e:
+            last = e
+            if i < tries - 1:
+                time.sleep(wait * (i + 1))
+    raise last
+
+
+def _count_gpu(res, key=None):
+    return sum(1 for v in res.values() for k, p in v.items() if (key is None or k == key) and isinstance(p, (int, float)))
+
+
+def validate_rental(res):
+    """Drop any $/GPU-hr outside 0.10–60 (parser garbage)."""
+    for v in res.values():
+        for k in list(v):
+            p = v[k]
+            if k in ("vast_n",) or p is None:
+                continue
+            if not (0.10 <= p <= 60):
+                v[k] = None
+    return res
+
+
+def validate_purchase(res):
+    for v in res.values():
+        for k in list(v):
+            if isinstance(v[k], (int, float)) and not (1_000 <= v[k] <= 250_000):
+                v.pop(k)
+    return {m: v for m, v in res.items() if any(isinstance(x, (int, float)) for x in v.values())}
+
+
+def validate_memory(res):
+    for t in res.values():
+        t["items"] = {k: v for k, v in t["items"].items() if 0.05 <= v <= 50_000}
+    return {k: t for k, t in res.items() if t["items"]}
+
+
+def validate_market(res):
+    for fams in res.values():
+        for f in list(fams):
+            if not (0.10 <= fams[f]["median"] <= 60):
+                fams.pop(f)
+    return res
+
+
+# name -> (fetch, validate, minimum values for a run to count as healthy, backup fetch or None)
+SOURCES = {
+    "getdeploying":     (fetch_market, validate_market, lambda r: len(r) >= 4, None),
+    "trendforce":       (fetch_trendforce, validate_memory, lambda r: sum(len(t["items"]) for t in r.values()) >= 20, fetch_dramexchange),
+    "gatewell":         (fetch_gatewell, validate_purchase, lambda r: len(r) >= 5, None),
+    "compute_exchange": (fetch_compute_exchange, validate_purchase, lambda r: len(r) >= 3, None),
+    "lambda":           (fetch_lambda, validate_rental, lambda r: _count_gpu(r, "lambda") >= 2, None),
+    "runpod":           (fetch_runpod, validate_rental, lambda r: _count_gpu(r, "runpod_secure") >= 4, None),
+    "vast":             (fetch_vast, validate_rental, lambda r: _count_gpu(r, "vast_median") >= 3, None),
+}
+
+
+def run_source(name):
+    """Returns (result, error). Retries, validates, falls back to the backup source."""
+    fetch, validate, healthy, backup = SOURCES[name]
+    for label, fn in ((name, fetch), (f"{name} (backup)", backup)):
+        if fn is None:
+            continue
+        try:
+            res = validate(with_retries(fn))
+            if healthy(res):
+                return res, None
+            err = f"{label}: too few values ({len(res)}) — page layout may have changed"
+        except Exception as e:
+            err = f"{label}: {type(e).__name__}: {e}"
+        print(f"  WARNING {err}")
+    return None, err
+
+
+def merge_memory(old, new):
+    """Item-level merge so a partially parsed table never deletes items we already have."""
+    out = {t: {**v, "items": dict(v["items"])} for t, v in old.items()}
+    for t, v in new.items():
+        if t in out:
+            out[t]["items"].update(v["items"])
+            out[t]["source_updated"] = v.get("source_updated") or out[t].get("source_updated", "")
+        else:
+            out[t] = v
+    return out
+
+
+def send_stale_alerts(data, now):
+    webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    lines = []
+    for name, st in data.get("sources", {}).items():
+        last_ok = st.get("last_ok")
+        if not last_ok:
+            continue
+        age = (now - datetime.fromisoformat(last_ok.replace("Z", "+00:00"))).days
+        last_alert = st.get("last_alert")
+        recently = last_alert and (now - datetime.fromisoformat(last_alert.replace("Z", "+00:00"))).days < ALERT_EVERY_DAYS
+        if age >= STALE_DAYS and not recently:
+            lines.append(f"• *{name}* — no successful update for {age} days. Last error: `{st.get('last_error') or 'n/a'}`")
+            st["last_alert"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if lines and webhook:
+        msg = ":warning: *AI Chips & Memory tab — data source not updating*\n" + "\n".join(lines) + \
+              "\nThe chart keeps its last good values. Check the run log in GitHub → Actions → Update AI Chip & Memory Prices."
+        try:
+            requests.post(webhook, json={"text": msg}, timeout=10)
+        except Exception as e:
+            print(f"  Slack alert failed: {e}")
+    elif lines:
+        print("Stale sources (no SLACK_WEBHOOK_URL):\n" + "\n".join(lines))
+
+
 def main():
     now = datetime.now(timezone.utc)
+    stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     week = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
     print(f"=== AI hardware prices — {now:%Y-%m-%d %H:%M} UTC (week of {week}) ===")
 
     data = json.loads(DATA_FILE.read_text()) if DATA_FILE.exists() else {"weeks": []}
-    prev = next((w for w in data["weeks"] if w["week"] == week), {})
-    gpus = dict(prev.get("gpus", {}))
-    memory = dict(prev.get("memory", {}))
+    by_week = {w["week"]: w for w in data["weeks"]}
+    prev = by_week.get(week, {})
+    entry = {**prev, "week": week, "gpus": dict(prev.get("gpus", {})),
+             "memory": dict(prev.get("memory", {})), "purchase": dict(prev.get("purchase", {}))}
+    entry.pop("backfill", None)
+    status = data.setdefault("sources", {})
     got_any = False
 
-    for label, fn in (("RunPod", fetch_runpod), ("vast.ai", fetch_vast), ("Lambda", fetch_lambda)):
-        try:
-            res = fn()
-            for model, vals in res.items():
-                gpus.setdefault(model, {}).update(vals)
-            print(f"  {label}: {len(res)} models")
-            got_any = got_any or bool(res)
-        except Exception as e:
-            print(f"  WARNING: {label} failed (keeping last value this week): {e}")
+    for name in SOURCES:
+        res, err = run_source(name)
+        st = status.setdefault(name, {})
+        st["last_attempt"] = stamp
+        if res is None:
+            st["last_error"] = err
+            continue
+        got_any = True
+        st.update(last_ok=stamp, last_error=None)
+        if name == "getdeploying":
+            # The dataset re-publishes its trailing year each week; refresh every week it covers.
+            for wk, fams in res.items():
+                w = by_week.setdefault(wk, {"week": wk, "gpus": {}, "memory": {}, "backfill": True,
+                                            "captured_at": wk + "T00:00:00Z"})
+                w["market"] = {**w.get("market", {}), **fams}
+            st["count"] = len(res)
+        elif name == "trendforce":
+            entry["memory"] = merge_memory(entry["memory"], res)
+            st["count"] = sum(len(t["items"]) for t in res.values())
+        elif name in ("gatewell", "compute_exchange"):
+            for m, v in res.items():
+                entry["purchase"].setdefault(m, {}).update(v)
+            st["count"] = len(res)
+        else:
+            for m, v in res.items():
+                entry["gpus"].setdefault(m, {}).update({k: x for k, x in v.items() if x is not None})
+            st["count"] = len(res)
+        print(f"  OK {name}: {st['count']}")
 
-    try:
-        res = fetch_trendforce()
-        memory.update(res)
-        print(f"  TrendForce: {len(res)} tables, {sum(len(t['items']) for t in res.values())} items")
-        got_any = got_any or bool(res)
-    except Exception as e:
-        print(f"  WARNING: TrendForce failed (keeping last value this week): {e}")
+    send_stale_alerts(data, now)
 
-    purchase = dict(prev.get("purchase", {}))
-    try:
-        res = fetch_purchase()
-        for model, vals in res.items():
-            purchase.setdefault(model, {}).update(vals)
-        print(f"  Dealer purchase prices: {len(res)} models")
-        got_any = got_any or bool(res)
-    except Exception as e:
-        print(f"  WARNING: dealer prices failed (keeping last value this week): {e}")
-
-    market = {}
-    try:
-        market = fetch_market()
-        print(f"  getdeploying market medians: {len(market)} weeks")
-        got_any = got_any or bool(market)
-    except Exception as e:
-        print(f"  WARNING: getdeploying failed (keeping previous market data): {e}")
-
-    if not got_any:
-        print("No source returned data — nothing written.")
-        return
-
-    entry = {**prev, "week": week, "captured_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-             "gpus": gpus, "memory": memory, "purchase": purchase}
-    entry.pop("backfill", None)
-    by_week = {w["week"]: w for w in data["weeks"]}
-    by_week[week] = entry
-    # The dataset re-publishes its full trailing history each week; refresh every week it covers.
-    for wk, fams in market.items():
-        w = by_week.setdefault(wk, {"week": wk, "gpus": {}, "memory": {}, "backfill": True,
-                                    "captured_at": wk + "T00:00:00Z"})
-        w["market"] = fams
-    data["weeks"] = sorted(by_week.values(), key=lambda w: w["week"])
-    data["last_updated"] = entry["captured_at"]
+    if got_any:
+        entry["captured_at"] = stamp
+        by_week[week] = {**by_week.get(week, {}), **entry, "market": by_week.get(week, {}).get("market", entry.get("market", {}))}
+        data["weeks"] = sorted(by_week.values(), key=lambda w: w["week"])
+        data["last_updated"] = stamp
+    else:
+        print("No source returned data — keeping existing data, recording status only.")
     DATA_FILE.write_text(json.dumps(data, separators=(",", ":")))
     print(f"Saved {len(data['weeks'])} week(s) to {DATA_FILE}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # never fail the workflow — status + Slack alerts surface problems
+        import traceback
+        traceback.print_exc()
+        print(f"ai_hardware_prices.py crashed: {e}")

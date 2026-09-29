@@ -1,7 +1,8 @@
 name: Update AI Chip & Memory Prices (Daily → weekly series)
 
-# Runs twice daily on off-peak minutes; the script overwrites the current
-# week's entry so the chart always shows the latest price per week.
+# Runs twice daily on off-peak minutes (two chances a day, 14 a week, so a skipped
+# GitHub run never loses a week). The current week's entry is overwritten each run
+# so the chart always shows the latest price per week.
 on:
   schedule:
     - cron: '23 3 * * *'
@@ -15,6 +16,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
@@ -27,8 +29,12 @@ jobs:
       - name: Install dependencies
         run: pip install requests curl_cffi
 
-      - name: Fetch GPU rental + DRAM/NAND spot prices
+      - name: Fetch GPU rental, chip purchase + memory prices
+        # Each source retries, validates, and falls back independently; the script never
+        # exits non-zero. A Slack warning is sent if any source is stale for 8+ days.
         continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python ai_hardware_prices.py
 
       - name: Commit updated data

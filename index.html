@@ -674,33 +674,41 @@
 <div id="tab-aihw" class="tab-content">
 <div class="container">
     <h1>AI Chips &amp; Memory Prices <span class="info-badge live" id="aihwBadge">Loading...</span></h1>
-    <div class="subtitle">Weekly tracked GPU rental prices and DRAM / NAND spot prices, plus a reference table of AI accelerators launched in the last 5 years</div>
+    <div class="subtitle">What it costs to rent and buy AI chips, and what computer memory costs — updated every week. Use the drop-downs above each chart to switch views.</div>
 
     <div class="card">
         <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">GPU Rental Price — weekly ($ per GPU-hour)
-            <select id="aihwGpuSource" onchange="renderAihwGpuChart()" style="margin-left:auto;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
+            <select id="aihwGpuSource" onchange="renderAihwGpuChart()" style="margin-left:auto;max-width:100%;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
                 <option value="market">Market median — all providers (GetDeploying) · from Sep 2025</option>
                 <option value="lambda">Single provider: Lambda list price · from Jun 2022</option>
                 <option value="runpod_secure">Single provider: RunPod Secure Cloud · from Oct 2022</option>
                 <option value="runpod_community">Single provider: RunPod Community Cloud · from Oct 2022</option>
                 <option value="vast_median">Single marketplace: vast.ai median · from Sep 2026</option>
             </select>
+            <select id="aihwGpuChip" onchange="renderAihwGpuChart()" style="padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
+                <option value="">All chips</option><option>A100</option><option>H100</option><option>H200</option><option>B200</option><option>B300</option>
+            </select>
         </div>
         <div style="height:380px;position:relative;"><canvas id="aihwGpuChart"></canvas></div>
-        <div class="aihw-caption"><strong>Market median</strong> (default): weekly median on-demand $/GPU-hr across every provider tracked by <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener">GetDeploying</a> (data CC BY 4.0), grouped by chip family (all variants, e.g. H100 PCIe/SXM/NVL) for the main chips A100, H100, H200, B200 and B300 (15–42 providers each; thinner families are excluded). Free history covers the last 53 weeks. Single-provider lines: <a href="https://lambda.ai/pricing" target="_blank" rel="noopener">Lambda</a> pricing page (on-demand, lowest per-GPU rate across instance sizes), <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">RunPod</a> public API (list price, on-demand) and <a href="https://vast.ai/" target="_blank" rel="noopener">vast.ai</a> public API (median of live on-demand offers; sample size shown in the table below). One point per week (Monday, UTC) holding the latest price that week; captured twice daily from Sep 2026. <strong>Earlier weeks are rebuilt from Internet Archive (Wayback Machine) snapshots of the same pricing pages</strong> — weeks with no archived snapshot are left blank, never interpolated. Rental price is observable market data — it is <em>not</em> the purchase price (see reference table).</div>
+        <div class="aihw-explain" id="aihwGpuExplain"></div>
+        <details class="aihw-caption"><summary>Technical details</summary><strong>Market median</strong> (default): weekly median on-demand $/GPU-hr across every provider tracked by <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener">GetDeploying</a> (data CC BY 4.0), grouped by chip family (all variants, e.g. H100 PCIe/SXM/NVL) for the main chips A100, H100, H200, B200 and B300 (15–42 providers each; thinner families are excluded). Free history covers the last 53 weeks. Single-provider lines: <a href="https://lambda.ai/pricing" target="_blank" rel="noopener">Lambda</a> pricing page (on-demand, lowest per-GPU rate across instance sizes), <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">RunPod</a> public API (list price, on-demand) and <a href="https://vast.ai/" target="_blank" rel="noopener">vast.ai</a> public API (median of live on-demand offers; sample size shown in the table below). One point per week (Monday, UTC) holding the latest price that week; captured twice daily from Sep 2026. <strong>Earlier weeks are rebuilt from Internet Archive (Wayback Machine) snapshots of the same pricing pages</strong> — weeks with no archived snapshot are left blank, never interpolated. Rental price is observable market data — it is <em>not</em> the purchase price (see reference table).</details>
     </div>
 
     <div class="card">
         <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">AI Chip Purchase Price — weekly (USD per GPU)
-            <select id="aihwBuySource" onchange="renderAihwBuyChart()" style="margin-left:auto;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
+            <select id="aihwBuySource" onchange="renderAihwBuyChart()" style="margin-left:auto;max-width:100%;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
                 <option value="new_quote">New — dealer quote, 20–49 units</option>
                 <option value="new_quote_bulk">New — dealer quote, 75–99 units</option>
                 <option value="refurb">Refurbished — midpoint of dealer range</option>
                 <option value="used">Used — midpoint of dealer range</option>
             </select>
+            <select id="aihwBuyChip" onchange="renderAihwBuyChart()" style="padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
+                <option value="">All chips</option><option>A100</option><option>H100</option><option>H200</option><option>B200</option><option>B300</option><option value="MI">AMD MI300-series</option><option value="Gaudi">Intel Gaudi</option>
+            </select>
         </div>
         <div style="height:380px;position:relative;"><canvas id="aihwBuyChart"></canvas></div>
-        <div class="aihw-caption">Published dealer prices, captured weekly: new units from <a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener">Gatewell USA</a>'s volume price table; used and refurbished from <a href="https://compute.exchange/hardware-market/used-gpus" target="_blank" rel="noopener">Compute Exchange</a>'s indicative ranges (revised roughly quarterly — the period is shown in the table below). <strong>These are dealer asking prices, not a market-wide transaction index</strong> — no free one exists; NVIDIA and AMD publish no list prices. The Internet Archive holds no usable history of these pages, so this series starts Sep 2026 and builds one point per week.</div>
+        <div class="aihw-explain" id="aihwBuyExplain"></div>
+        <details class="aihw-caption"><summary>Technical details</summary>Published dealer prices, captured weekly: new units from <a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener">Gatewell USA</a>'s volume price table; used and refurbished from <a href="https://compute.exchange/hardware-market/used-gpus" target="_blank" rel="noopener">Compute Exchange</a>'s indicative ranges (revised roughly quarterly — the period is shown in the table below). <strong>These are dealer asking prices, not a market-wide transaction index</strong> — no free one exists; NVIDIA and AMD publish no list prices. The Internet Archive holds no usable history of these pages, so this series starts Sep 2026 and builds one point per week.</details>
     </div>
 
     <div class="card">
@@ -708,7 +716,8 @@
             <select id="aihwMemTable" onchange="renderAihwMemChart()" style="margin-left:auto;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;max-width:340px;"></select>
         </div>
         <div style="height:380px;position:relative;"><canvas id="aihwMemChart"></canvas></div>
-        <div class="aihw-caption">Source: <a href="https://www.trendforce.com/price/dram/dram_spot" target="_blank" rel="noopener">TrendForce DRAM</a> and <a href="https://www.trendforce.com/price/flash/flash_spot" target="_blank" rel="noopener">NAND Flash</a> price pages (DRAMeXchange). Value = session average in USD per chip / module / wafer as quoted by TrendForce. Spot tables update daily, contract tables monthly/quarterly — each table's "last update" is shown below. History before Sep 2026 comes from Internet Archive snapshots of the DRAMeXchange homepage and TrendForce price pages (same published figures). Item names change when TrendForce changes the quoted part (e.g. DDR4 2400 → 3200), which starts a new line. Log scale.</div>
+        <div class="aihw-explain" id="aihwMemExplain"></div>
+        <details class="aihw-caption"><summary>Technical details</summary>Source: <a href="https://www.trendforce.com/price/dram/dram_spot" target="_blank" rel="noopener">TrendForce DRAM</a> and <a href="https://www.trendforce.com/price/flash/flash_spot" target="_blank" rel="noopener">NAND Flash</a> price pages (DRAMeXchange). Value = session average in USD per chip / module / wafer as quoted by TrendForce. Spot tables update daily, contract tables monthly/quarterly — each table's "last update" is shown below. History before Sep 2026 comes from Internet Archive snapshots of the DRAMeXchange homepage and TrendForce price pages (same published figures). Item names change when TrendForce changes the quoted part (e.g. DDR4 2400 → 3200), which starts a new line. Log scale.</details>
     </div>
 
     <div class="card">
@@ -728,6 +737,10 @@
 
 <style>
 .aihw-caption{font-size:12px;color:#64748b;margin-top:10px;line-height:1.6;}
+.aihw-caption summary{cursor:pointer;color:#94a3b8;}
+.aihw-explain{margin-top:12px;padding:10px 12px;background:#0f172a;border-left:3px solid #3b82f6;border-radius:6px;font-size:13.5px;color:#cbd5e1;line-height:1.6;}
+.aihw-explain b{color:#f1f5f9;}
+.aihw-explain a{color:#3b82f6;}
 .aihw-caption a,#aihwRef a,#aihwMemRef a{color:#3b82f6;}
 .aihw-table{width:100%;border-collapse:collapse;font-size:13px;}
 .aihw-table th{text-align:left;padding:7px 8px;color:#94a3b8;font-weight:500;border-bottom:1px solid #334155;white-space:nowrap;}
@@ -1381,21 +1394,41 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
     <!-- 7a. AI CHIPS & MEMORY -->
     <div class="card doc-section" id="doc-aihw">
         <h2>7a. AI Chips &amp; Memory Prices</h2>
-        <p>Weekly price series for AI accelerators and memory, plus a static purchase-price reference table.</p>
-        <h3>Weekly tracked data (<code>ai_hardware_prices.json</code>)</h3>
+        <p>This tab answers three questions: <strong>how much does it cost to rent an AI chip, to buy one, and what is computer memory costing?</strong> Every chart has a drop-down to switch views. The first option is always the one that best reflects the <em>whole</em> market, and the box under each chart explains in plain English what you are looking at.</p>
+
+        <h3>Chart 1 — Renting an AI chip ($ per hour)</h3>
         <ul>
-            <li><strong>GPU rental — market-wide (default):</strong> <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying weekly dataset</a> (CC BY 4.0) — weekly median on-demand $/GPU-hr across all tracked providers, for the main chips A100/H100/H200/B200/B300 (15–42 providers each). The free file carries the trailing 53 weeks; each run refreshes all of them into <code>weeks[].market</code></li>
-            <li><strong>AI chip purchase prices:</strong> <a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">Gatewell USA</a> new-unit dealer quotes (20–49 and 75–99 unit tiers) and <a href="https://compute.exchange/hardware-market/used-gpus" target="_blank" rel="noopener" style="color:#3b82f6;">Compute Exchange</a> used/refurbished indicative ranges (revised ~quarterly), in <code>weeks[].purchase</code>. Dealer asking prices, not a market-wide transaction index (none is free). No archived history exists, so this starts Sep 2026</li>
-            <li><strong>GPU rental — single providers:</strong> Lambda pricing page (lowest on-demand per-GPU rate across instance sizes), RunPod public GraphQL API (Secure &amp; Community list prices) and vast.ai public API (median of live marketplace offers + offer count). Models: A100 (40GB/80GB), H100 (PCIe/SXM/NVL), GH200, H200 (SXM/NVL), B200, B300, MI300X</li>
-            <li><strong>Memory (USD):</strong> every table on TrendForce's DRAM and NAND Flash price pages — DRAM spot/contract, module spot, GDDR spot, NAND spot/contract, wafer spot (TLC), memory cards, OEM SSD contract. Value = TrendForce session average; each table keeps TrendForce's own "last update" time</li>
-            <li><code>ai_hardware_prices.py</code> runs at 03:23 and 15:23 UTC (<code>update-ai-hardware.yml</code>). One entry per week (Monday, UTC); each run overwrites the current week so it holds the latest price. Each source fails independently — last value for the week is kept</li>
-            <li><strong>History (Sep 2021 → Sep 2026)</strong> was rebuilt once by <code>backfill_ai_hardware.py</code> from Internet Archive (Wayback Machine) snapshots of the same pages: DRAMeXchange homepage + TrendForce DRAM/NAND pages (memory), Lambda pricing (GPUs, from Jun 2022), RunPod pricing (GPUs, from Oct 2022). One snapshot per week (latest in the week), parsed with the live parsers. Weeks without a snapshot are blank — never interpolated. These entries carry <code>"backfill": true</code> and the snapshot timestamps used. vast.ai has no archived prices, so its series starts Sep 2026</li>
+            <li><strong>Default — Market median:</strong> the middle price across every cloud company that rents that chip (15–42 companies per chip), from <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying</a>. Starts Sep 2025 — that's as far back as this free data goes.</li>
+            <li><strong>Other options — single companies</strong> (Lambda from Jun 2022, RunPod from Oct 2022, vast.ai from Sep 2026). One company's price only, but with longer history.</li>
+            <li>Chips shown: A100, H100, H200, B200, B300 (the main chips with enough companies to give a fair average). Use the <em>chip</em> drop-down to show just one.</li>
         </ul>
-        <h3>Reference table (purchase prices)</h3>
+
+        <h3>Chart 2 — Buying an AI chip ($ per chip)</h3>
         <ul>
-            <li>AI accelerators launched 2020–2025 with new and used per-GPU price ranges. NVIDIA and AMD publish no list prices, so these are reseller quotes and press/analyst estimates (Sep 2026), each linked to its source. Intel Gaudi prices are Intel's official kit prices ÷ 8</li>
-            <li>Edit <code>AIHW_CHIPS</code> in <code>index.html</code> to update. HBM has no public price (contract-only), so it is listed but not tracked</li>
+            <li><strong>Default — New, 20–49 chips:</strong> a dealer's published price (<a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">Gatewell USA</a>). Other options: bigger orders (75–99), refurbished and used (<a href="https://compute.exchange/hardware-market/used-gpus" target="_blank" rel="noopener" style="color:#3b82f6;">Compute Exchange</a>).</li>
+            <li>NVIDIA and AMD don't publish prices and no free market-wide price index exists, so dealer prices are the best public guide. No old copies of these price lists exist, so this chart <strong>started Sep 2026</strong> and adds one point a week.</li>
         </ul>
+
+        <h3>Chart 3 — Memory prices ($)</h3>
+        <ul>
+            <li><strong>Default — DRAM Spot Price:</strong> the price of the memory chips used in servers and PCs, from <a href="https://www.trendforce.com/price/dram/dram_spot" target="_blank" rel="noopener" style="color:#3b82f6;">TrendForce</a> — the industry's standard memory price tracker. Goes back to <strong>Aug 2021</strong>.</li>
+            <li>Other options: memory sticks, graphics memory, storage chips (NAND, used in SSDs), wafers and SSDs.</li>
+            <li>HBM (the special memory inside AI chips) is only sold on private contracts, so it has no public price.</li>
+        </ul>
+
+        <h3>Where the history comes from</h3>
+        <p>Before Sep 2026 we didn't record these prices, so older weeks were rebuilt from saved copies of the same price pages in the <a href="https://web.archive.org/" target="_blank" rel="noopener" style="color:#3b82f6;">Internet Archive</a>. Nothing is guessed: if no saved copy exists for a week, that week is left blank. Rebuilt values were spot-checked against the saved pages.</p>
+
+        <h3>How it stays up to date (and what if something breaks?)</h3>
+        <ul>
+            <li>A GitHub job (<code>update-ai-hardware.yml</code> → <code>ai_hardware_prices.py</code>) runs <strong>twice a day</strong>, so each week gets 14 chances to update. Each week keeps its latest price.</li>
+            <li>Every source is fetched separately and retried. If one site is down or changes its layout, the others still update and the chart <strong>keeps its last good prices</strong> — nothing is deleted.</li>
+            <li>Prices that look impossible (e.g. a $9,999/hour rental) are rejected. If TrendForce's page fails, the same figures are read from DRAMeXchange instead.</li>
+            <li>If any source hasn't updated for <strong>8 days</strong>, a Slack warning is sent. You can also check each source on the <strong>Status</strong> tab.</li>
+        </ul>
+
+        <h3>Reference table</h3>
+        <p>At the bottom of the tab: every major AI chip launched 2020–2025 with its launch year and a rough new/used price (Sep 2026 snapshot, with sources). It is not updated weekly.</p>
     </div>
 
     <!-- 7b. FUNDING RATES -->
@@ -4186,6 +4219,42 @@ const AIHW_MEM=[
 const AIHW_COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#eab308','#6366f1','#f97316','#22c55e','#a855f7'];
 let aihwData=null,aihwGpuChartInst=null,aihwMemChartInst=null,aihwBuyChartInst=null;
 
+
+const AIHW_EXPLAIN={
+    gpu:{
+        market:'<b>What you’re seeing:</b> the typical price to <b>rent one AI chip for one hour</b>, in US dollars. Each line is the <b>middle price</b> across every cloud company that rents that chip (15–42 companies per chip), so it reflects the <b>whole market</b>. <b>Source:</b> <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener">GetDeploying</a>, updated weekly.',
+        lambda:'<b>What you’re seeing:</b> the price <b>one company, Lambda,</b> charges to rent one AI chip for an hour. It’s a single company’s price list, not the whole market — but it goes back further than the market view. <b>Source:</b> <a href="https://lambda.ai/pricing" target="_blank" rel="noopener">Lambda’s pricing page</a>; older weeks come from saved copies in the Internet Archive.',
+        runpod_secure:'<b>What you’re seeing:</b> the price <b>one company, RunPod,</b> charges per hour in its professional data centres (“Secure Cloud”). One company only, not the whole market. <b>Source:</b> <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">RunPod</a>; older weeks from the Internet Archive.',
+        runpod_community:'<b>What you’re seeing:</b> RunPod’s <b>cheaper option</b> (“Community Cloud”), where chips are hosted by smaller third parties. Lower price, less guaranteed reliability. One company only. <b>Source:</b> <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">RunPod</a>.',
+        vast_median:'<b>What you’re seeing:</b> vast.ai is an <b>open marketplace</b> where owners list chips for rent at their own price. This line is the <b>middle price of the listings</b> available that week. One marketplace only. <b>Source:</b> <a href="https://vast.ai/" target="_blank" rel="noopener">vast.ai</a>.'
+    },
+    buy:{
+        new_quote:'<b>What you’re seeing:</b> what it costs to <b>buy one AI chip brand new</b>, in US dollars, when ordering 20–49 at once. Chip makers like NVIDIA don’t publish prices, so a dealer’s published price list is the best public guide. <b>Source:</b> <a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener">Gatewell USA</a> (one dealer).',
+        new_quote_bulk:'<b>What you’re seeing:</b> the price to <b>buy one new AI chip</b> when ordering <b>75–99 at once</b> — bigger orders get a discount. <b>Source:</b> <a href="https://gatewellusa.com/ai-compute/datacenter-gpu-prices" target="_blank" rel="noopener">Gatewell USA</a> (one dealer).',
+        refurb:'<b>What you’re seeing:</b> the price to <b>buy one second-hand chip that has been tested and restored</b> (“refurbished”). The line is the middle of the dealer’s price range. The dealer updates these about every 3 months, so the line moves in steps. <b>Source:</b> <a href="https://compute.exchange/hardware-market/refurbished-gpus" target="_blank" rel="noopener">Compute Exchange</a>.',
+        used:'<b>What you’re seeing:</b> the price to <b>buy one second-hand chip as-is</b> (“used”). The line is the middle of the dealer’s price range, updated about every 3 months. <b>Source:</b> <a href="https://compute.exchange/hardware-market/used-gpus" target="_blank" rel="noopener">Compute Exchange</a>.'
+    },
+    mem:{
+        'DRAM Spot Price':'<b>What you’re seeing:</b> the price of <b>computer memory chips (DRAM)</b> — the working memory inside servers and PCs — in US dollars per chip. “Spot” means the price to buy today for immediate delivery. AI servers need huge amounts of it, so this shows AI demand pushing prices.',
+        'DRAM Contract Price':'<b>What you’re seeing:</b> the price big manufacturers pay for <b>memory chips (DRAM) under longer supply contracts</b>, in US dollars. Updated about twice a month.',
+        'Module Spot Price':'<b>What you’re seeing:</b> the price of a <b>finished memory stick</b> (a “module”, the part you plug into a computer or server), in US dollars.',
+        'GDDR Spot Price':'<b>What you’re seeing:</b> the price of <b>graphics memory chips (GDDR)</b>, used on graphics cards, in US dollars per chip.',
+        'LPDDR Spot Price':'<b>What you’re seeing:</b> the price of <b>low-power memory chips (LPDDR)</b>, used in phones and laptops, in US dollars per chip.',
+        'NAND Flash Spot Price':'<b>What you’re seeing:</b> the price of <b>storage chips (NAND flash)</b> — the chips inside SSDs and USB drives — in US dollars per chip, bought today.',
+        'NAND Flash Contract Price in Memory Card/UFD':'<b>What you’re seeing:</b> the contract price for <b>storage chips</b> used in memory cards and USB drives, in US dollars.',
+        'Wafer Spot Price':'<b>What you’re seeing:</b> the price of a <b>whole silicon wafer of storage chips</b> before it’s cut up and packaged — an early signal for SSD prices.',
+        'Memory Card Spot Price':'<b>What you’re seeing:</b> the price of <b>microSD memory cards</b>, in US dollars per card.',
+        'PC-Client OEM SSD Contract Price':'<b>What you’re seeing:</b> what <b>PC makers pay for SSD drives</b> under contract, in US dollars per drive. Updated every 3 months.'
+    }
+};
+function aihwRangeNote(datasets,labels){
+    let first=-1,last=-1;
+    datasets.forEach(d=>d.data.forEach((v,i)=>{if(v!=null){if(first<0||i<first)first=i;if(i>last)last=i;}}));
+    if(first<0)return ' <span class="aihw-muted">No data for this selection yet — it fills in weekly.</span>';
+    const n=last-first+1;
+    return ` <span class="aihw-muted">Showing ${n} week${n===1?'':'s'}: ${labels[first]} → ${labels[last]}.</span>`;
+}
+function aihwChipMatch(label,chip){if(!chip)return true;return chip==='MI'?/^MI/.test(label):label.startsWith(chip);}
 function aihwMoney(v,dp){if(v==null||isNaN(v))return '—';return '$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:dp??0,maximumFractionDigits:dp??0});}
 function aihwRange(r){if(!r)return '<span class="aihw-muted">n/a</span>';return r[0]===r[1]?aihwMoney(r[0]):aihwMoney(r[0])+' – '+aihwMoney(r[1]);}
 function aihwChg(cur,prev){if(cur==null||prev==null||!prev)return '<span class="aihw-muted">—</span>';const p=(cur-prev)/prev*100;const c=p>0.05?'aihw-up':p<-0.05?'aihw-down':'aihw-muted';return `<span class="${c}">${p>0?'+':''}${p.toFixed(1)}%</span>`;}
@@ -4232,8 +4301,11 @@ function renderAihwGpuChart(){
     const models=[...new Set(weeks.flatMap(w=>Object.keys((isMkt?w.market:w.gpus)||{})))];
     const pr=weeks.length>30?0:4;
     const datasets=models.map((m,i)=>({label:m,data:weeks.map(w=>isMkt?(w.market?.[m]?.median??null):(w.gpus?.[m]?.[src]??null)),borderColor:AIHW_COLORS[i%AIHW_COLORS.length],backgroundColor:AIHW_COLORS[i%AIHW_COLORS.length],borderWidth:2,pointRadius:pr,pointHoverRadius:4,spanGaps:true,stepped:'before'})).filter(d=>d.data.some(v=>v!=null));
+    const chip=document.getElementById('aihwGpuChip').value;
+    const shown=datasets.filter(d=>aihwChipMatch(d.label,chip));
     if(aihwGpuChartInst)aihwGpuChartInst.destroy();
-    aihwGpuChartInst=aihwLineChart('aihwGpuChart',weeks.map(w=>aihwWeekLabel(w.week)),datasets,'$ per GPU-hour',v=>'$'+Number(v).toFixed(2),false);
+    aihwGpuChartInst=aihwLineChart('aihwGpuChart',weeks.map(w=>aihwWeekLabel(w.week)),shown,'$ per GPU-hour',v=>'$'+Number(v).toFixed(2),false);
+    document.getElementById('aihwGpuExplain').innerHTML=AIHW_EXPLAIN.gpu[src]+aihwRangeNote(shown,weeks.map(w=>aihwWeekLabel(w.week)));
 }
 
 function renderAihwBuyChart(){
@@ -4244,8 +4316,11 @@ function renderAihwBuyChart(){
     const models=[...new Set(weeks.flatMap(w=>Object.keys(w.purchase)))];
     const pr=weeks.length>30?0:4;
     const datasets=models.map((m,i)=>({label:m,data:weeks.map(w=>val(w.purchase[m])),borderColor:AIHW_COLORS[i%AIHW_COLORS.length],backgroundColor:AIHW_COLORS[i%AIHW_COLORS.length],borderWidth:2,pointRadius:pr,pointHoverRadius:4,spanGaps:true,stepped:'before'})).filter(d=>d.data.some(v=>v!=null));
+    const chip=document.getElementById('aihwBuyChip').value;
+    const shown=datasets.filter(d=>aihwChipMatch(d.label,chip));
     if(aihwBuyChartInst)aihwBuyChartInst.destroy();
-    aihwBuyChartInst=aihwLineChart('aihwBuyChart',weeks.map(w=>aihwWeekLabel(w.week)),datasets,'USD per GPU',v=>'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:0}),false);
+    aihwBuyChartInst=aihwLineChart('aihwBuyChart',weeks.map(w=>aihwWeekLabel(w.week)),shown,'USD per GPU',v=>'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:0}),false);
+    document.getElementById('aihwBuyExplain').innerHTML=AIHW_EXPLAIN.buy[src]+' Tracking started Sep 2026 (no older copies of these price lists exist), so the chart grows by one point each week.'+aihwRangeNote(shown,weeks.map(w=>aihwWeekLabel(w.week)));
 }
 
 function renderAihwMemChart(){
@@ -4257,6 +4332,7 @@ function renderAihwMemChart(){
     const datasets=items.map((it,i)=>({label:it,data:weeks.map(w=>w.memory?.[t]?.items?.[it]??null),borderColor:AIHW_COLORS[i%AIHW_COLORS.length],backgroundColor:AIHW_COLORS[i%AIHW_COLORS.length],borderWidth:2,pointRadius:pr,pointHoverRadius:4,spanGaps:false,tension:0.1}));
     if(aihwMemChartInst)aihwMemChartInst.destroy();
     aihwMemChartInst=aihwLineChart('aihwMemChart',weeks.map(w=>aihwWeekLabel(w.week)),datasets,'USD (TrendForce session average)',v=>'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}),true);
+    document.getElementById('aihwMemExplain').innerHTML=(AIHW_EXPLAIN.mem[t]||'<b>What you’re seeing:</b> memory prices in US dollars.')+' <b>Source:</b> <a href="https://www.trendforce.com/price/dram/dram_spot" target="_blank" rel="noopener">TrendForce</a>, the industry’s standard memory price tracker. The scale is “logarithmic”: each step up means the price <b>multiplied</b>, so big jumps stay readable.'+aihwRangeNote(datasets,weeks.map(w=>aihwWeekLabel(w.week)));
 }
 
 function renderAihwLatest(){
@@ -4324,7 +4400,13 @@ const STATUS_FEATURES=[
     {file:'fartcoin_hourly.json',         name:'FARTCOIN hourly candles',      tab:'FARTCOIN',         source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',       tab:'FARTCOIN / Divergence', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'8 exchanges (workflow)',         cadence:'Weekdays 21:00 UTC',         warnH:76, badH:100,timestampKey:'last_updated'},
-    {file:'ai_hardware_prices.json',      name:'AI chip rental + DRAM/NAND prices', tab:'AI Chips & Memory', source:'GetDeploying + Lambda + RunPod + vast.ai + dealers + TrendForce', cadence:'Twice daily → weekly series', warnH:30, badH:54, timestampKey:'last_updated'},
+    {file:'ai_hardware_prices.json', name:'AI chip rental — market median', tab:'AI Chips & Memory', source:'GetDeploying dataset', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.getdeploying.last_ok'},
+    {file:'ai_hardware_prices.json', name:'AI chip purchase — new (dealer)', tab:'AI Chips & Memory', source:'Gatewell USA', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.gatewell.last_ok'},
+    {file:'ai_hardware_prices.json', name:'AI chip purchase — used/refurb (dealer)', tab:'AI Chips & Memory', source:'Compute Exchange', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.compute_exchange.last_ok'},
+    {file:'ai_hardware_prices.json', name:'Memory prices (DRAM/NAND)', tab:'AI Chips & Memory', source:'TrendForce (DRAMeXchange backup)', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.trendforce.last_ok'},
+    {file:'ai_hardware_prices.json', name:'AI chip rental — Lambda', tab:'AI Chips & Memory', source:'Lambda pricing page', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.lambda.last_ok'},
+    {file:'ai_hardware_prices.json', name:'AI chip rental — RunPod', tab:'AI Chips & Memory', source:'RunPod API', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.runpod.last_ok'},
+    {file:'ai_hardware_prices.json', name:'AI chip rental — vast.ai', tab:'AI Chips & Memory', source:'vast.ai API', cadence:'Twice daily (weekly chart)', warnH:48, badH:192, timestampKey:'sources.vast.last_ok'},
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
@@ -4366,7 +4448,7 @@ async function statusCheckFile(feat){
         const j=await r.json();
         let d=null;
         if(feat.timestampKey){
-            const v=j[feat.timestampKey];
+            const v=feat.timestampKey.split('.').reduce((o,k)=>o?.[k],j);
             if(v)d=new Date(v);
         }
         if(!d&&feat.dateInLastEntry&&Array.isArray(j)&&j.length){
