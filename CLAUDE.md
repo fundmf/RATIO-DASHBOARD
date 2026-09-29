@@ -25,10 +25,6 @@ liquidity_daily.json        ← BTC price+volume daily  {last_updated, days:[{da
 fartcoin_liquidity_daily.json ← FART price+volume daily {last_updated, days:[{date,fart_price,volume}]}
 spx6900_hourly.json         ← hourly SPX6900 data
 ai_watchlist.json           ← weekly Friday closes for GTLB/CDW/ADBE/EXLS/ADP/^NDX
-ai_hardware_prices.json     ← weekly series {week(Mon), gpus:{model:{runpod_secure,runpod_community,vast_median,vast_n}}, memory:{TrendForce table:{source_updated, items:{name:avg_usd}}}}
-ai_hardware_prices.py       ← GetDeploying weekly CSV (market median, main chips; weeks[].market) + Gatewell/Compute Exchange dealer prices (weeks[].purchase) + Lambda pricing page + RunPod GraphQL + vast.ai API + TrendForce DRAM/NAND pages; twice daily (update-ai-hardware.yml), overwrites current week. Holds all parsers (also used by the backfill)
-                              Safeguards: SOURCES registry → each source retried, validated (price bounds + minimum count), backup fetch (TrendForce→DRAMeXchange, weekly.csv→per-chip CSVs), item-level merge (never deletes), per-source health in data["sources"] (Status tab rows), Slack alert if a source is stale ≥8 days (max every 3 days), script never exits non-zero
-backfill_ai_hardware.py     ← one-off: rebuilt Sep 2021→Sep 2026 weekly history from Wayback Machine snapshots (cache in .wayback_cache/, gitignored). Backfilled weeks have "backfill": true
 funding_rates.json          ← DAILY MARKET-AGGREGATE funding snapshots per coin (avg across Binance/Bybit/OKX/Bitget/Gate/MEXC/KuCoin/Hyperliquid); per_exchange breakdown in each snapshot + alert_state
 etf_flows.json              ← daily BTC ETF net flows {date,total_m_usd,source:farside|bitbo} + last_alert_date
 notification_settings.json  ← per-alert toggles + threshold; read by funding_rates.py, etf_flows.py, AND crash-check.js
@@ -66,7 +62,6 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
 <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
 <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
-<button class="tab-btn" data-tab="aihw">AI Chips &amp; Memory</button>   ← initAiHardware(); purchase-price reference table is static AIHW_CHIPS (estimates, sourced)
 <button class="tab-btn" data-tab="funding">Funding Rates</button>
 <button class="tab-btn" data-tab="crash">Crash Alert</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
