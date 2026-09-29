@@ -148,6 +148,7 @@
     <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
     <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
     <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
+    <button class="tab-btn" data-tab="aihw">AI Chips &amp; Memory</button>
     <button class="tab-btn" data-tab="funding">Funding Rates</button>
     <button class="tab-btn" data-tab="crash">Crash Alert</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
@@ -669,6 +670,58 @@
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB: AI CHIPS & MEMORY ══════════════════════════ -->
+<div id="tab-aihw" class="tab-content">
+<div class="container">
+    <h1>AI Chips &amp; Memory Prices <span class="info-badge live" id="aihwBadge">Loading...</span></h1>
+    <div class="subtitle">Weekly tracked GPU rental prices and DRAM / NAND spot prices, plus a reference table of AI accelerators launched in the last 5 years</div>
+
+    <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">GPU Rental Price — weekly ($ per GPU-hour)
+            <select id="aihwGpuSource" onchange="renderAihwGpuChart()" style="margin-left:auto;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;">
+                <option value="runpod_secure">RunPod — Secure Cloud list price</option>
+                <option value="runpod_community">RunPod — Community Cloud list price</option>
+                <option value="vast_median">vast.ai — marketplace median</option>
+            </select>
+        </div>
+        <div style="height:380px;position:relative;"><canvas id="aihwGpuChart"></canvas></div>
+        <div class="aihw-caption">Source: <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">RunPod</a> public API (list price, on-demand) and <a href="https://vast.ai/" target="_blank" rel="noopener">vast.ai</a> public API (median of live on-demand offers; sample size shown in the table below). One point per week (Monday, UTC) holding the latest price captured that week; captured twice daily. Rental price is observable market data — it is <em>not</em> the purchase price (see reference table).</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Memory Spot &amp; Contract Prices — weekly (USD)
+            <select id="aihwMemTable" onchange="renderAihwMemChart()" style="margin-left:auto;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;max-width:340px;"></select>
+        </div>
+        <div style="height:380px;position:relative;"><canvas id="aihwMemChart"></canvas></div>
+        <div class="aihw-caption">Source: <a href="https://www.trendforce.com/price/dram/dram_spot" target="_blank" rel="noopener">TrendForce DRAM</a> and <a href="https://www.trendforce.com/price/flash/flash_spot" target="_blank" rel="noopener">NAND Flash</a> price pages (DRAMeXchange). Value = session average in USD per chip / module / wafer as quoted by TrendForce. Spot tables update daily, contract tables monthly/quarterly — each table's "last update" is shown below. Log scale.</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Latest Prices <span id="aihwWeekLabel" style="font-size:12px;color:#64748b;font-weight:400;margin-left:8px;"></span></div>
+        <div id="aihwLatest" style="font-size:13px;color:#94a3b8;overflow-x:auto;">Loading…</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Reference: AI accelerators by launch year — purchase price (per GPU, USD)</div>
+        <div style="font-size:12px;color:#fbbf24;margin-bottom:10px;">⚠ Estimates. NVIDIA and AMD do not publish list prices; figures are reseller quotes and analyst/press reports gathered Sep 2026. Only Intel published official Gaudi pricing. Not tracked weekly.</div>
+        <div id="aihwRef" style="overflow-x:auto;"></div>
+        <div class="card-title" style="margin-top:18px;">Reference: memory generations</div>
+        <div id="aihwMemRef" style="overflow-x:auto;"></div>
+    </div>
+</div>
+</div>
+
+<style>
+.aihw-caption{font-size:12px;color:#64748b;margin-top:10px;line-height:1.6;}
+.aihw-caption a,#aihwRef a,#aihwMemRef a{color:#3b82f6;}
+.aihw-table{width:100%;border-collapse:collapse;font-size:13px;}
+.aihw-table th{text-align:left;padding:7px 8px;color:#94a3b8;font-weight:500;border-bottom:1px solid #334155;white-space:nowrap;}
+.aihw-table td{padding:7px 8px;border-bottom:1px solid #1e293b;color:#e2e8f0;vertical-align:top;}
+.aihw-table td.num,.aihw-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.aihw-table tr.grp td{color:#94a3b8;font-weight:600;background:#0f172a;}
+.aihw-up{color:#10b981;} .aihw-down{color:#ef4444;} .aihw-muted{color:#64748b;}
+</style>
+
 <!-- ══════════════════════════ TAB: FUNDING RATES ══════════════════════════ -->
 <div id="tab-funding" class="tab-content">
 <div class="container">
@@ -1069,6 +1122,7 @@ FIRE alert if ALL conditions met:
             <a href="#doc-geo">2. Geopolitics</a>
             <a href="#doc-liq">3. Market Liquidity</a>
             <a href="#doc-fart">4. FARTCOIN Analysis</a>
+            <a href="#doc-aihw">AI Chips &amp; Memory</a>
             <a href="#doc-alerts">5. Custom Alerts</a>
             <a href="#doc-slack">6. Slack Alert Systems</a>
             <a href="#doc-data">7. Data Pipeline &amp; Infrastructure</a>
@@ -1307,6 +1361,24 @@ Vol-Adjusted = Raw Ratio / 20-day Rolling StDev</div>
 
         <h3>Manual Trigger</h3>
         <p>To pull the latest Friday immediately (or to test after editing TICKERS), go to GitHub → Actions → "Update AI Watchlist (Weekly)" → Run workflow. The script is idempotent so this is always safe.</p>
+    </div>
+
+    <!-- 7a. AI CHIPS & MEMORY -->
+    <div class="card doc-section" id="doc-aihw">
+        <h2>7a. AI Chips &amp; Memory Prices</h2>
+        <p>Weekly price series for AI accelerators and memory, plus a static purchase-price reference table.</p>
+        <h3>Weekly tracked data (<code>ai_hardware_prices.json</code>)</h3>
+        <ul>
+            <li><strong>GPU rental ($/GPU-hr, on-demand):</strong> RunPod public GraphQL API (Secure &amp; Community list prices) and vast.ai public API (median of live marketplace offers + offer count). Models: A100, H100 (PCIe/SXM/NVL), H200 (SXM/NVL), B200, B300, MI300X</li>
+            <li><strong>Memory (USD):</strong> every table on TrendForce's DRAM and NAND Flash price pages — DRAM spot/contract, module spot, GDDR spot, NAND spot/contract, wafer spot (TLC), memory cards, OEM SSD contract. Value = TrendForce session average; each table keeps TrendForce's own "last update" time</li>
+            <li><code>ai_hardware_prices.py</code> runs at 03:23 and 15:23 UTC (<code>update-ai-hardware.yml</code>). One entry per week (Monday, UTC); each run overwrites the current week so it holds the latest price. Each source fails independently — last value for the week is kept</li>
+            <li>History starts 28 Sep 2026 — none of these sources publish free historical data, so earlier weeks cannot be backfilled accurately</li>
+        </ul>
+        <h3>Reference table (purchase prices)</h3>
+        <ul>
+            <li>AI accelerators launched 2020–2025 with new and used per-GPU price ranges. NVIDIA and AMD publish no list prices, so these are reseller quotes and press/analyst estimates (Sep 2026), each linked to its source. Intel Gaudi prices are Intel's official kit prices ÷ 8</li>
+            <li>Edit <code>AIHW_CHIPS</code> in <code>index.html</code> to update. HBM has no public price (contract-only), so it is listed but not tracked</li>
+        </ul>
     </div>
 
     <!-- 7b. FUNDING RATES -->
@@ -1651,7 +1723,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false,status:false};
+const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false,status:false,aihw:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1666,6 +1738,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='fart2'&&!tabInit.fart2){tabInit.fart2=true;initFartcoinV2();}
         if(id==='fartmin'&&!tabInit.fartmin){tabInit.fartmin=true;initFartMinAnalysis();}
         if(id==='ai'&&!tabInit.ai){tabInit.ai=true;initAiWatchlist();}
+        if(id==='aihw'&&!tabInit.aihw){tabInit.aihw=true;initAiHardware();}
         if(id==='funding'&&!tabInit.funding){tabInit.funding=true;initFundingRates();}
         if(id==='crash'&&!tabInit.crash){tabInit.crash=true;initCrashAlertCard();}
         if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
@@ -4056,6 +4129,134 @@ async function toggleFundingAlert(key,checked){
 }
 
 // ──────────────────────────────────────────────
+// TAB — AI CHIPS & MEMORY
+// ──────────────────────────────────────────────
+const AIHW_SRC={
+    gatewell:['Gatewell USA price table (new, 20–99 unit tiers)','https://gatewellusa.com/ai-compute/datacenter-gpu-prices'],
+    intuition:['IntuitionLabs Data Center GPU Pricing, Jul 2026','https://intuitionlabs.ai/articles/data-center-gpu-pricing-2026'],
+    intel:['Intel Newsroom, Computex 2024 (official kit prices)','https://newsroom.intel.com/artificial-intelligence/intel-gaudi-enables-lower-cost-choice-for-genai-2'],
+    thunder:['Thunder Compute, B200 pricing Sep 2026','https://www.thundercompute.com/blog/nvidia-b200-pricing'],
+    techinsider:['Tech Insider, Blackwell pricing 2026','https://tech-insider.org/nvidia-blackwell-gpu-pricing/'],
+    mercatus:['Mercatus, H100 resale value 2026','https://www.mercatus-ai.com/blog/h100-resale-value'],
+    a100used:['Alibaba A100 80GB price guide 2026','https://electronics.alibaba.com/product/nvidia-a100-80gb-price'],
+};
+// year = launch year; new/used = [low, high] USD per GPU; null = no reliable figure
+const AIHW_CHIPS=[
+    {year:2020,vendor:'NVIDIA',model:'A100 80GB',mem:'80GB HBM2e',nw:[10000,15000],used:[4000,18500],src:['intuition','a100used'],note:'In production to 2023; used prices vary widely by channel'},
+    {year:2022,vendor:'NVIDIA',model:'H100 PCIe',mem:'80GB HBM2e',nw:[25000,30000],used:null,src:['intuition']},
+    {year:2022,vendor:'NVIDIA',model:'H100 SXM5',mem:'80GB HBM3',nw:[31000,40000],used:[6000,25500],src:['gatewell','intuition','mercatus'],note:'Peaked ~$40k in 2023'},
+    {year:2022,vendor:'Intel',model:'Gaudi 2',mem:'96GB HBM2e',nw:[8125,8125],used:null,src:['intel'],official:true,note:'Official: $65,000 per 8-accelerator kit'},
+    {year:2023,vendor:'NVIDIA',model:'H100 NVL',mem:'94GB HBM3',nw:[30000,32000],used:null,src:['gatewell']},
+    {year:2023,vendor:'AMD',model:'Instinct MI300X',mem:'192GB HBM3',nw:[15500,16500],used:null,src:['gatewell']},
+    {year:2024,vendor:'NVIDIA',model:'H200 SXM',mem:'141GB HBM3e',nw:[31000,44000],used:null,src:['gatewell','intuition']},
+    {year:2024,vendor:'NVIDIA',model:'H200 NVL',mem:'141GB HBM3e',nw:[33000,36000],used:null,src:['gatewell']},
+    {year:2024,vendor:'NVIDIA',model:'B200',mem:'180–192GB HBM3e',nw:[45000,57500],used:null,src:['thunder','gatewell'],note:'Volume shipments 2025'},
+    {year:2024,vendor:'AMD',model:'Instinct MI325X',mem:'256GB HBM3e',nw:[25500,27000],used:null,src:['gatewell']},
+    {year:2024,vendor:'Intel',model:'Gaudi 3',mem:'128GB HBM2e',nw:[13000,15625],used:null,src:['intel','gatewell'],note:'Official: $125,000 per 8-accelerator kit (~$15,625 each)'},
+    {year:2025,vendor:'NVIDIA',model:'B300 (Blackwell Ultra)',mem:'288GB HBM3e',nw:[53000,62000],used:null,src:['techinsider','gatewell']},
+    {year:2025,vendor:'AMD',model:'Instinct MI355X',mem:'288GB HBM3e',nw:[27000,29000],used:null,src:['gatewell']},
+];
+const AIHW_MEM=[
+    {type:'DDR4',year:2014,use:'Legacy servers & PCs (still produced)',price:'Tracked weekly — DRAM Spot / Contract and Module Spot'},
+    {type:'GDDR6',year:2018,use:'Graphics & inference cards',price:'Tracked weekly — GDDR Spot'},
+    {type:'HBM2e',year:2020,use:'A100, Gaudi 2/3',price:'Not publicly priced (contract only between SK hynix / Samsung / Micron and chipmakers)'},
+    {type:'DDR5',year:2021,use:'Servers & PCs',price:'Tracked weekly — DRAM Spot (DDR5 16Gb) and Module Spot (UDIMM/RDIMM)'},
+    {type:'HBM3',year:2022,use:'H100, MI300X',price:'Not publicly priced (contract only)'},
+    {type:'HBM3e',year:2024,use:'H200, B200, B300, MI325X, MI355X',price:'Not publicly priced (contract only)'},
+    {type:'HBM4',year:2026,use:'Next-gen accelerators (Rubin, MI400)',price:'Not publicly priced (contract only)'},
+    {type:'3D NAND TLC',year:'—',use:'SSDs for AI storage',price:'Tracked weekly — Wafer Spot (128/256/512Gb TLC) and OEM SSD Contract'},
+];
+const AIHW_COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#eab308','#6366f1','#f97316','#22c55e','#a855f7'];
+let aihwData=null,aihwGpuChartInst=null,aihwMemChartInst=null;
+
+function aihwMoney(v,dp){if(v==null||isNaN(v))return '—';return '$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:dp??0,maximumFractionDigits:dp??0});}
+function aihwRange(r){if(!r)return '<span class="aihw-muted">n/a</span>';return r[0]===r[1]?aihwMoney(r[0]):aihwMoney(r[0])+' – '+aihwMoney(r[1]);}
+function aihwChg(cur,prev){if(cur==null||prev==null||!prev)return '<span class="aihw-muted">—</span>';const p=(cur-prev)/prev*100;const c=p>0.05?'aihw-up':p<-0.05?'aihw-down':'aihw-muted';return `<span class="${c}">${p>0?'+':''}${p.toFixed(1)}%</span>`;}
+function aihwWeekLabel(w){return new Date(w+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit',timeZone:'UTC'});}
+
+async function initAiHardware(){
+    renderAihwRef();
+    try{
+        const r=await fetch('ai_hardware_prices.json?t='+Date.now());
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        aihwData=await r.json();
+    }catch(e){
+        document.getElementById('aihwBadge').textContent='No data';
+        document.getElementById('aihwLatest').textContent='Could not load ai_hardware_prices.json: '+e.message;
+        return;
+    }
+    const weeks=aihwData.weeks||[];
+    document.getElementById('aihwBadge').textContent=weeks.length+' week'+(weeks.length===1?'':'s');
+    const tables=[...new Set(weeks.flatMap(w=>Object.keys(w.memory||{})))];
+    const sel=document.getElementById('aihwMemTable');
+    sel.innerHTML=tables.map(t=>`<option>${t}</option>`).join('');
+    if(tables.includes('DRAM Spot Price'))sel.value='DRAM Spot Price';
+    renderAihwGpuChart();
+    renderAihwMemChart();
+    renderAihwLatest();
+}
+
+function aihwLineChart(canvasId,labels,datasets,yTitle,fmtY,logScale){
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#e2e8f0',boxWidth:12,padding:12}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:c=>c.dataset.label+': '+fmtY(c.parsed.y)}}},
+        scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8'}},y:{type:logScale?'logarithmic':'linear',grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>fmtY(v)},title:{display:true,text:yTitle,color:'#64748b'}}}}});
+}
+
+function renderAihwGpuChart(){
+    if(!aihwData)return;
+    const src=document.getElementById('aihwGpuSource').value;
+    const weeks=aihwData.weeks;
+    const models=[...new Set(weeks.flatMap(w=>Object.keys(w.gpus||{})))];
+    const datasets=models.map((m,i)=>({label:m,data:weeks.map(w=>w.gpus?.[m]?.[src]??null),borderColor:AIHW_COLORS[i%AIHW_COLORS.length],backgroundColor:AIHW_COLORS[i%AIHW_COLORS.length],borderWidth:2,pointRadius:4,spanGaps:true,tension:0.2})).filter(d=>d.data.some(v=>v!=null));
+    if(aihwGpuChartInst)aihwGpuChartInst.destroy();
+    aihwGpuChartInst=aihwLineChart('aihwGpuChart',weeks.map(w=>aihwWeekLabel(w.week)),datasets,'$ per GPU-hour',v=>'$'+Number(v).toFixed(2),false);
+}
+
+function renderAihwMemChart(){
+    if(!aihwData)return;
+    const t=document.getElementById('aihwMemTable').value;
+    const weeks=aihwData.weeks;
+    const items=[...new Set(weeks.flatMap(w=>Object.keys(w.memory?.[t]?.items||{})))];
+    const datasets=items.map((it,i)=>({label:it,data:weeks.map(w=>w.memory?.[t]?.items?.[it]??null),borderColor:AIHW_COLORS[i%AIHW_COLORS.length],backgroundColor:AIHW_COLORS[i%AIHW_COLORS.length],borderWidth:2,pointRadius:4,spanGaps:true,tension:0.2}));
+    if(aihwMemChartInst)aihwMemChartInst.destroy();
+    aihwMemChartInst=aihwLineChart('aihwMemChart',weeks.map(w=>aihwWeekLabel(w.week)),datasets,'USD (TrendForce session average)',v=>'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}),true);
+}
+
+function renderAihwLatest(){
+    const weeks=aihwData.weeks;const cur=weeks[weeks.length-1];const prev=weeks.length>1?weeks[weeks.length-2]:null;
+    document.getElementById('aihwWeekLabel').textContent=`Week of ${aihwWeekLabel(cur.week)} · captured ${new Date(cur.captured_at).toISOString().slice(0,16).replace('T',' ')} UTC · Δ vs prior week`;
+    let h='<table class="aihw-table"><tr><th>GPU</th><th class="num">RunPod Secure</th><th class="num">Δ</th><th class="num">RunPod Community</th><th class="num">vast.ai median</th><th class="num">Δ</th><th class="num">vast.ai offers</th></tr>';
+    for(const [m,v] of Object.entries(cur.gpus||{})){
+        const p=prev?.gpus?.[m]||{};
+        h+=`<tr><td>${m}</td><td class="num">${aihwMoney(v.runpod_secure,2)}</td><td class="num">${aihwChg(v.runpod_secure,p.runpod_secure)}</td><td class="num">${aihwMoney(v.runpod_community,2)}</td><td class="num">${aihwMoney(v.vast_median,2)}</td><td class="num">${aihwChg(v.vast_median,p.vast_median)}</td><td class="num">${v.vast_n??'—'}</td></tr>`;
+    }
+    h+='</table><div class="aihw-caption">$ per GPU-hour, on-demand. vast.ai medians from fewer than ~10 offers are less reliable.</div>';
+    h+='<table class="aihw-table" style="margin-top:16px;"><tr><th>Memory item</th><th class="num">Price (USD)</th><th class="num">Δ vs prior week</th></tr>';
+    for(const [t,tv] of Object.entries(cur.memory||{})){
+        h+=`<tr class="grp"><td colspan="3">${t} <span class="aihw-muted" style="font-weight:400;">· TrendForce last update ${tv.source_updated||'n/a'}</span></td></tr>`;
+        for(const [it,val] of Object.entries(tv.items)){
+            h+=`<tr><td>${it}</td><td class="num">${aihwMoney(val,val<100?3:2)}</td><td class="num">${aihwChg(val,prev?.memory?.[t]?.items?.[it])}</td></tr>`;
+        }
+    }
+    document.getElementById('aihwLatest').innerHTML=h+'</table>';
+}
+
+function renderAihwRef(){
+    let h='<table class="aihw-table"><tr><th>Launch</th><th>Vendor</th><th>Model</th><th>Memory</th><th class="num">New (est.)</th><th class="num">Used (est.)</th><th>Sources / notes</th></tr>';
+    let yr=null;
+    for(const c of AIHW_CHIPS){
+        if(c.year!==yr){yr=c.year;h+=`<tr class="grp"><td colspan="7">${yr}</td></tr>`;}
+        const src=c.src.map(k=>`<a href="${AIHW_SRC[k][1]}" target="_blank" rel="noopener" title="${AIHW_SRC[k][0]}">${AIHW_SRC[k][0].split(/[,(]/)[0].trim()}</a>`).join(' · ');
+        h+=`<tr><td>${c.year}</td><td>${c.vendor}</td><td>${c.model}${c.official?' <span class="aihw-up" style="font-size:11px;">official</span>':''}</td><td>${c.mem}</td><td class="num">${aihwRange(c.nw)}</td><td class="num">${aihwRange(c.used)}</td><td style="font-size:12px;">${src}${c.note?'<br><span class="aihw-muted">'+c.note+'</span>':''}</td></tr>`;
+    }
+    document.getElementById('aihwRef').innerHTML=h+'</table>';
+    let m='<table class="aihw-table"><tr><th>Memory type</th><th>Introduced</th><th>Used in</th><th>Price availability</th></tr>';
+    for(const r of AIHW_MEM)m+=`<tr><td>${r.type}</td><td>${r.year}</td><td>${r.use}</td><td style="font-size:12px;">${r.price}</td></tr>`;
+    document.getElementById('aihwMemRef').innerHTML=m+'</table>';
+}
+
+// ──────────────────────────────────────────────
 // STATUS TAB — uptime dashboard
 // ──────────────────────────────────────────────
 const STATUS_FEATURES=[
@@ -4067,6 +4268,7 @@ const STATUS_FEATURES=[
     {file:'fartcoin_hourly.json',         name:'FARTCOIN hourly candles',      tab:'FARTCOIN',         source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',       tab:'FARTCOIN / Divergence', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'8 exchanges (workflow)',         cadence:'Weekdays 21:00 UTC',         warnH:76, badH:100,timestampKey:'last_updated'},
+    {file:'ai_hardware_prices.json',      name:'AI chip rental + DRAM/NAND prices', tab:'AI Chips & Memory', source:'RunPod + vast.ai + TrendForce', cadence:'Twice daily → weekly series', warnH:30, badH:54, timestampKey:'last_updated'},
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},

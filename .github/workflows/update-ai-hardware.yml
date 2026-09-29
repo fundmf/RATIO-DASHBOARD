@@ -1,0 +1,47 @@
+name: Update AI Chip & Memory Prices (Daily → weekly series)
+
+# Runs twice daily on off-peak minutes; the script overwrites the current
+# week's entry so the chart always shows the latest price per week.
+on:
+  schedule:
+    - cron: '23 3 * * *'
+    - cron: '23 15 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: update-ai-hardware
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests curl_cffi
+
+      - name: Fetch GPU rental + DRAM/NAND spot prices
+        continue-on-error: true
+        run: python ai_hardware_prices.py
+
+      - name: Commit updated data
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ai_hardware_prices.json
+          git diff --staged --quiet && exit 0
+          git commit -m "AI hardware prices: $(date -u '+%Y-%m-%d') snapshot"
+          ok=0
+          for i in 1 2 3 4 5; do
+            if git push origin main; then ok=1; break; fi
+            git pull --rebase --autostash origin main || true
+            sleep $((i * 5))
+          done
+          [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }
