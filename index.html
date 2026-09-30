@@ -151,6 +151,7 @@
     <button class="tab-btn" data-tab="funding">Funding Rates</button>
     <button class="tab-btn" data-tab="crash">Crash Alert</button>
     <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
+    <button class="tab-btn" data-tab="gpu">GPU Prices</button>
     <button class="tab-btn" data-tab="status" style="margin-left:auto;color:#475569;font-size:13px;">Status</button>
     <button class="tab-btn" data-tab="docs" style="color:#475569;font-size:13px;">Documentation</button>
 </nav>
@@ -1011,6 +1012,41 @@ FIRE alert if ALL conditions met:
 </div>
 </div>
 
+<!-- ══════════════════════════ TAB: GPU PRICES ══════════════════════════ -->
+<div id="tab-gpu" class="tab-content">
+<div class="container" style="max-width:1200px;">
+    <h1>GPU Prices — NVIDIA H100 &amp; H200</h1>
+    <div class="subtitle">Cloud rental price in USD per GPU-hour (on-demand). One point per year, then weekly from August 2026.</div>
+    <div class="error-banner" id="gpuProblems"></div>
+
+    <div id="gpuCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:20px;"></div>
+
+    <div class="card">
+        <div class="card-title">H100 vs H200 rental price</div>
+        <div class="chart-wrapper" style="height:440px;"><canvas id="gpuChart"></canvas></div>
+        <div style="font-size:12.5px;color:#94a3b8;margin-top:12px;line-height:1.6;">
+            <strong>Source &amp; time frame:</strong> weekly points (from 3 Aug 2026) are the
+            <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying GPU Rental Price Index</a>
+            — the median of each provider's cheapest on-demand price, across 26–43 cloud providers, weeks starting Monday, collected every Tuesday.
+            Yearly points: <strong>◆</strong> = average of the same index; <strong>◇</strong> = earlier-year figure from
+            <a href="https://www.silicondata.com/blog/h100-rental-price-over-time" target="_blank" rel="noopener" style="color:#3b82f6;">Silicon Data</a>
+            using a different segment (hover for details). Dashed lines join points of different frequency. Click a legend item to show the Silicon Data cross-check.
+        </div>
+        <div class="last-updated" id="gpuUpdated" style="font-size:12px;color:#64748b;margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Yearly points — what each one is</div>
+        <div style="overflow-x:auto;"><table id="gpuYearTable" style="width:100%;border-collapse:collapse;font-size:13px;"></table></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Weekly data</div>
+        <div style="overflow-x:auto;"><table id="gpuWeekTable" style="width:100%;border-collapse:collapse;font-size:13px;"></table></div>
+    </div>
+</div>
+</div>
+
 <!-- ══════════════════════════ TAB: STATUS ══════════════════════════ -->
 <div id="tab-status" class="tab-content">
 <div class="container" style="max-width:1100px;">
@@ -1070,6 +1106,7 @@ FIRE alert if ALL conditions met:
             <a href="#doc-liq">3. Market Liquidity</a>
             <a href="#doc-fart">4. FARTCOIN Analysis</a>
             <a href="#doc-alerts">5. Custom Alerts</a>
+            <a href="#doc-gpu">GPU Prices (H100 / H200)</a>
             <a href="#doc-slack">6. Slack Alert Systems</a>
             <a href="#doc-data">7. Data Pipeline &amp; Infrastructure</a>
             <a href="#doc-assumptions">8. Assumptions &amp; Limitations</a>
@@ -1422,6 +1459,25 @@ if dropPct ≥ threshold AND not in cooldown:
         </ul>
     </div>
 
+    <!-- GPU PRICES -->
+    <div class="card doc-section" id="doc-gpu">
+        <h2>GPU Prices (H100 / H200)</h2>
+        <p>Cloud <strong>rental</strong> price of NVIDIA H100 and H200 GPUs in USD per GPU-hour, on-demand. Rental is used because it is the only chip price published weekly by independent trackers; purchase prices are private dealer quotes.</p>
+        <h3>Data</h3>
+        <ul>
+            <li><strong>Weekly (from 3 Aug 2026):</strong> <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying GPU Rental Price Index</a> (CC BY 4.0) — median of each provider's cheapest on-demand price, 26–43 providers, weeks starting Monday. Column <code>provider_median_price</code>, <code>billing_type = ON_DEMAND</code>; matches the published index exactly.</li>
+            <li><strong>Yearly:</strong> 2025 and 2026 (Jan–Jul) are averages of the same weekly index. H100 2023 ($7.76, hyperscaler median Aug–Dec) and 2024 ($2.99, neo-cloud median Jun–Dec) come from <a href="https://www.silicondata.com/blog/h100-rental-price-over-time" target="_blank" rel="noopener" style="color:#3b82f6;">Silicon Data</a> — a different segment, shown with hollow markers. No point exists where the chip had no public rental market (H100 2022; H200 before 2025).</li>
+            <li><strong>Cross-check:</strong> Silicon Data neo-cloud rental indices (SDH100RT, H200), daily readings stored each run. Their method differs, so levels differ (~20–30% lower) — use it to confirm direction, not level.</li>
+        </ul>
+        <h3>Collection &amp; safeguards (<code>gpu_prices.py</code>, <code>update-gpu-prices.yml</code>)</h3>
+        <ul>
+            <li>Runs Tuesday 06:23 UTC (GetDeploying publishes each week on Tuesday), backups Wednesday and Friday. Every run re-merges all weeks since 3 Aug, so a missed run fills itself in next time.</li>
+            <li>Backup sources: dataset JSON &rarr; per-chip CSV &rarr; index embedded in the public trends page.</li>
+            <li>Every value is checked: price $0.50–$30, at least 10 providers, Monday week labels, latest week no older than 16 days, week-on-week move under 35%. Bad values are skipped; stored weeks are never deleted.</li>
+            <li>If a source fails or goes stale, a Slack warning is sent (max once per day) and a red banner appears on the tab. The script never fails the workflow, so no email spam.</li>
+        </ul>
+    </div>
+
     <!-- 8. CUSTOM ALERTS -->
     <div class="card doc-section" id="doc-alerts">
         <h2>8. Custom Alerts</h2>
@@ -1651,7 +1707,7 @@ async function fetchCoinHourlyRange(coinId, fromDate, toDate){
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
-const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false,status:false};
+const tabInit={ratio:false,geo:false,liq:false,btc:false,fart:false,fart2:false,fartmin:false,ai:false,funding:false,crash:false,alerts:false,gpu:false,status:false};
 document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1669,6 +1725,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
         if(id==='funding'&&!tabInit.funding){tabInit.funding=true;initFundingRates();}
         if(id==='crash'&&!tabInit.crash){tabInit.crash=true;initCrashAlertCard();}
         if(id==='alerts'&&!tabInit.alerts){tabInit.alerts=true;initAlerts();}
+        if(id==='gpu'&&!tabInit.gpu){tabInit.gpu=true;initGpuPrices();}
         if(id==='status'){tabInit.status=true;initStatus();} // always refresh on open
     });
 });
@@ -4056,6 +4113,119 @@ async function toggleFundingAlert(key,checked){
 }
 
 // ──────────────────────────────────────────────
+// GPU PRICES TAB — H100 / H200 rental price (gpu_prices.json)
+// ──────────────────────────────────────────────
+let gpuChartInst=null;
+const GPU_COLORS={H100:'#3b82f6',H200:'#f59e0b'};
+function gpuEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function gpuWeekLabel(w){return new Date(w+'T00:00:00Z').toLocaleDateString('en-AU',{day:'numeric',month:'short',timeZone:'UTC'});}
+async function initGpuPrices(){
+    let d;
+    try{
+        const r=await fetch('gpu_prices.json?t='+Date.now());
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        d=await r.json();
+    }catch(e){
+        document.getElementById('gpuCards').innerHTML='<div class="card">Could not load gpu_prices.json: '+gpuEsc(e.message)+'</div>';
+        return;
+    }
+    const chips=['H100','H200'];
+    const years=d.yearly.H100.map(y=>y.year);
+    const weeks=d.weekly.map(w=>w.week);
+    const nY=years.length;
+    const labels=[...years,...weeks.map(gpuWeekLabel)];
+
+    const prob=document.getElementById('gpuProblems');
+    const problems=(d.health&&d.health.problems)||[];
+    if(problems.length){prob.style.display='block';prob.innerHTML='<strong>Data warning:</strong> '+problems.map(gpuEsc).join('<br>');}
+
+    // Silicon Data reading for each week: first reading on/after the Monday, within that week
+    const crossFor=(chip,w)=>{
+        const lo=w, hi=new Date(Date.parse(w+'T00:00:00Z')+6*864e5).toISOString().slice(0,10);
+        const p=((d.crosscheck||{})[chip]||[]).find(x=>x.date>=lo&&x.date<=hi);
+        return p?p.price:null;
+    };
+
+    // Summary cards
+    const last=d.weekly[d.weekly.length-1], prev=d.weekly[d.weekly.length-2], first=d.weekly[0];
+    document.getElementById('gpuCards').innerHTML=chips.map(c=>{
+        const v=last[c], wow=prev&&prev[c]?(v-prev[c])/prev[c]*100:null, since=first[c]?(v-first[c])/first[c]*100:null;
+        const cs=(d.crosscheck||{})[c]||[], cx=cs[cs.length-1];
+        const col=x=>x==null?'#94a3b8':(x>=0?'#10b981':'#ef4444');
+        const fmtp=x=>x==null?'—':(x>=0?'+':'')+x.toFixed(1)+'%';
+        return `<div class="card" style="margin:0;border-left:3px solid ${GPU_COLORS[c]};">
+            <div style="font-size:13px;color:#94a3b8;">NVIDIA ${c} · week of ${gpuWeekLabel(last.week)}</div>
+            <div style="font-size:30px;font-weight:700;color:#f1f5f9;margin:4px 0;">$${v.toFixed(2)}<span style="font-size:14px;color:#94a3b8;font-weight:400;"> /GPU-hr</span></div>
+            <div style="font-size:13px;color:#cbd5e1;">Week on week <span style="color:${col(wow)}">${fmtp(wow)}</span> · since 3 Aug <span style="color:${col(since)}">${fmtp(since)}</span></div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px;">Median of ${last[c+'_providers']} providers (GetDeploying)</div>
+            <div style="font-size:12px;color:#64748b;">Cross-check: ${cx?'$'+cx.price.toFixed(2)+' on '+gpuEsc(cx.date)+' (Silicon Data neo-cloud index)':'unavailable'}</div>
+        </div>`;
+    }).join('');
+
+    // Chart
+    const ds=[];
+    for(const c of chips){
+        const yr=d.yearly[c];
+        const data=[...yr.map(y=>y.price),...d.weekly.map(w=>w[c]??null)];
+        const meta=[...yr,...d.weekly.map(w=>({weekly:true,providers:w[c+'_providers']}))];
+        ds.push({
+            label:c+' — median on-demand',data,meta,borderColor:GPU_COLORS[c],backgroundColor:GPU_COLORS[c],
+            borderWidth:2,tension:0.15,spanGaps:true,
+            pointStyle:meta.map(m=>m.weekly?'circle':'rectRot'),
+            pointRadius:meta.map(m=>m.weekly?3:7),
+            pointBackgroundColor:meta.map(m=>(!m.weekly&&m.comparable===false)?'#0f172a':GPU_COLORS[c]),
+            pointBorderWidth:meta.map(m=>m.weekly?1:2),
+            segment:{borderDash:ctx=>ctx.p1DataIndex<=nY?[5,4]:undefined},
+        });
+        ds.push({
+            label:c+' — Silicon Data (cross-check)',hidden:true,
+            data:[...years.map(()=>null),...weeks.map(w=>crossFor(c,w))],meta:[],
+            borderColor:GPU_COLORS[c],backgroundColor:'transparent',borderDash:[2,3],borderWidth:1.5,pointRadius:3,spanGaps:true,
+        });
+    }
+    const divider={id:'gpuDivider',afterDraw(chart){
+        const x=chart.scales.x, a=x.getPixelForValue(nY-1), b=x.getPixelForValue(nY), mid=(a+b)/2, {top,bottom}=chart.chartArea, g=chart.ctx;
+        g.save();g.strokeStyle='#475569';g.setLineDash([4,4]);g.beginPath();g.moveTo(mid,top);g.lineTo(mid,bottom);g.stroke();
+        g.setLineDash([]);g.fillStyle='#94a3b8';g.font='11px sans-serif';
+        g.textAlign='right';g.fillText('Yearly ◂',mid-6,top+12);g.textAlign='left';g.fillText('▸ Weekly',mid+6,top+12);g.restore();
+    }};
+    if(gpuChartInst)gpuChartInst.destroy();
+    gpuChartInst=new Chart(document.getElementById('gpuChart'),{
+        type:'line',data:{labels,datasets:ds},plugins:[divider],
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+            plugins:{legend:{labels:{color:'#e2e8f0',usePointStyle:true}},
+                tooltip:{backgroundColor:'#1e293b',borderColor:'#334155',borderWidth:1,padding:10,
+                    callbacks:{
+                        title:items=>{const i=items[0].dataIndex;return i<nY?'Year '+years[i]:'Week of '+weeks[i-nY];},
+                        label:ctx=>{if(ctx.parsed.y==null)return null;const m=(ctx.dataset.meta||[])[ctx.dataIndex]||{};
+                            let t=`${ctx.dataset.label.split(' — ')[0]}: $${ctx.parsed.y.toFixed(2)}/GPU-hr`;
+                            if(m.weekly)t+=` (${m.providers} providers)`;else if(m.basis)t+=` — ${m.basis}`;
+                            if(!ctx.dataset.meta.length)t+=' (Silicon Data)';return t;},
+                        footer:items=>{const i=items[0].dataIndex;if(i>=nY)return '';
+                            return chips.map(c=>{const y=d.yearly[c][i];return y.price==null?`${c}: no data — ${y.note}`:`${c} source: ${y.source}`;}).join('\n');}
+                    }}},
+            scales:{x:{grid:{color:'#334155'},ticks:{color:'#94a3b8',maxRotation:0,autoSkip:false}},
+                y:{grid:{color:'#334155'},ticks:{color:'#94a3b8',callback:v=>'$'+v.toFixed(2)},title:{display:true,text:'USD per GPU-hour',color:'#94a3b8'}}}}
+    });
+
+    // Yearly table
+    const th='style="text-align:left;padding:8px;color:#94a3b8;font-weight:500;border-bottom:1px solid #334155;"';
+    const td='style="padding:8px;border-bottom:1px solid #1e293b;vertical-align:top;"';
+    const cell=y=>y.price==null?`<span style="color:#64748b;">No data</span><div style="font-size:11.5px;color:#64748b;">${gpuEsc(y.note)}</div>`
+        :`<strong>$${y.price.toFixed(2)}</strong> ${y.comparable===false?'◇':'◆'}<div style="font-size:11.5px;color:#94a3b8;">${gpuEsc(y.basis)} — <a href="${gpuEsc(y.url)}" target="_blank" rel="noopener" style="color:#3b82f6;">${gpuEsc(y.source)}</a></div>`;
+    document.getElementById('gpuYearTable').innerHTML=`<tr><th ${th}>Year</th><th ${th}>H100</th><th ${th}>H200</th></tr>`+
+        years.map((y,i)=>`<tr><td ${td}>${gpuEsc(y)}</td><td ${td}>${cell(d.yearly.H100[i])}</td><td ${td}>${cell(d.yearly.H200[i])}</td></tr>`).join('');
+
+    // Weekly table (newest first)
+    const thr='style="text-align:right;padding:8px;color:#94a3b8;font-weight:500;border-bottom:1px solid #334155;"';
+    const tdr='style="text-align:right;padding:8px;border-bottom:1px solid #1e293b;"';
+    document.getElementById('gpuWeekTable').innerHTML=`<tr><th ${th}>Week starting</th><th ${thr}>H100 $/GPU-hr</th><th ${thr}>H100 providers</th><th ${thr}>H200 $/GPU-hr</th><th ${thr}>H200 providers</th></tr>`+
+        [...d.weekly].reverse().map(w=>`<tr><td ${td}>${gpuEsc(w.week)}</td><td ${tdr}>${w.H100!=null?'$'+w.H100.toFixed(2):'—'}</td><td ${tdr}>${w.H100_providers??'—'}</td><td ${tdr}>${w.H200!=null?'$'+w.H200.toFixed(2):'—'}</td><td ${tdr}>${w.H200_providers??'—'}</td></tr>`).join('');
+
+    document.getElementById('gpuUpdated').textContent=`Last collected ${d.last_updated.replace('T',' ').slice(0,16)} UTC · primary: ${d.health.primary} · cross-check: ${d.health.crosscheck} · next collection every Tuesday.`;
+}
+
+// ──────────────────────────────────────────────
 // STATUS TAB — uptime dashboard
 // ──────────────────────────────────────────────
 const STATUS_FEATURES=[
@@ -4068,6 +4238,7 @@ const STATUS_FEATURES=[
     {file:'spx6900_hourly.json',          name:'SPX6900 hourly candles',       tab:'FARTCOIN / Divergence', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_updated'},
     {file:'funding_rates.json',           name:'Perp funding rates',           tab:'Funding Rates',    source:'8 exchanges (workflow)',         cadence:'Weekdays 21:00 UTC',         warnH:76, badH:100,timestampKey:'last_updated'},
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
+    {file:'gpu_prices.json',              name:'H100 / H200 rental prices',    tab:'GPU Prices',       source:'GetDeploying (Silicon Data check)', cadence:'Weekly, Tue 06:23 UTC',   warnH:216,badH:384,timestampKey:'latest_week'},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'btc_volume_crossings_state.json', name:'BTC volume alerts (10B steps ≥30B)', tab:'Alerts (Slack)', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},

@@ -1,0 +1,42 @@
+name: Update GPU Prices (Weekly)
+
+# GetDeploying publishes each Monday-labelled week on Tuesday (UTC). Primary run
+# Tuesday, backups Wednesday and Friday — gpu_prices.py merges idempotently, so
+# extra runs only refresh values. Off-peak minutes: GitHub delays :00 crons.
+
+on:
+  schedule:
+    - cron: '23 6 * * 2'   # Tue 06:23 UTC (primary)
+    - cron: '23 6 * * 3'   # Wed 06:23 UTC (backup)
+    - cron: '23 6 * * 5'   # Fri 06:23 UTC (backup)
+  workflow_dispatch:
+
+jobs:
+  update-gpu-prices:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Fetch + validate H100/H200 prices (Slack warning on failure)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python gpu_prices.py
+      - name: Commit
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add gpu_prices.json
+          git diff --staged --quiet && exit 0
+          git commit -m "GPU prices: $(date -u '+%Y-%m-%d') weekly update"
+          ok=0
+          for i in 1 2 3 4 5; do
+            if git push origin main; then ok=1; break; fi
+            git pull --rebase --autostash origin main || true
+            sleep $((i * 5))
+          done
+          [ "$ok" = "1" ] || { echo "Push failed after 5 attempts"; exit 1; }

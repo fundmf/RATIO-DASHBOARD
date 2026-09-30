@@ -1,0 +1,223 @@
+{
+ "last_updated": "2026-09-30T03:59:17Z",
+ "unit": "USD per GPU-hour, on-demand cloud rental",
+ "primary_source": {
+  "name": "GetDeploying GPU Rental Price Index (CC BY 4.0)",
+  "url": "https://getdeploying.com/dataset/gpu-prices",
+  "method": "Weekly median of each provider's cheapest on-demand price per GPU-hour"
+ },
+ "crosscheck_source": {
+  "name": "Silicon Data rental price index \u2014 neo-cloud segment",
+  "url": "https://www.silicondata.com/products/silicon-index/h100"
+ },
+ "yearly": {
+  "H100": [
+   {
+    "year": "2022",
+    "price": null,
+    "note": "No rental market yet \u2014 H100 began shipping late 2022; cloud availability started 2023."
+   },
+   {
+    "year": "2023",
+    "price": 7.76,
+    "comparable": false,
+    "basis": "Hyperscaler median, Aug\u2013Dec 2023 (only segment with data \u2014 scarcity pricing)",
+    "source": "Silicon Data H100 rental price history",
+    "url": "https://www.silicondata.com/blog/h100-rental-price-over-time"
+   },
+   {
+    "year": "2024",
+    "price": 2.99,
+    "comparable": false,
+    "basis": "Neo-cloud median, Jun\u2013Dec 2024",
+    "source": "Silicon Data H100 rental price history",
+    "url": "https://www.silicondata.com/blog/h100-rental-price-over-time"
+   },
+   {
+    "year": "2025",
+    "price": 2.99,
+    "source": "GetDeploying GPU Rental Price Index",
+    "url": "https://getdeploying.com/gpu-price-trends",
+    "comparable": true,
+    "basis": "Average of 39 weekly medians, Apr\u2013Dec 2025"
+   },
+   {
+    "year": "2026 Jan\u2013Jul",
+    "price": 3.01,
+    "source": "GetDeploying GPU Rental Price Index",
+    "url": "https://getdeploying.com/gpu-price-trends",
+    "comparable": true,
+    "basis": "Average of 30 weekly medians, Jan\u2013Jul 2026"
+   }
+  ],
+  "H200": [
+   {
+    "year": "2022",
+    "price": null,
+    "note": "Not released (H200 announced Nov 2023)."
+   },
+   {
+    "year": "2023",
+    "price": null,
+    "note": "Not released until 2024."
+   },
+   {
+    "year": "2024",
+    "price": null,
+    "note": "Limited cloud availability from late 2024 \u2014 no reliable public price series."
+   },
+   {
+    "year": "2025",
+    "price": 3.39,
+    "source": "GetDeploying GPU Rental Price Index",
+    "url": "https://getdeploying.com/gpu-price-trends",
+    "comparable": true,
+    "basis": "Average of 39 weekly medians, Apr\u2013Dec 2025 (5\u201324 providers)"
+   },
+   {
+    "year": "2026 Jan\u2013Jul",
+    "price": 3.73,
+    "source": "GetDeploying GPU Rental Price Index",
+    "url": "https://getdeploying.com/gpu-price-trends",
+    "comparable": true,
+    "basis": "Average of 30 weekly medians, Jan\u2013Jul 2026"
+   }
+  ]
+ },
+ "weekly": [
+  {
+   "week": "2026-08-03",
+   "H100": 3.38,
+   "H100_providers": 40,
+   "H200": 4.29,
+   "H200_providers": 27
+  },
+  {
+   "week": "2026-08-10",
+   "H100": 3.37,
+   "H100_providers": 39,
+   "H200": 4.47,
+   "H200_providers": 26
+  },
+  {
+   "week": "2026-08-17",
+   "H100": 3.3819,
+   "H100_providers": 41,
+   "H200": 4.48,
+   "H200_providers": 28
+  },
+  {
+   "week": "2026-08-24",
+   "H100": 3.37,
+   "H100_providers": 41,
+   "H200": 4.38,
+   "H200_providers": 30
+  },
+  {
+   "week": "2026-08-31",
+   "H100": 3.32,
+   "H100_providers": 40,
+   "H200": 4.4,
+   "H200_providers": 30
+  },
+  {
+   "week": "2026-09-07",
+   "H100": 3.34,
+   "H100_providers": 40,
+   "H200": 4.4,
+   "H200_providers": 33
+  },
+  {
+   "week": "2026-09-14",
+   "H100": 3.34,
+   "H100_providers": 39,
+   "H200": 4.4434,
+   "H200_providers": 33
+  },
+  {
+   "week": "2026-09-21",
+   "H100": 3.3788,
+   "H100_providers": 43,
+   "H200": 4.442,
+   "H200_providers": 35
+  },
+  {
+   "week": "2026-09-28",
+   "H100": 3.4247,
+   "H100_providers": 40,
+   "H200": 4.4925,
+   "H200_providers": 36
+  }
+ ],
+ "latest_week": "2026-09-28",
+ "crosscheck": {
+  "H100": [
+   {
+    "date": "2026-09-23",
+    "price": 2.61
+   },
+   {
+    "date": "2026-09-24",
+    "price": 2.61
+   },
+   {
+    "date": "2026-09-25",
+    "price": 2.64
+   },
+   {
+    "date": "2026-09-26",
+    "price": 2.72
+   },
+   {
+    "date": "2026-09-27",
+    "price": 2.7
+   },
+   {
+    "date": "2026-09-28",
+    "price": 2.72
+   },
+   {
+    "date": "2026-09-29",
+    "price": 2.73
+   }
+  ],
+  "H200": [
+   {
+    "date": "2026-09-23",
+    "price": 3.31
+   },
+   {
+    "date": "2026-09-24",
+    "price": 3.3
+   },
+   {
+    "date": "2026-09-25",
+    "price": 3.31
+   },
+   {
+    "date": "2026-09-26",
+    "price": 3.34
+   },
+   {
+    "date": "2026-09-27",
+    "price": 3.33
+   },
+   {
+    "date": "2026-09-28",
+    "price": 3.34
+   },
+   {
+    "date": "2026-09-29",
+    "price": 3.29
+   }
+  ]
+ },
+ "health": {
+  "last_run": "2026-09-30T03:59:17Z",
+  "primary": "getdeploying weekly.json",
+  "crosscheck": "ok",
+  "problems": [],
+  "warnings": [],
+  "last_alert_date": null
+ }
+}

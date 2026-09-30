@@ -44,6 +44,8 @@ btc_volume_crossings_state.json ← last-seen BTC 24h volume for threshold-cross
 fx_crossings.py             ← Hourly USD/JPY threshold-crossing Slack alerts (159/160/…/165) — data from Hyperliquid xyz:JPY (24/7)
 market_alerts.py            ← Hourly Oil + Nasdaq threshold-move Slack alerts. Oil = Hyperliquid xyz:BRENTOIL (24/7 Brent); Nasdaq = Yahoo ^NDX
 detect_events.py            ← Slack alerts for divergence events
+gpu_prices.py               ← WEEKLY H100/H200 rental $/GPU-hr → gpu_prices.json (update-gpu-prices.yml, Tue 06:23 UTC + Wed/Fri backups). Primary: GetDeploying dataset ON_DEMAND provider_median_price (CC BY 4.0; = their published index). Fallbacks: per-chip CSV, trends-page embedded index. Cross-check: Silicon Data neo-cloud index. Validates, never deletes weeks, Slack warning on failure, never exits non-zero
+gpu_prices.json             ← {yearly:{H100,H200:[{year,price,basis,source,url,comparable}]}, weekly:[{week,H100,H100_providers,H200,H200_providers}] from 2026-08-03, latest_week, crosscheck, health}
 market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert bots
 .github/workflows/update-data.yml ← runs data + alert scripts at :17 and :47 every hour (NOT :00 — GitHub delayed those 2-6h), commits + pushes
 .github/workflows/update-etf-flows.yml / update-funding.yml / update-ai-watchlist.yml ← daily/weekly jobs, all on off-peak minutes
@@ -65,6 +67,7 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="funding">Funding Rates</button>
 <button class="tab-btn" data-tab="crash">Crash Alert</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
+<button class="tab-btn" data-tab="gpu">GPU Prices</button>   ← initGpuPrices(): yearly points (2022 → Jan–Jul 2026) then weekly from Aug 2026
 <button class="tab-btn" data-tab="status" style="margin-left:auto;...">Status</button>   ← initStatus(): freshness of every JSON + live API pings (STATUS_FEATURES / STATUS_LIVE)
 <button class="tab-btn" data-tab="docs" style="margin-left:auto;...">Documentation</button>
 ```
