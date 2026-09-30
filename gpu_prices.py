@@ -15,6 +15,9 @@ Safety: validates every value (price bounds, provider count, Monday dates,
 freshness, week-on-week jump), never deletes stored weeks, never exits
 non-zero (no GitHub email spam), and posts ONE Slack warning per day when a
 source fails or goes stale so a broken feed is never silent.
+
+Price-drop alert: when a new week arrives and H100 and/or H200 is below the
+previous week, one Slack message per week (retried next run if Slack fails).
 """
 
 import json
@@ -173,12 +176,51 @@ def yearly_points(history):
 def send_slack(text):
     hook = os.environ.get("SLACK_WEBHOOK_URL")
     if not hook:
-        print("  (no SLACK_WEBHOOK_URL) would warn:", text)
-        return
+        print("  (no SLACK_WEBHOOK_URL) would send:", text)
+        return False
     try:
-        requests.post(hook, json={"text": text}, timeout=10)
+        return requests.post(hook, json={"text": text}, timeout=10).ok
     except Exception as e:  # noqa: BLE001
-        print(f"  Slack warning failed: {e}")
+        print(f"  Slack send failed: {e}")
+        return False
+
+
+def crosscheck_move(points):
+    """Silicon Data % change over the last ~7 days of stored readings, or None."""
+    if len(points) < 2:
+        return None
+    last = points[-1]
+    cutoff = (date.fromisoformat(last["date"]) - timedelta(days=7)).isoformat()
+    base = [p for p in points if p["date"] <= cutoff] or points[:1]
+    b = base[-1]
+    if b["date"] == last["date"]:
+        return None
+    return (last["price"] - b["price"]) / b["price"] * 100, b["date"], last["date"]
+
+
+def price_drop_message(rows, new_weeks, cross):
+    """Slack text if any chip's price in a newly arrived week is below the prior week."""
+    by_week = {r["week"]: r for r in rows}
+    weeks = sorted(by_week)
+    lines = []
+    for wk in new_weeks:
+        i = weeks.index(wk)
+        if i == 0:
+            continue
+        prev = by_week[weeks[i - 1]]
+        cur = by_week[wk]
+        for chip in CHIPS:
+            a, b = prev.get(chip), cur.get(chip)
+            if a and b and b < a:
+                sd = crosscheck_move(cross.get(chip, []))
+                sd_txt = (f" · Silicon Data {sd[0]:+.1f}% ({sd[1]} → {sd[2]})" if sd else "")
+                lines.append(
+                    f":arrow_down: *{chip}* ${b:.2f}/GPU-hr, down {(a - b) / a * 100:.1f}% from ${a:.2f} "
+                    f"(week of {weeks[i - 1]} → {wk}, median of {cur.get(chip + '_providers')} providers){sd_txt}")
+    if not lines:
+        return None
+    return ("*GPU rental price fell week on week*\n" + "\n".join(lines) +
+            "\n_Source: GetDeploying market median of on-demand prices across cloud providers._")
 
 
 def main():
@@ -186,6 +228,7 @@ def main():
     print(f"=== GPU prices — {now:%Y-%m-%d %H:%M} UTC ===")
     data = json.loads(DATA_FILE.read_text()) if DATA_FILE.exists() else {}
     weekly = {w["week"]: w for w in data.get("weekly", [])}
+    weekly_before = json.dumps(weekly, sort_keys=True)
     warnings, problems = [], []
 
     # ── primary weekly series ──
@@ -247,8 +290,30 @@ def main():
         cross_ok = False
         warnings.append(f"Silicon Data cross-check failed: {e}")
 
+    # data_updated = when the weekly numbers last actually changed (shown on the chart)
+    stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    changed = json.dumps(weekly, sort_keys=True) != weekly_before
+    data_updated = stamp if changed else data.get("data_updated", data.get("last_updated", stamp))
+
+    # ── price-drop alert: once per newly arrived week ──
+    rows = [weekly[w] for w in sorted(weekly)]
+    latest = max(weekly) if weekly else None
+    drop_state = data.get("drop_alert")
+    if drop_state is None:  # first run with this feature: baseline only, no alert
+        drop_state = {"last_checked_week": latest}
+    new_weeks = [w for w in sorted(weekly) if drop_state.get("last_checked_week") and w > drop_state["last_checked_week"]]
+    if new_weeks:
+        msg = price_drop_message(rows, new_weeks, cross)
+        if msg is None or send_slack(msg):
+            drop_state = {"last_checked_week": new_weeks[-1], "last_alert": stamp if msg else drop_state.get("last_alert")}
+            print("  price-drop alert:", "sent" if msg else "no drop this week")
+        else:
+            print("  price-drop alert not delivered — will retry next run")
+
     out = {
-        "last_updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_updated": stamp,
+        "data_updated": data_updated,
+        "drop_alert": drop_state,
         "unit": "USD per GPU-hour, on-demand cloud rental",
         "primary_source": {
             "name": "GetDeploying GPU Rental Price Index (CC BY 4.0)",

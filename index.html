@@ -1022,12 +1022,15 @@ FIRE alert if ALL conditions met:
     <div id="gpuCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:20px;"></div>
 
     <div class="card">
-        <div class="card-title">H100 vs H200 rental price</div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
+            <span>H100 vs H200 rental price</span>
+            <span id="gpuUpdatedSgt" style="font-size:13px;font-weight:500;color:#94a3b8;"></span>
+        </div>
         <div class="chart-wrapper" style="height:440px;"><canvas id="gpuChart"></canvas></div>
         <div style="font-size:12.5px;color:#94a3b8;margin-top:12px;line-height:1.6;">
             <strong>Source &amp; time frame:</strong> weekly points (from 3 Aug 2026) are the
             <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying GPU Rental Price Index</a>
-            — the median of each provider's cheapest on-demand price, across 26–43 cloud providers, weeks starting Monday, collected every Tuesday.
+            — the median of each provider's cheapest on-demand price, across 26–43 cloud providers (hyperscalers such as AWS, Azure, Google and Oracle, specialist clouds such as CoreWeave, Lambda and Nebius, and marketplaces such as Vast.ai and RunPod), weeks starting Monday, collected every Tuesday. The median stops any single very cheap or very expensive provider from skewing the figure; long-term contract deals are not included.
             Yearly points: <strong>◆</strong> = average of the same index; <strong>◇</strong> = earlier-year figure from
             <a href="https://www.silicondata.com/blog/h100-rental-price-over-time" target="_blank" rel="noopener" style="color:#3b82f6;">Silicon Data</a>
             using a different segment (hover for details). Dashed lines join points of different frequency. Click a legend item to show the Silicon Data cross-check.
@@ -1462,7 +1465,8 @@ if dropPct ≥ threshold AND not in cooldown:
     <!-- GPU PRICES -->
     <div class="card doc-section" id="doc-gpu">
         <h2>GPU Prices (H100 / H200)</h2>
-        <p>Cloud <strong>rental</strong> price of NVIDIA H100 and H200 GPUs in USD per GPU-hour, on-demand. Rental is used because it is the only chip price published weekly by independent trackers; purchase prices are private dealer quotes.</p>
+        <p>Cloud <strong>rental</strong> price of NVIDIA H100 and H200 GPUs in USD per GPU-hour, on-demand. Rental is used because it is the only chip price published weekly by independent trackers; purchase prices are private dealer quotes with no public weekly history.</p>
+        <p><strong>Is it the whole market?</strong> The median covers ~40 providers per week out of 50–56 tracked per chip, including every hyperscaler (AWS, Azure, Google, Oracle), the main specialist clouds (CoreWeave, Lambda, Nebius, Crusoe, Together) and marketplaces (Vast.ai, RunPod). Each provider counts once (its cheapest on-demand price), so no single outlier moves it. Not included: long-term reserved contracts, which are usually cheaper.</p>
         <h3>Data</h3>
         <ul>
             <li><strong>Weekly (from 3 Aug 2026):</strong> <a href="https://getdeploying.com/dataset/gpu-prices" target="_blank" rel="noopener" style="color:#3b82f6;">GetDeploying GPU Rental Price Index</a> (CC BY 4.0) — median of each provider's cheapest on-demand price, 26–43 providers, weeks starting Monday. Column <code>provider_median_price</code>, <code>billing_type = ON_DEMAND</code>; matches the published index exactly.</li>
@@ -1475,6 +1479,8 @@ if dropPct ≥ threshold AND not in cooldown:
             <li>Backup sources: dataset JSON &rarr; per-chip CSV &rarr; index embedded in the public trends page.</li>
             <li>Every value is checked: price $0.50–$30, at least 10 providers, Monday week labels, latest week no older than 16 days, week-on-week move under 35%. Bad values are skipped; stored weeks are never deleted.</li>
             <li>If a source fails or goes stale, a Slack warning is sent (max once per day) and a red banner appears on the tab. The script never fails the workflow, so no email spam.</li>
+            <li><strong>Price-drop alert:</strong> when a new week arrives and H100 and/or H200 is lower than the previous week, one Slack message is sent to <code>SLACK_WEBHOOK_URL</code> with the new price, the % drop, provider count and the Silicon Data 7-day move for comparison. Each week is alerted once (tracked in <code>drop_alert.last_checked_week</code>); if Slack is unreachable it retries next run.</li>
+            <li>The chart header shows when the weekly numbers last changed, in Singapore time (<code>data_updated</code>).</li>
         </ul>
     </div>
 
@@ -4222,7 +4228,9 @@ async function initGpuPrices(){
     document.getElementById('gpuWeekTable').innerHTML=`<tr><th ${th}>Week starting</th><th ${thr}>H100 $/GPU-hr</th><th ${thr}>H100 providers</th><th ${thr}>H200 $/GPU-hr</th><th ${thr}>H200 providers</th></tr>`+
         [...d.weekly].reverse().map(w=>`<tr><td ${td}>${gpuEsc(w.week)}</td><td ${tdr}>${w.H100!=null?'$'+w.H100.toFixed(2):'—'}</td><td ${tdr}>${w.H100_providers??'—'}</td><td ${tdr}>${w.H200!=null?'$'+w.H200.toFixed(2):'—'}</td><td ${tdr}>${w.H200_providers??'—'}</td></tr>`).join('');
 
-    document.getElementById('gpuUpdated').textContent=`Last collected ${d.last_updated.replace('T',' ').slice(0,16)} UTC · primary: ${d.health.primary} · cross-check: ${d.health.crosscheck} · next collection every Tuesday.`;
+    const sgt=new Date(d.data_updated||d.last_updated).toLocaleString('en-SG',{timeZone:'Asia/Singapore',weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+    document.getElementById('gpuUpdatedSgt').textContent=`Updated ${sgt} SGT · week of ${gpuWeekLabel(last.week)}`;
+    document.getElementById('gpuUpdated').textContent=`Last collected ${d.last_updated.replace('T',' ').slice(0,16)} UTC · primary: ${d.health.primary} · cross-check: ${d.health.crosscheck} · new weekly data checked every Tuesday ~2:23 pm SGT (backups Wed & Fri). Slack alert when a new week is lower than the week before.`;
 }
 
 // ──────────────────────────────────────────────

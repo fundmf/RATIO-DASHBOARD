@@ -1,5 +1,9 @@
 {
- "last_updated": "2026-09-30T03:59:17Z",
+ "last_updated": "2026-09-30T09:59:03Z",
+ "data_updated": "2026-09-30T03:59:17Z",
+ "drop_alert": {
+  "last_checked_week": "2026-09-28"
+ },
  "unit": "USD per GPU-hour, on-demand cloud rental",
  "primary_source": {
   "name": "GetDeploying GPU Rental Price Index (CC BY 4.0)",
@@ -213,7 +217,7 @@
   ]
  },
  "health": {
-  "last_run": "2026-09-30T03:59:17Z",
+  "last_run": "2026-09-30T09:59:03Z",
   "primary": "getdeploying weekly.json",
   "crosscheck": "ok",
   "problems": [],
