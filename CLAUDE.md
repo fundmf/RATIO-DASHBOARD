@@ -64,10 +64,10 @@ market_alerts.py / forex_calendar_alert.py / custom_alerts.py  ← Slack alert b
 <button class="tab-btn" data-tab="fart2">FARTCOIN Analysis V2</button>
 <button class="tab-btn" data-tab="fartmin">FARTCOIN Minute Analysis</button>
 <button class="tab-btn" data-tab="ai">AI Affected Stock Watchlist</button>
+<button class="tab-btn" data-tab="gpu">GPU Prices</button>   ← initGpuPrices(): yearly points (2022 → Jan–Jul 2026) then weekly from Aug 2026
 <button class="tab-btn" data-tab="funding">Funding Rates</button>
 <button class="tab-btn" data-tab="crash">Crash Alert</button>
 <button class="tab-btn" data-tab="alerts">Custom Alerts</button>
-<button class="tab-btn" data-tab="gpu">GPU Prices</button>   ← initGpuPrices(): yearly points (2022 → Jan–Jul 2026) then weekly from Aug 2026
 <button class="tab-btn" data-tab="status" style="margin-left:auto;...">Status</button>   ← initStatus(): freshness of every JSON + live API pings (STATUS_FEATURES / STATUS_LIVE)
 <button class="tab-btn" data-tab="docs" style="margin-left:auto;...">Documentation</button>
 ```
