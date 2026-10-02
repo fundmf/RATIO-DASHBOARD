@@ -1,6 +1,6 @@
 {
- "last_updated": "2026-09-30T12:47:48Z",
- "data_updated": "2026-09-30T12:47:48Z",
+ "last_updated": "2026-10-02T12:47:19Z",
+ "data_updated": "2026-10-02T12:47:19Z",
  "drop_alert": {
   "last_checked_week": "2026-09-28"
  },
@@ -147,8 +147,8 @@
   },
   {
    "week": "2026-09-28",
-   "H100": 3.3819,
-   "H100_providers": 40,
+   "H100": 3.39,
+   "H100_providers": 41,
    "H200": 4.485,
    "H200_providers": 35
   }
@@ -183,6 +183,14 @@
    {
     "date": "2026-09-29",
     "price": 2.73
+   },
+   {
+    "date": "2026-09-30",
+    "price": 2.75
+   },
+   {
+    "date": "2026-10-01",
+    "price": 2.77
    }
   ],
   "H200": [
@@ -213,16 +221,19 @@
    {
     "date": "2026-09-29",
     "price": 3.29
+   },
+   {
+    "date": "2026-09-30",
+    "price": 3.37
    }
   ]
  },
  "health": {
-  "last_run": "2026-09-30T12:47:48Z",
+  "last_run": "2026-10-02T12:47:19Z",
   "primary": "getdeploying per-chip CSV",
   "crosscheck": "ok",
   "problems": [],
   "warnings": [
-   "H100 2026-09-28: source revised $3.4247 -> $3.3819",
    "Yearly averages not refreshed (trends page failed: 403 Client Error: Forbidden for url: https://getdeploying.com/gpu-price-trends)."
   ],
   "last_alert_date": null
