@@ -1538,7 +1538,7 @@ if dropPct ≥ threshold AND not in cooldown:
         <ul>
             <li>Source: CoinGecko <code>simple/price?include_24hr_vol=true</code> for <code>fartcoin</code></li>
             <li>Compares rolling 24h volume to last-seen value in <code>volume_crossings_state.json</code></li>
-            <li>Fires on every crossing (up or down) of thresholds: <code>50M / 100M / 150M / … / 700M</code></li>
+            <li>Fires on every crossing (up or down) of: <strong>30M–150M every 10M</strong>, <strong>150M–650M every 50M</strong>, and <strong>every 10M above 650M</strong> (no upper limit). Levels are set in <code>thresholds_m()</code></li>
         </ul>
 
         <h3>d) BTC Volume Crossings (<code>btc_volume_crossings.py</code>)</h3>
@@ -1586,7 +1586,7 @@ if dropPct ≥ threshold AND not in cooldown:
             <li><code>detect_events.py</code> — Run divergence detection, alert Slack on new events</li>
             <li><code>forex_calendar_alert.py</code> — Check for upcoming USD high-impact events</li>
             <li><code>market_alerts.py</code> — Check Oil &amp; Nasdaq for threshold moves</li>
-            <li><code>volume_crossings.py</code> — Check FARTCOIN 24h volume threshold crossings (50M steps)</li>
+            <li><code>volume_crossings.py</code> — Check FARTCOIN 24h volume threshold crossings (10M steps 30–150M, 50M steps to 650M, 10M steps above)</li>
             <li><code>btc_volume_crossings.py</code> — Check BTC 24h volume threshold crossings (10B steps ≥30B)</li>
             <li><code>fx_crossings.py</code> — Check USD/JPY threshold crossings (Hyperliquid, 24/7)</li>
             <li><code>custom_alerts.py</code> — Check for due custom team alerts</li>
@@ -4248,7 +4248,7 @@ const STATUS_FEATURES=[
     {file:'ai_watchlist.json',            name:'AI stock watchlist',           tab:'AI Watchlist',     source:'Yahoo Finance (workflow)',       cadence:'Weekly Sat 02:00 UTC',       warnH:192,badH:288,timestampKey:'last_updated'},
     {file:'gpu_prices.json',              name:'H100 / H200 rental prices',    tab:'GPU Prices',       source:'GetDeploying (Silicon Data check)', cadence:'Weekly, Tue 06:23 UTC',   warnH:216,badH:384,timestampKey:'latest_week'},
     {file:'fx_crossings_state.json',      name:'USD/JPY threshold alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid xyz:JPY',            cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
-    {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts',       tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
+    {file:'volume_crossings_state.json',  name:'FARTCOIN volume alerts (30M+)', tab:'Alerts (Slack)',   source:'CoinGecko (workflow)',           cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'btc_volume_crossings_state.json', name:'BTC volume alerts (10B steps ≥30B)', tab:'Alerts (Slack)', source:'CoinGecko (workflow)',      cadence:'Hourly',                     warnH:3,  badH:6,  timestampKey:'last_check_utc'},
     {file:'last_events.json',             name:'Divergence event alerts',      tab:'Alerts (Slack)',   source:'Workflow-generated',             cadence:'Hourly check, on event',     event:true},
     {file:'market_alert_state.json',      name:'Oil / Nasdaq move alerts',     tab:'Alerts (Slack)',   source:'Hyperliquid + Yahoo',            cadence:'Hourly check, on event',     event:true},

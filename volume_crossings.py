@@ -14,7 +14,8 @@ volume_crossings.py — Hourly FARTCOIN volume threshold crossing alerts.
 ║    crossings happened; silent otherwise                                    ║
 ║  - Idempotent: first run just seeds state, no alerts                       ║
 ║                                                                            ║
-║  Adjust thresholds by editing THRESHOLDS_M below.                          ║
+║  Levels: see thresholds_m() — 30-150M every 10M, 150-650M every 50M,       ║
+║  then every 10M above 650M (no upper limit).                               ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -31,7 +32,12 @@ COIN_ID = "fartcoin"
 COIN_LABEL = "FARTCOIN"
 
 # Volume thresholds in millions USD. Edit this list to add/remove/change.
-THRESHOLDS_M = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700]
+def thresholds_m(upper):
+    """Alert levels in USD-millions up to `upper`: 30-150 every 10, 150-650 every 50, then every 10 above 650."""
+    levels = list(range(30, 150, 10)) + list(range(150, 651, 50))
+    top = int(upper) + 10
+    levels += list(range(660, max(top, 660) + 1, 10))
+    return levels
 
 COINGECKO_URL = (
     f"https://api.coingecko.com/api/v3/simple/price"
@@ -120,7 +126,7 @@ def main():
         print("First run — state seeded. No alerts on first run.")
         return
 
-    crossings = find_crossings(prev_m, curr_m, THRESHOLDS_M)
+    crossings = find_crossings(prev_m, curr_m, thresholds_m(max(prev_m, curr_m)))
     if not crossings:
         print("No thresholds crossed since last check.")
         return

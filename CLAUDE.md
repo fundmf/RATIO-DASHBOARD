@@ -38,7 +38,7 @@ backfill_liquidity.py       ← updates liquidity_daily.json + fartcoin_liquidit
 update_ai_watchlist.py      ← weekly Friday-close fetcher for AI watchlist (yfinance)
 funding_rates.py            ← DAILY market-aggregate funding snapshot — polls 8 exchanges, normalises to annualised, averages (Mon-Fri 21:00 UTC via update-funding.yml) + Slack alert if aggregate negative
 etf_flows.py                ← PAUSED (manual-only; card just links to farside.co.uk/btc). BTC ETF scrape (Farside via curl_cffi; Bitbo fallback when Cloudflare blocks GHA) + sign-flip Slack alert (dedicated workflow, 04:13/06:13/10:13/14:13 UTC)
-volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts (50M/100M/…/700M)
+volume_crossings.py         ← Hourly FARTCOIN 24h-volume threshold-crossing Slack alerts: 30–150M every 10M, 150–650M every 50M, every 10M above 650M (thresholds_m())
 btc_volume_crossings.py     ← Hourly BTC 24h-volume threshold-crossing Slack alerts (30B/40B/…/150B, every 10B ≥30B)
 btc_volume_crossings_state.json ← last-seen BTC 24h volume for threshold-crossing Slack alerts
 fx_crossings.py             ← Hourly USD/JPY threshold-crossing Slack alerts (159/160/…/165) — data from Hyperliquid xyz:JPY (24/7)
