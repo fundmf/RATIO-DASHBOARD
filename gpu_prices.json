@@ -1,8 +1,9 @@
 {
- "last_updated": "2026-10-02T12:47:19Z",
- "data_updated": "2026-10-02T12:47:19Z",
+ "last_updated": "2026-10-06T13:26:59Z",
+ "data_updated": "2026-10-06T13:26:59Z",
  "drop_alert": {
-  "last_checked_week": "2026-09-28"
+  "last_checked_week": "2026-10-05",
+  "last_alert": null
  },
  "unit": "USD per GPU-hour, on-demand cloud rental",
  "primary_source": {
@@ -147,13 +148,20 @@
   },
   {
    "week": "2026-09-28",
-   "H100": 3.39,
+   "H100": 3.3819,
    "H100_providers": 41,
-   "H200": 4.485,
+   "H200": 4.5,
    "H200_providers": 35
+  },
+  {
+   "week": "2026-10-05",
+   "H100": 3.473,
+   "H100_providers": 41,
+   "H200": 4.6094,
+   "H200_providers": 33
   }
  ],
- "latest_week": "2026-09-28",
+ "latest_week": "2026-10-05",
  "crosscheck": {
   "H100": [
    {
@@ -191,6 +199,22 @@
    {
     "date": "2026-10-01",
     "price": 2.77
+   },
+   {
+    "date": "2026-10-02",
+    "price": 2.77
+   },
+   {
+    "date": "2026-10-03",
+    "price": 2.78
+   },
+   {
+    "date": "2026-10-04",
+    "price": 2.78
+   },
+   {
+    "date": "2026-10-05",
+    "price": 2.81
    }
   ],
   "H200": [
@@ -225,11 +249,31 @@
    {
     "date": "2026-09-30",
     "price": 3.37
+   },
+   {
+    "date": "2026-10-01",
+    "price": 3.42
+   },
+   {
+    "date": "2026-10-02",
+    "price": 3.4
+   },
+   {
+    "date": "2026-10-03",
+    "price": 3.35
+   },
+   {
+    "date": "2026-10-04",
+    "price": 3.33
+   },
+   {
+    "date": "2026-10-05",
+    "price": 3.25
    }
   ]
  },
  "health": {
-  "last_run": "2026-10-02T12:47:19Z",
+  "last_run": "2026-10-06T13:26:59Z",
   "primary": "getdeploying per-chip CSV",
   "crosscheck": "ok",
   "problems": [],
