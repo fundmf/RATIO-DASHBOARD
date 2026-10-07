@@ -1,6 +1,6 @@
 {
- "last_updated": "2026-10-06T13:26:59Z",
- "data_updated": "2026-10-06T13:26:59Z",
+ "last_updated": "2026-10-07T13:37:38Z",
+ "data_updated": "2026-10-07T13:37:38Z",
  "drop_alert": {
   "last_checked_week": "2026-10-05",
   "last_alert": null
@@ -155,10 +155,10 @@
   },
   {
    "week": "2026-10-05",
-   "H100": 3.473,
+   "H100": 3.49,
    "H100_providers": 41,
-   "H200": 4.6094,
-   "H200_providers": 33
+   "H200": 4.59,
+   "H200_providers": 34
   }
  ],
  "latest_week": "2026-10-05",
@@ -215,6 +215,10 @@
    {
     "date": "2026-10-05",
     "price": 2.81
+   },
+   {
+    "date": "2026-10-06",
+    "price": 2.82
    }
   ],
   "H200": [
@@ -269,11 +273,15 @@
    {
     "date": "2026-10-05",
     "price": 3.25
+   },
+   {
+    "date": "2026-10-06",
+    "price": 3.29
    }
   ]
  },
  "health": {
-  "last_run": "2026-10-06T13:26:59Z",
+  "last_run": "2026-10-07T13:37:38Z",
   "primary": "getdeploying per-chip CSV",
   "crosscheck": "ok",
   "problems": [],
