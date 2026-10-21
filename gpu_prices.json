@@ -1,6 +1,6 @@
 {
- "last_updated": "2026-10-20T11:52:26Z",
- "data_updated": "2026-10-20T11:52:26Z",
+ "last_updated": "2026-10-21T12:03:34Z",
+ "data_updated": "2026-10-21T12:03:34Z",
  "drop_alert": {
   "last_checked_week": "2026-10-19",
   "last_alert": "2026-10-13T14:24:56Z"
@@ -169,10 +169,10 @@
   },
   {
    "week": "2026-10-19",
-   "H100": 3.65,
+   "H100": 3.7019,
    "H100_providers": 40,
-   "H200": 5.0725,
-   "H200_providers": 34
+   "H200": 5.0,
+   "H200_providers": 32
   }
  ],
  "latest_week": "2026-10-19",
@@ -475,14 +475,16 @@
   ]
  },
  "health": {
-  "last_run": "2026-10-20T11:52:26Z",
+  "last_run": "2026-10-21T12:03:34Z",
   "primary": "getdeploying per-chip CSV",
-  "crosscheck": "ok",
+  "crosscheck": "failed",
   "problems": [],
   "warnings": [
-   "H200 2026-10-12: source revised $4.725 -> $4.875",
-   "Yearly averages not refreshed (trends page failed: 403 Client Error: Forbidden for url: https://getdeploying.com/gpu-price-trends)."
+   "H100 2026-10-19: source revised $3.65 -> $3.7019",
+   "H200 2026-10-19: source revised $5.0725 -> $5.0",
+   "Yearly averages not refreshed (trends page failed: 403 Client Error: Forbidden for url: https://getdeploying.com/gpu-price-trends).",
+   "Silicon Data cross-check failed: Silicon Data card h200-neo not found"
   ],
-  "last_alert_date": null
+  "last_alert_date": "2026-10-21"
  }
 }
