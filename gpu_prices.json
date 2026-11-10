@@ -1,9 +1,9 @@
 {
- "last_updated": "2026-11-06T14:23:55Z",
- "data_updated": "2026-11-06T14:23:55Z",
+ "last_updated": "2026-11-10T15:03:39Z",
+ "data_updated": "2026-11-10T15:03:39Z",
  "drop_alert": {
-  "last_checked_week": "2026-11-02",
-  "last_alert": "2026-10-27T12:28:44Z"
+  "last_checked_week": "2026-11-09",
+  "last_alert": "2026-11-10T15:03:39Z"
  },
  "unit": "USD per GPU-hour, on-demand cloud rental",
  "primary_source": {
@@ -183,13 +183,20 @@
   },
   {
    "week": "2026-11-02",
-   "H100": 3.925,
-   "H100_providers": 46,
-   "H200": 4.9375,
+   "H100": 3.935,
+   "H100_providers": 45,
+   "H200": 5.0,
    "H200_providers": 38
+  },
+  {
+   "week": "2026-11-09",
+   "H100": 3.86,
+   "H100_providers": 43,
+   "H200": 4.9238,
+   "H200_providers": 36
   }
  ],
- "latest_week": "2026-11-02",
+ "latest_week": "2026-11-09",
  "crosscheck": {
   "H100": [
    {
@@ -407,6 +414,18 @@
    {
     "date": "2026-11-06",
     "price": 2.99
+   },
+   {
+    "date": "2026-11-07",
+    "price": 3.04
+   },
+   {
+    "date": "2026-11-08",
+    "price": 3.0
+   },
+   {
+    "date": "2026-11-09",
+    "price": 3.01
    }
   ],
   "H200": [
@@ -625,17 +644,32 @@
    {
     "date": "2026-11-05",
     "price": 3.51
+   },
+   {
+    "date": "2026-11-06",
+    "price": 3.52
+   },
+   {
+    "date": "2026-11-07",
+    "price": 3.53
+   },
+   {
+    "date": "2026-11-08",
+    "price": 3.55
+   },
+   {
+    "date": "2026-11-09",
+    "price": 3.48
    }
   ]
  },
  "health": {
-  "last_run": "2026-11-06T14:23:55Z",
+  "last_run": "2026-11-10T15:03:39Z",
   "primary": "getdeploying weekly.json",
   "crosscheck": "ok",
   "problems": [],
   "warnings": [
-   "H100 2026-11-02: source revised $3.805 -> $3.925",
-   "H200 2026-11-02: source revised $5.13 -> $4.9375"
+   "H200 2026-11-02: source revised $4.9375 -> $5.0"
   ],
   "last_alert_date": "2026-10-21"
  }
