@@ -1,6 +1,7 @@
 {
   "alerted": {
-    "xyz:BRENTOIL:2026-11-18": 3.02
+    "xyz:BRENTOIL:2026-11-18": 3.02,
+    "^NDX:2026-11-19": 4.03
   },
-  "last_scan_ts": 1795093168
+  "last_scan_ts": 1795122042
 }
