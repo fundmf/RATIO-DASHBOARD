@@ -1,4 +1,6 @@
 {
-  "alerted": {},
-  "last_scan_ts": 1795602564
+  "alerted": {
+    "^NDX:2026-11-25": 3.88
+  },
+  "last_scan_ts": 1795636571
 }
