@@ -1,6 +1,6 @@
 {
- "last_updated": "2026-11-25T17:26:08Z",
- "data_updated": "2026-11-25T17:26:08Z",
+ "last_updated": "2026-11-27T16:47:34Z",
+ "data_updated": "2026-11-27T16:47:34Z",
  "drop_alert": {
   "last_checked_week": "2026-11-23",
   "last_alert": "2026-11-24T17:58:27Z"
@@ -204,9 +204,9 @@
   },
   {
    "week": "2026-11-23",
-   "H100": 4.1188,
-   "H100_providers": 44,
-   "H200": 4.84,
+   "H100": 3.95,
+   "H100_providers": 46,
+   "H200": 4.875,
    "H200_providers": 38
   }
  ],
@@ -500,6 +500,14 @@
    {
     "date": "2026-11-24",
     "price": 3.1
+   },
+   {
+    "date": "2026-11-25",
+    "price": 3.08
+   },
+   {
+    "date": "2026-11-26",
+    "price": 3.07
    }
   ],
   "H200": [
@@ -794,16 +802,24 @@
    {
     "date": "2026-11-24",
     "price": 3.56
+   },
+   {
+    "date": "2026-11-25",
+    "price": 3.66
+   },
+   {
+    "date": "2026-11-26",
+    "price": 3.71
    }
   ]
  },
  "health": {
-  "last_run": "2026-11-25T17:26:08Z",
+  "last_run": "2026-11-27T16:47:34Z",
   "primary": "getdeploying weekly.json",
   "crosscheck": "ok",
   "problems": [],
   "warnings": [
-   "H200 2026-11-23: source revised $4.7175 -> $4.84"
+   "H100 2026-11-23: source revised $4.1188 -> $3.95"
   ],
   "last_alert_date": "2026-10-21"
  }
